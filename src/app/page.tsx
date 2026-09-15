@@ -269,7 +269,7 @@ export default async function Home() {
               <Button
                 variant="outline"
                 size="lg"
-                className="rounded-full px-9 py-4 text-sm border-[#F5EBDD]/40 text-[#F5EBDD] hover:bg-[#F5EBDD]/15 hover:border-[#F5EBDD]/60 backdrop-blur-sm"
+                className="rounded-full px-9 py-4 text-sm font-bold bg-[#F5EBDD] text-[#29251F] hover:bg-white hover:text-[#C26B59] border border-[#E0CFBB] shadow-[0_4px_20px_rgba(0,0,0,0.12)] transition-all duration-300 active:scale-95"
               >
                 View Menu
               </Button>
