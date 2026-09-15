@@ -1,0 +1,6 @@
+<svg xmlns="http://www.w3.org/2000/svg" viewBox="0 0 32 13" width="32" height="13">
+  <!-- Olive scallop awning extending navbar body -->
+  <path d="M 0,0 L 32,0 C 32,7.5 24,12 16,12 C 8,12 0,7.5 0,0 Z" fill="#91885D" />
+  <!-- Delicate rim stroke -->
+  <path d="M 0,0 C 0,7.5 8,12 16,12 C 24,12 32,7.5 32,0" fill="none" stroke="#78704A" stroke-width="0.75" />
+</svg>
