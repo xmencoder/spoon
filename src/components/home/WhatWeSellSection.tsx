@@ -2,7 +2,7 @@
 
 import React, { useState, useEffect, useRef, useCallback } from "react";
 import Image from "next/image";
-import { ArrowRight, Sparkles, ChevronLeft, ChevronRight } from "lucide-react";
+import { ArrowRight, Sparkles } from "lucide-react";
 
 interface CategoryArchCard {
   id: string;
@@ -206,24 +206,29 @@ function CardCategoryIcon({ type, isLight }: { type: string; isLight: boolean })
 function CurvedArchText({ text, isLight }: { text: string; isLight: boolean }) {
   const textColor = isLight ? "#F6EFE6" : "#4A3F33";
 
+  // Dynamic font sizing & letter spacing so phrases of any length never clip
+  const len = text.length;
+  const fontSize = len > 24 ? "7.2" : len > 18 ? "7.8" : "8.5";
+  const letterSpacing = len > 24 ? "0.08em" : len > 18 ? "0.1em" : "0.14em";
+
   return (
-    <div className="w-full h-8 flex items-center justify-center -mb-1 px-1">
+    <div className="w-full h-8 flex items-center justify-center -mb-1 px-2">
       <svg
-        viewBox="0 0 140 28"
+        viewBox="0 0 160 30"
         className="w-full h-full overflow-visible"
         aria-hidden="true"
       >
         <path
           id={`curve-${text.replace(/\s+/g, "-")}`}
-          d="M 8 24 Q 70 3 132 24"
+          d="M 6 25 Q 80 1 154 25"
           fill="transparent"
         />
         <text
           fill={textColor}
-          fontSize="8.5"
+          fontSize={fontSize}
           fontWeight="700"
-          letterSpacing="0.12em"
-          className="uppercase tracking-widest font-sans"
+          letterSpacing={letterSpacing}
+          className="uppercase tracking-wider font-sans select-none"
         >
           <textPath
             href={`#curve-${text.replace(/\s+/g, "-")}`}
@@ -243,6 +248,7 @@ export function WhatWeSellSection() {
   const [activeIndex, setActiveIndex] = useState(0);
   const [isUserInteracting, setIsUserInteracting] = useState(false);
   const interactionTimeoutRef = useRef<NodeJS.Timeout | null>(null);
+  const rafRef = useRef<number | null>(null);
 
   // Smooth scroll carousel to a specific index
   const scrollToIndex = useCallback((index: number) => {
@@ -264,57 +270,70 @@ export function WhatWeSellSection() {
     }
   }, []);
 
-  // Next / Prev handlers
-  const handlePrev = useCallback(() => {
-    const nextIdx =
-      activeIndex > 0 ? activeIndex - 1 : CATEGORY_ARCH_CARDS.length - 1;
-    scrollToIndex(nextIdx);
-  }, [activeIndex, scrollToIndex]);
+  // Update active index based on scroll position in real-time
+  const handleScroll = useCallback(() => {
+    if (!carouselRef.current) return;
+    if (rafRef.current) cancelAnimationFrame(rafRef.current);
 
-  const handleNext = useCallback(() => {
-    const nextIdx =
-      activeIndex < CATEGORY_ARCH_CARDS.length - 1 ? activeIndex + 1 : 0;
-    scrollToIndex(nextIdx);
-  }, [activeIndex, scrollToIndex]);
+    rafRef.current = requestAnimationFrame(() => {
+      if (!carouselRef.current) return;
+      const container = carouselRef.current;
+      const cards = container.querySelectorAll<HTMLElement>("[data-card-index]");
+      const containerCenter = container.scrollLeft + container.offsetWidth / 2;
 
-  // Auto-slide on mobile view (every 3.5 seconds)
-  useEffect(() => {
-    if (isUserInteracting) return;
+      let closestIndex = 0;
+      let minDistance = Infinity;
 
-    const timer = setInterval(() => {
-      // Only auto-slide if on mobile/small screen where carousel is scrollable
-      if (carouselRef.current) {
-        const isScrollable =
-          carouselRef.current.scrollWidth > carouselRef.current.clientWidth;
-        if (isScrollable) {
-          setActiveIndex((prev) => {
-            const next = prev < CATEGORY_ARCH_CARDS.length - 1 ? prev + 1 : 0;
-            scrollToIndex(next);
-            return next;
-          });
+      cards.forEach((card, idx) => {
+        const cardCenter = card.offsetLeft + card.offsetWidth / 2;
+        const dist = Math.abs(containerCenter - cardCenter);
+        if (dist < minDistance) {
+          minDistance = dist;
+          closestIndex = idx;
         }
-      }
-    }, 3500);
+      });
 
-    return () => clearInterval(timer);
-  }, [isUserInteracting, scrollToIndex]);
+      setActiveIndex(closestIndex);
+    });
+  }, []);
 
-  // Pause auto-slide temporarily when user touches or scrolls
-  const handleTouchStart = () => {
+  // Pause auto-slide temporarily when user interacts
+  const handleUserTouchStart = useCallback(() => {
     setIsUserInteracting(true);
     if (interactionTimeoutRef.current) {
       clearTimeout(interactionTimeoutRef.current);
     }
-  };
+  }, []);
 
-  const handleTouchEnd = () => {
+  const handleUserTouchEnd = useCallback(() => {
     if (interactionTimeoutRef.current) {
       clearTimeout(interactionTimeoutRef.current);
     }
     interactionTimeoutRef.current = setTimeout(() => {
       setIsUserInteracting(false);
-    }, 5000);
-  };
+    }, 4500);
+  }, []);
+
+  // Auto-slide on mobile view (every 4 seconds for a calm, luxurious pace)
+  useEffect(() => {
+    if (isUserInteracting) return;
+
+    const timer = setInterval(() => {
+      if (carouselRef.current) {
+        const isScrollable =
+          carouselRef.current.scrollWidth > carouselRef.current.clientWidth;
+        if (isScrollable) {
+          setActiveIndex((prev) => {
+            const next = (prev + 1) % CATEGORY_ARCH_CARDS.length;
+            scrollToIndex(next);
+            return next;
+          });
+        }
+      }
+    }, 4000);
+
+    return () => clearInterval(timer);
+  }, [isUserInteracting, scrollToIndex]);
 
   // When user clicks a category: Select that category in MenuSection and scroll to #menu!
   const handleCategoryClick = (categorySlug: string) => {
@@ -422,34 +441,19 @@ export function WhatWeSellSection() {
         </div>
 
         {/* ═══════════════════════════════════════════════════════ */}
-        {/* ── 7 ARCHED CARDS: AUTO-SLIDE ON MOBILE, GRID DESKTOP ─ */}
+        {/* ── 7 ARCHED CARDS: SILKY SMOOTH ON MOBILE, GRID ON DESKTOP */}
         {/* ═══════════════════════════════════════════════════════ */}
-        <div className="relative group/carousel">
-          {/* Mobile Navigation Arrows */}
-          <button
-            onClick={handlePrev}
-            className="lg:hidden absolute left-1 top-1/2 -translate-y-1/2 z-30 w-9 h-9 rounded-full bg-[#FAF5ED]/95 border border-[#D5C6B1] shadow-md flex items-center justify-center text-[#554D3D] active:scale-90 transition-all cursor-pointer"
-            aria-label="Previous category"
-          >
-            <ChevronLeft className="w-4 h-4" />
-          </button>
-
-          <button
-            onClick={handleNext}
-            className="lg:hidden absolute right-1 top-1/2 -translate-y-1/2 z-30 w-9 h-9 rounded-full bg-[#FAF5ED]/95 border border-[#D5C6B1] shadow-md flex items-center justify-center text-[#554D3D] active:scale-90 transition-all cursor-pointer"
-            aria-label="Next category"
-          >
-            <ChevronRight className="w-4 h-4" />
-          </button>
-
-          {/* Cards Container: Larger & nicer on mobile (w-[270px]), auto-sliding & swipeable */}
+        <div className="relative">
+          {/* Cards Container: Smooth swipe & peek cards with active elevation */}
           <div
             ref={carouselRef}
-            onTouchStart={handleTouchStart}
-            onTouchEnd={handleTouchEnd}
-            onMouseEnter={handleTouchStart}
-            onMouseLeave={handleTouchEnd}
-            className="flex lg:grid lg:grid-cols-7 gap-4 sm:gap-5 lg:gap-3.5 overflow-x-auto lg:overflow-visible scrollbar-none snap-x snap-mandatory py-4 px-2 sm:px-4 lg:px-0 scroll-smooth"
+            onScroll={handleScroll}
+            onTouchStart={handleUserTouchStart}
+            onTouchEnd={handleUserTouchEnd}
+            onMouseEnter={handleUserTouchStart}
+            onMouseLeave={handleUserTouchEnd}
+            className="flex lg:grid lg:grid-cols-7 gap-4 sm:gap-5 lg:gap-3.5 overflow-x-auto lg:overflow-visible scrollbar-none snap-x snap-mandatory py-4 px-6 sm:px-8 lg:px-0 scroll-smooth"
+            style={{ WebkitOverflowScrolling: "touch" }}
           >
             {CATEGORY_ARCH_CARDS.map((card, idx) => {
               const isOlive = card.theme === "olive";
@@ -457,23 +461,24 @@ export function WhatWeSellSection() {
               const isCream = card.theme === "cream";
               const isTerracotta = card.theme === "terracotta";
               const isLightText = isOlive || isTerracotta;
+              const isActiveOnMobile = activeIndex === idx;
 
               let titleColor = "text-[#F6EFE6]";
               let descColor = "text-[#EDE3D4]/90";
-              let buttonBg = "bg-[#F6EFE6] text-[#29251F] hover:bg-white";
+              let pillBg = "bg-[#F6EFE6] text-[#29251F] hover:bg-white";
 
               if (isRose) {
                 titleColor = "text-[#29251F]";
                 descColor = "text-[#4A3E31]";
-                buttonBg = "bg-[#A75949] text-[#F6EFE6] hover:bg-[#8F483A]";
+                pillBg = "bg-[#A75949] text-[#F6EFE6] hover:bg-[#8F483A]";
               } else if (isCream) {
                 titleColor = "text-[#29251F]";
                 descColor = "text-[#55493C]";
-                buttonBg = "bg-[#A75949] text-[#F6EFE6] hover:bg-[#8F483A]";
+                pillBg = "bg-[#A75949] text-[#F6EFE6] hover:bg-[#8F483A]";
               } else if (isTerracotta) {
                 titleColor = "text-[#F6EFE6]";
                 descColor = "text-[#F0E6D8]/90";
-                buttonBg = "bg-[#F6EFE6] text-[#29251F] hover:bg-white";
+                pillBg = "bg-[#F6EFE6] text-[#29251F] hover:bg-white";
               }
 
               return (
@@ -481,7 +486,11 @@ export function WhatWeSellSection() {
                   key={card.id}
                   data-card-index={idx}
                   onClick={() => handleCategoryClick(card.categorySlug)}
-                  className="group relative flex-none w-[265px] sm:w-[280px] lg:w-auto snap-center flex flex-col justify-between rounded-t-[84px] lg:rounded-t-[72px] rounded-b-3xl p-4 sm:p-4 lg:p-3 shadow-[0_6px_22px_rgba(41,37,31,0.08)] hover:shadow-[0_12px_32px_rgba(41,37,31,0.15)] transition-all duration-300 hover:-translate-y-1.5 cursor-pointer overflow-hidden border active:scale-[0.98]"
+                  className={`group relative flex-none w-[270px] sm:w-[285px] lg:w-auto snap-center flex flex-col justify-between rounded-t-[84px] lg:rounded-t-[72px] rounded-b-3xl p-4 sm:p-4 lg:p-3 transition-all duration-500 ease-out cursor-pointer overflow-hidden border ${
+                    isActiveOnMobile
+                      ? "scale-100 opacity-100 shadow-[0_12px_32px_rgba(41,37,31,0.16)]"
+                      : "scale-[0.95] opacity-85 lg:scale-100 lg:opacity-100 shadow-[0_4px_16px_rgba(41,37,31,0.06)]"
+                  } hover:shadow-[0_14px_36px_rgba(41,37,31,0.18)] hover:-translate-y-1 active:scale-[0.98]`}
                   style={{
                     backgroundColor:
                       isOlive
@@ -515,7 +524,7 @@ export function WhatWeSellSection() {
                       src={card.image}
                       alt={card.title}
                       fill
-                      sizes="(max-width: 640px) 280px, 16vw"
+                      sizes="(max-width: 640px) 285px, 16vw"
                       className="object-cover transition-transform duration-700 ease-out group-hover:scale-108"
                     />
                     <div className="absolute inset-0 bg-gradient-to-t from-black/25 via-transparent to-transparent opacity-50" />
@@ -549,13 +558,12 @@ export function WhatWeSellSection() {
                       {card.description}
                     </p>
 
-                    {/* Bottom Circle Arrow Button */}
-                    <div className="mt-3.5">
+                    {/* Clean & Elegant Pill Action */}
+                    <div className="mt-3.5 w-full flex justify-center">
                       <span
-                        className={`w-8 h-8 sm:w-9 sm:h-9 lg:w-7 lg:h-7 rounded-full flex items-center justify-center shadow-xs transition-all group-hover:scale-110 ${buttonBg}`}
-                        aria-hidden="true"
+                        className={`inline-flex items-center justify-center px-4 py-1.5 rounded-full text-[11px] sm:text-xs font-semibold tracking-wide shadow-xs transition-all duration-300 group-hover:scale-105 ${pillBg}`}
                       >
-                        <ArrowRight className="w-4 h-4 lg:w-3.5 lg:h-3.5" />
+                        View in Menu
                       </span>
                     </div>
                   </div>
@@ -564,16 +572,16 @@ export function WhatWeSellSection() {
             })}
           </div>
 
-          {/* Mobile Dot Progress Indicators */}
-          <div className="lg:hidden flex items-center justify-center gap-1.5 mt-3">
+          {/* Mobile Dot Progress Indicators - smoothly animated */}
+          <div className="lg:hidden flex items-center justify-center gap-1.5 mt-3.5">
             {CATEGORY_ARCH_CARDS.map((_, i) => (
               <button
                 key={`dot-${i}`}
                 onClick={() => scrollToIndex(i)}
-                className={`h-1.5 rounded-full transition-all duration-300 cursor-pointer ${
+                className={`h-1.5 rounded-full transition-all duration-500 cursor-pointer ${
                   activeIndex === i
-                    ? "w-6 bg-[#B25345]"
-                    : "w-1.5 bg-[#D5C6B1] hover:bg-[#B25345]/50"
+                    ? "w-7 bg-[#B25345]"
+                    : "w-2 bg-[#D5C6B1] hover:bg-[#B25345]/50"
                 }`}
                 aria-label={`Go to slide ${i + 1}`}
               />
