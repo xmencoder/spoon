@@ -356,6 +356,57 @@ export const BAKERY_PRODUCTS: Record<string, BakeryProductDetail> = {
       "biscoff-cheesecake",
     ],
   },
+  "belgian-truffle-cake-jar": {
+    id: "belgian-truffle-cake-jar",
+    name: "Belgian Truffle Cake Jar",
+    subtitle:
+      "Layers of moist dark chocolate sponge and rich 55% Belgian chocolate ganache.",
+    price: 280,
+    category: "Cake Jars",
+    categorySlug: "cake-jars",
+    badge: "BESTSELLER",
+    doodleTopRight: "Chocolate in a Jar ♡",
+    imageScript: "Pure spoonable luxury ♡",
+    rating: 4.9,
+    reviewCount: "1.3k reviews",
+    mainImage:
+      "https://images.unsplash.com/photo-1587314168485-3236d6710814?w=800&auto=format&fit=crop&q=80",
+    galleryImages: [
+      "https://images.unsplash.com/photo-1587314168485-3236d6710814?w=800&auto=format&fit=crop&q=80",
+      "https://images.unsplash.com/photo-1606313564200-e75d5e30476c?w=800&auto=format&fit=crop&q=80",
+      "https://images.unsplash.com/photo-1578985545062-69928b1d9587?w=800&auto=format&fit=crop&q=80",
+      "https://images.unsplash.com/photo-1549465220-1a8b9238cd48?w=800&auto=format&fit=crop&q=80",
+      "https://images.unsplash.com/photo-1513201099705-a9746e1e201f?w=800&auto=format&fit=crop&q=80",
+    ],
+    storyTitle: "A Little About This Cake Jar",
+    storyText:
+      "Generously layered in an artisanal glass jar with fluffy dark cocoa sponge soaked in cocoa syrup and smothered with velvety Belgian chocolate truffle ganache. Portable, indulgent, and pure perfection by the spoonful.",
+    quote: "Happiness is spooning into a warm chocolate truffle jar.",
+    featureBadges: [
+      { id: "1", icon: "leaf", label: "No Preservatives" },
+      { id: "2", icon: "chips", label: "55% Belgian Chocolate" },
+      { id: "3", icon: "butter", label: "Pure Dairy Cream" },
+      { id: "4", icon: "heart", label: "Freshly Made Daily" },
+    ],
+    ingredients: STANDARD_INGREDIENTS,
+    allergenInfo: [
+      "Contains Wheat (Gluten), Dairy (Cream & Butter), Soy Lecithin.",
+      "100% Eggless recipe.",
+      "May contain traces of tree nuts.",
+    ],
+    storageCare: [
+      "Keep refrigerated; best enjoyed chilled or slightly warm.",
+      "Keeps fresh for up to 7 days in the sealed jar.",
+      "Pro tip: Microwave for 10 seconds for a warm molten lava jar experience!",
+    ],
+    recommendedIds: [
+      "og-choco-chip-butter-cake",
+      "intense-chocolate-butter-cake",
+      "red-velvet-cake",
+      "lemon-drizzle-cake",
+      "biscoff-cheesecake",
+    ],
+  },
 };
 
 // Also list the 5 recommended items for "You May Also Like"

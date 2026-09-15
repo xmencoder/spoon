@@ -36,7 +36,12 @@ const DEFAULT_FALLBACK_RESTAURANT: Restaurant = {
 
 export async function generateMetadata({ params }: Props): Promise<Metadata> {
   const { slug, id } = await params;
-  const dbProduct = await getProductById(id);
+  let dbProduct: Product | null = null;
+  try {
+    dbProduct = await getProductById(id);
+  } catch {
+    dbProduct = null;
+  }
   const bakeryProduct = BAKERY_PRODUCTS[id];
   const mockProduct = MOCK_PRODUCTS.find((m) => m.id === id);
 
@@ -44,7 +49,7 @@ export async function generateMetadata({ params }: Props): Promise<Metadata> {
     dbProduct?.name ||
     bakeryProduct?.name ||
     mockProduct?.name ||
-    "Artisanal Cake";
+    "Artisanal Bakery Creation";
 
   const description =
     dbProduct?.description ||
@@ -74,7 +79,14 @@ export default async function ProductDetailPage({ params }: Props) {
   }
 
   if (!restaurant) {
-    restaurant = (await getDefaultRestaurant()) || DEFAULT_FALLBACK_RESTAURANT;
+    try {
+      restaurant = await getDefaultRestaurant();
+    } catch {
+      restaurant = null;
+    }
+    if (!restaurant) {
+      restaurant = DEFAULT_FALLBACK_RESTAURANT;
+    }
   }
 
   let product: Product | null = dbProduct;
