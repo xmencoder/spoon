@@ -657,6 +657,8 @@ export default function AdminNewProductPage() {
                 <option value="BESTSELLER">BESTSELLER (Maroon)</option>
                 <option value="NEW!">NEW! (Terracotta)</option>
                 <option value="CHEF'S PICK">CHEF&apos;S PICK (Gold)</option>
+                <option value="SUGAR FREE">SUGAR FREE (Teal)</option>
+                <option value="GLUTEN FREE">GLUTEN FREE (Emerald)</option>
               </select>
             </div>
 

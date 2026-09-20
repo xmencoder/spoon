@@ -356,13 +356,19 @@ export default function AdminProductsPage() {
                                 {item.name}
                               </span>
 
-                              {item.badge && (
+                              {item.badge && item.badge !== "NONE" && (
                                 <span
                                   className={`inline-block px-1.5 py-0.5 rounded text-[8.5px] font-bold uppercase tracking-wider text-white shadow-2xs ${
                                     item.badge === "BESTSELLER"
                                       ? "bg-[#8E2822]"
                                       : item.badge === "POPULAR"
                                       ? "bg-[#A33D31]"
+                                      : item.badge === "CHEF'S PICK"
+                                      ? "bg-[#B4832E]"
+                                      : item.badge === "SUGAR FREE"
+                                      ? "bg-[#0E7490]"
+                                      : item.badge === "GLUTEN FREE"
+                                      ? "bg-[#15803D]"
                                       : "bg-[#B04336]"
                                   }`}
                                 >

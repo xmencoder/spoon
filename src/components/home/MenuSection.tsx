@@ -92,7 +92,7 @@ export interface MenuItem {
   description: string;
   category: string;
   isPopular?: boolean;
-  badge?: "POPULAR" | "NEW!" | "BESTSELLER";
+  badge?: string;
   tags: string[];
   image: string;
   doodleText?: string;
@@ -824,13 +824,21 @@ export function MenuSection({ slug = "the-indulgent-spoon" }: MenuSectionProps) 
                     </div>
                   )}
 
-                  {/* Top-Left Badge (POPULAR or NEW!) */}
-                  {item.badge && (
+                  {/* Top-Left Badge */}
+                  {item.badge && item.badge !== "NONE" && (
                     <div className="absolute top-2 left-2 z-10">
                       <span
                         className={`inline-block px-2 py-0.5 rounded-[4px] text-[9px] font-bold uppercase tracking-wider text-white shadow-xs ${
-                          item.badge === "POPULAR"
+                          item.badge === "BESTSELLER"
+                            ? "bg-[#8E2822]"
+                            : item.badge === "POPULAR"
                             ? "bg-[#A33D31]"
+                            : item.badge === "CHEF'S PICK"
+                            ? "bg-[#B4832E]"
+                            : item.badge === "SUGAR FREE"
+                            ? "bg-[#0E7490]"
+                            : item.badge === "GLUTEN FREE"
+                            ? "bg-[#15803D]"
                             : "bg-[#B04336]"
                         }`}
                       >

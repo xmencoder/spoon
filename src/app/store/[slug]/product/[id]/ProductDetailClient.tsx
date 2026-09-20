@@ -444,9 +444,25 @@ export default function ProductDetailClient({
           <div className="lg:col-span-6 space-y-5 sm:space-y-6">
             {/* Top Row: Bestseller Badge + Doodle Text */}
             <div className="flex items-center justify-between gap-4">
-              <span className="inline-block px-3 py-1 rounded-full bg-[#A34B3D] text-[#F5EBDD] text-[11px] font-bold uppercase tracking-wider shadow-xs">
-                {detail.badge || badgeProp || "BESTSELLER"}
-              </span>
+              {(detail.badge || badgeProp) && (detail.badge || badgeProp) !== "NONE" && (
+                <span
+                  className={`inline-block px-3 py-1 rounded-full text-[11px] font-bold uppercase tracking-wider shadow-xs ${
+                    (detail.badge || badgeProp) === "BESTSELLER"
+                      ? "bg-[#8E2822] text-[#F5EBDD]"
+                      : (detail.badge || badgeProp) === "POPULAR"
+                      ? "bg-[#A33D31] text-[#F5EBDD]"
+                      : (detail.badge || badgeProp) === "CHEF'S PICK"
+                      ? "bg-[#B4832E] text-white"
+                      : (detail.badge || badgeProp) === "SUGAR FREE"
+                      ? "bg-[#0E7490] text-white"
+                      : (detail.badge || badgeProp) === "GLUTEN FREE"
+                      ? "bg-[#15803D] text-white"
+                      : "bg-[#A34B3D] text-[#F5EBDD]"
+                  }`}
+                >
+                  {detail.badge || badgeProp}
+                </span>
+              )}
 
               {detail.doodleTopRight && (
                 <span
