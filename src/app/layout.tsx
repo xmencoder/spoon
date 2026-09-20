@@ -54,6 +54,11 @@ export default function RootLayout({
       lang="en"
       className={`${playfair.variable} ${jakarta.variable} ${caveat.variable} h-full antialiased`}
     >
+      <head>
+        <link rel="icon" href="/logo-m.png?v=3" type="image/png" sizes="any" />
+        <link rel="shortcut icon" href="/logo-m.png?v=3" />
+        <link rel="apple-touch-icon" href="/logo-m.png?v=3" />
+      </head>
       <body className="min-h-full flex flex-col bg-[#D9BC9E] text-[#29251F] font-sans selection:bg-[#C26B59] selection:text-[#F5EBDD]">
         <CartProvider restaurantSlug="the-indulgent-spoon">
           <CartDrawer />
