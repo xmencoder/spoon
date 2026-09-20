@@ -824,26 +824,33 @@ export function MenuSection({ slug = "the-indulgent-spoon" }: MenuSectionProps) 
                     </div>
                   )}
 
-                  {/* Top-Left Badge */}
+                  {/* Top-Left Badges */}
                   {item.badge && item.badge !== "NONE" && (
-                    <div className="absolute top-2 left-2 z-10">
-                      <span
-                        className={`inline-block px-2 py-0.5 rounded-[4px] text-[9px] font-bold uppercase tracking-wider text-white shadow-xs ${
-                          item.badge === "BESTSELLER"
-                            ? "bg-[#8E2822]"
-                            : item.badge === "POPULAR"
-                            ? "bg-[#A33D31]"
-                            : item.badge === "CHEF'S PICK"
-                            ? "bg-[#B4832E]"
-                            : item.badge === "SUGAR FREE"
-                            ? "bg-[#0E7490]"
-                            : item.badge === "GLUTEN FREE"
-                            ? "bg-[#15803D]"
-                            : "bg-[#B04336]"
-                        }`}
-                      >
-                        {item.badge}
-                      </span>
+                    <div className="absolute top-2 left-2 z-10 flex flex-col items-start gap-1">
+                      {item.badge
+                        .split(",")
+                        .map((b) => b.trim())
+                        .filter((b) => b && b !== "NONE")
+                        .map((b, bIdx) => (
+                          <span
+                            key={bIdx}
+                            className={`inline-block px-2 py-0.5 rounded-[4px] text-[9px] font-bold uppercase tracking-wider text-white shadow-xs ${
+                              b === "BESTSELLER"
+                                ? "bg-[#8E2822]"
+                                : b === "POPULAR"
+                                ? "bg-[#A33D31]"
+                                : b === "CHEF'S PICK"
+                                ? "bg-[#B4832E]"
+                                : b === "SUGAR FREE"
+                                ? "bg-[#0E7490]"
+                                : b === "GLUTEN FREE"
+                                ? "bg-[#15803D]"
+                                : "bg-[#B04336]"
+                            }`}
+                          >
+                            {b}
+                          </span>
+                        ))}
                     </div>
                   )}
 

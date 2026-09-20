@@ -356,25 +356,32 @@ export default function AdminProductsPage() {
                                 {item.name}
                               </span>
 
-                              {item.badge && item.badge !== "NONE" && (
-                                <span
-                                  className={`inline-block px-1.5 py-0.5 rounded text-[8.5px] font-bold uppercase tracking-wider text-white shadow-2xs ${
-                                    item.badge === "BESTSELLER"
-                                      ? "bg-[#8E2822]"
-                                      : item.badge === "POPULAR"
-                                      ? "bg-[#A33D31]"
-                                      : item.badge === "CHEF'S PICK"
-                                      ? "bg-[#B4832E]"
-                                      : item.badge === "SUGAR FREE"
-                                      ? "bg-[#0E7490]"
-                                      : item.badge === "GLUTEN FREE"
-                                      ? "bg-[#15803D]"
-                                      : "bg-[#B04336]"
-                                  }`}
-                                >
-                                  {item.badge}
-                                </span>
-                              )}
+                              {item.badge &&
+                                item.badge !== "NONE" &&
+                                item.badge
+                                  .split(",")
+                                  .map((b) => b.trim())
+                                  .filter((b) => b && b !== "NONE")
+                                  .map((b, bIdx) => (
+                                    <span
+                                      key={bIdx}
+                                      className={`inline-block px-1.5 py-0.5 rounded text-[8.5px] font-bold uppercase tracking-wider text-white shadow-2xs ${
+                                        b === "BESTSELLER"
+                                          ? "bg-[#8E2822]"
+                                          : b === "POPULAR"
+                                          ? "bg-[#A33D31]"
+                                          : b === "CHEF'S PICK"
+                                          ? "bg-[#B4832E]"
+                                          : b === "SUGAR FREE"
+                                          ? "bg-[#0E7490]"
+                                          : b === "GLUTEN FREE"
+                                          ? "bg-[#15803D]"
+                                          : "bg-[#B04336]"
+                                      }`}
+                                    >
+                                      {b}
+                                    </span>
+                                  ))}
 
                               {item.featured && (
                                 <span className="inline-flex items-center gap-1 rounded bg-amber-100 text-amber-900 px-1.5 py-0.5 text-[8.5px] font-bold uppercase tracking-wider">

@@ -75,6 +75,7 @@ export default function AdminNewProductPage() {
   const [price, setPrice] = useState("");
   const [categoryId, setCategoryId] = useState("");
   const [badge, setBadge] = useState<string>("POPULAR");
+  const [badgeSecondary, setBadgeSecondary] = useState<string>("NONE");
   const [isVeg, setIsVeg] = useState(true);
   const [available, setAvailable] = useState(true);
   const [featured, setFeatured] = useState(false);
@@ -449,13 +450,17 @@ export default function AdminNewProductPage() {
 
       const coverImageUrl = finalImageUrls[0] || null;
 
+      const finalBadge =
+        [badge, badgeSecondary].filter((b) => b && b !== "NONE").join(",") ||
+        null;
+
       await createAdminProduct(restaurant.id, {
         name: name.trim(),
         description: description.trim(),
         story_text: storyText.trim(),
         price: parsedPrice,
         category_id: categoryId || null,
-        badge: badge === "NONE" ? null : badge,
+        badge: finalBadge,
         order_limit: orderLimit.trim() ? parseInt(orderLimit, 10) : null,
         total_ordered: 0,
         is_veg: isVeg,
@@ -643,23 +648,44 @@ export default function AdminNewProductPage() {
               )}
             </div>
 
-            <div>
-              <label className="block text-xs font-bold uppercase tracking-wider text-spoon-dark mb-1.5">
-                Ribbon Badge
-              </label>
-              <select
-                value={badge}
-                onChange={(e) => setBadge(e.target.value)}
-                className="w-full rounded-2xl border border-spoon-border bg-white px-3.5 py-2.5 text-xs font-semibold text-spoon-dark focus:outline-none focus:ring-2 focus:ring-spoon-caramel/20"
-              >
-                <option value="NONE">No Badge</option>
-                <option value="POPULAR">POPULAR (Red)</option>
-                <option value="BESTSELLER">BESTSELLER (Maroon)</option>
-                <option value="NEW!">NEW! (Terracotta)</option>
-                <option value="CHEF'S PICK">CHEF&apos;S PICK (Gold)</option>
-                <option value="SUGAR FREE">SUGAR FREE (Teal)</option>
-                <option value="GLUTEN FREE">GLUTEN FREE (Emerald)</option>
-              </select>
+            <div className="grid grid-cols-1 sm:grid-cols-2 gap-4">
+              <div>
+                <label className="block text-xs font-bold uppercase tracking-wider text-spoon-dark mb-1.5">
+                  Primary Ribbon Badge
+                </label>
+                <select
+                  value={badge}
+                  onChange={(e) => setBadge(e.target.value)}
+                  className="w-full rounded-2xl border border-spoon-border bg-white px-3.5 py-2.5 text-xs font-semibold text-spoon-dark focus:outline-none focus:ring-2 focus:ring-spoon-caramel/20"
+                >
+                  <option value="NONE">No Primary Badge</option>
+                  <option value="POPULAR">POPULAR (Red)</option>
+                  <option value="BESTSELLER">BESTSELLER (Maroon)</option>
+                  <option value="NEW!">NEW! (Terracotta)</option>
+                  <option value="CHEF'S PICK">CHEF&apos;S PICK (Gold)</option>
+                  <option value="SUGAR FREE">SUGAR FREE (Teal)</option>
+                  <option value="GLUTEN FREE">GLUTEN FREE (Emerald)</option>
+                </select>
+              </div>
+
+              <div>
+                <label className="block text-xs font-bold uppercase tracking-wider text-spoon-dark mb-1.5">
+                  Secondary Ribbon Badge (Optional)
+                </label>
+                <select
+                  value={badgeSecondary}
+                  onChange={(e) => setBadgeSecondary(e.target.value)}
+                  className="w-full rounded-2xl border border-spoon-border bg-white px-3.5 py-2.5 text-xs font-semibold text-spoon-dark focus:outline-none focus:ring-2 focus:ring-spoon-caramel/20"
+                >
+                  <option value="NONE">No Secondary Badge</option>
+                  <option value="POPULAR">POPULAR (Red)</option>
+                  <option value="BESTSELLER">BESTSELLER (Maroon)</option>
+                  <option value="NEW!">NEW! (Terracotta)</option>
+                  <option value="CHEF'S PICK">CHEF&apos;S PICK (Gold)</option>
+                  <option value="SUGAR FREE">SUGAR FREE (Teal)</option>
+                  <option value="GLUTEN FREE">GLUTEN FREE (Emerald)</option>
+                </select>
+              </div>
             </div>
 
             <div>
