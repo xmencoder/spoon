@@ -45,6 +45,15 @@ const DEFAULT_ALLERGEN_PRESETS = [
   "Nut-Free Facility",
 ];
 
+const DEFAULT_STORAGE_PRESETS = [
+  "Room Temperature: 3–4 days in airtight container",
+  "Refrigerate in airtight container up to 7 days",
+  "Microwave 10–15s for warm oven-fresh gooey core",
+  "Best served warm with vanilla ice cream",
+  "Keep away from direct sunlight & humidity",
+  "Do not refrigerate; consume within 48 hours",
+];
+
 interface GalleryItem {
   id: string;
   previewUrl: string;
@@ -95,14 +104,25 @@ export default function AdminNewProductPage() {
   const [allergenInput, setAllergenInput] = useState("");
   const [customPresets, setCustomPresets] = useState<string[]>([]);
 
+  // Storage & Care Presets
+  const [storageCare, setStorageCare] = useState<string[]>([
+    "Room Temperature: 3–4 days in airtight container",
+  ]);
+  const [storageInput, setStorageInput] = useState("");
+  const [customStoragePresets, setCustomStoragePresets] = useState<string[]>([]);
+
   useEffect(() => {
     try {
       const saved = localStorage.getItem("spoon_allergen_presets");
       if (saved) {
         setCustomPresets(JSON.parse(saved));
       }
+      const savedStorage = localStorage.getItem("spoon_storage_presets");
+      if (savedStorage) {
+        setCustomStoragePresets(JSON.parse(savedStorage));
+      }
     } catch (e) {
-      console.error("Failed to load allergen presets", e);
+      console.error("Failed to load presets", e);
     }
   }, []);
 
@@ -343,6 +363,53 @@ export default function AdminNewProductPage() {
     }
   };
 
+  // Add Storage Info
+  const handleAddStorage = () => {
+    if (storageInput.trim() && !storageCare.includes(storageInput.trim())) {
+      setStorageCare([...storageCare, storageInput.trim()]);
+      setStorageInput("");
+    }
+  };
+
+  const handleSaveStoragePreset = (textToSave?: string) => {
+    const lineToSave = (
+      textToSave ||
+      storageInput ||
+      (storageCare.length > 0 ? storageCare[storageCare.length - 1] : "")
+    ).trim();
+    if (!lineToSave) return;
+    if (
+      !customStoragePresets.includes(lineToSave) &&
+      !DEFAULT_STORAGE_PRESETS.includes(lineToSave)
+    ) {
+      const updated = [...customStoragePresets, lineToSave];
+      setCustomStoragePresets(updated);
+      try {
+        localStorage.setItem("spoon_storage_presets", JSON.stringify(updated));
+      } catch (e) {
+        console.error("Failed to save storage preset", e);
+      }
+    }
+    if (storageInput.trim() && !storageCare.includes(storageInput.trim())) {
+      setStorageCare([...storageCare, storageInput.trim()]);
+      setStorageInput("");
+    }
+  };
+
+  const handleDeleteCustomStoragePreset = (
+    presetToDelete: string,
+    e: React.MouseEvent
+  ) => {
+    e.stopPropagation();
+    const updated = customStoragePresets.filter((p) => p !== presetToDelete);
+    setCustomStoragePresets(updated);
+    try {
+      localStorage.setItem("spoon_storage_presets", JSON.stringify(updated));
+    } catch (e) {
+      console.error("Failed to delete storage preset", e);
+    }
+  };
+
   const handleSubmit = async (e: React.FormEvent) => {
     e.preventDefault();
     if (!restaurant?.id) {
@@ -399,7 +466,7 @@ export default function AdminNewProductPage() {
         addons,
         tags: [],
         allergen_info: allergenInfo,
-        storage_care: [],
+        storage_care: storageCare,
         image_url: coverImageUrl,
         gallery_images: finalImageUrls,
       });
@@ -996,17 +1063,18 @@ export default function AdminNewProductPage() {
           </div>
         </div>
 
-        {/* 5. ALLERGEN INFORMATION */}
-        <div className="rounded-3xl border border-spoon-border bg-white p-6 sm:p-8 shadow-warm-sm space-y-5">
+        {/* 5. ALLERGEN & STORAGE INFORMATION */}
+        <div className="rounded-3xl border border-spoon-border bg-white p-6 sm:p-8 shadow-warm-sm space-y-7">
           <div className="border-b border-spoon-border/50 pb-3 flex items-center justify-between">
             <h2 className="font-serif text-lg font-bold text-spoon-dark flex items-center gap-2">
               <ShieldAlert className="w-4 h-4 text-spoon-caramel" />
-              <span>5. Allergen Information</span>
+              <span>5. Allergen & Storage Information</span>
             </h2>
           </div>
 
-          <div>
-            <label className="block text-xs font-bold uppercase tracking-wider text-spoon-dark mb-1.5">
+          {/* 5.1 ALLERGEN INFORMATION */}
+          <div className="space-y-3">
+            <label className="block text-xs font-bold uppercase tracking-wider text-spoon-dark">
               Allergen Information Lines
             </label>
 
@@ -1078,7 +1146,7 @@ export default function AdminNewProductPage() {
               </p>
             )}
 
-            {/* Quick Presets Section */}
+            {/* Quick Allergen Presets Section */}
             <div className="pt-3 border-t border-spoon-border/40">
               <div className="flex items-center justify-between mb-2">
                 <span className="text-[11px] font-bold uppercase tracking-wider text-spoon-muted flex items-center gap-1.5">
@@ -1149,6 +1217,161 @@ export default function AdminNewProductPage() {
                         onClick={(e) => handleDeleteCustomPreset(preset, e)}
                         className="text-amber-500 hover:text-rose-600 ml-1 p-0.5 rounded"
                         title="Delete custom preset"
+                      >
+                        <X className="w-3 h-3" />
+                      </button>
+                    </span>
+                  );
+                })}
+              </div>
+            </div>
+          </div>
+
+          {/* 5.2 STORAGE & CARE INSTRUCTIONS */}
+          <div className="pt-5 border-t border-spoon-border/60 space-y-3">
+            <label className="block text-xs font-bold uppercase tracking-wider text-spoon-dark">
+              Storage & Care Instructions
+            </label>
+
+            {/* Input + Add + Save Preset Button */}
+            <div className="flex flex-col sm:flex-row gap-2 mb-3">
+              <Input
+                value={storageInput}
+                onChange={(e) => setStorageInput(e.target.value)}
+                onKeyDown={(e) => {
+                  if (e.key === "Enter") {
+                    e.preventDefault();
+                    handleAddStorage();
+                  }
+                }}
+                placeholder="e.g. Room Temperature: 3–4 days in airtight container"
+                className="text-xs flex-1"
+              />
+              <div className="flex items-center gap-2 shrink-0">
+                <Button
+                  type="button"
+                  onClick={handleAddStorage}
+                  variant="default"
+                  size="sm"
+                  className="bg-spoon-dark hover:bg-spoon-mocha text-white text-xs gap-1.5"
+                >
+                  <Plus className="w-3.5 h-3.5" />
+                  Add Line
+                </Button>
+                <Button
+                  type="button"
+                  onClick={() => handleSaveStoragePreset()}
+                  disabled={!storageInput.trim() && storageCare.length === 0}
+                  variant="outline"
+                  size="sm"
+                  className="text-xs border-spoon-border text-spoon-dark hover:bg-spoon-sand gap-1.5"
+                  title="Save current storage instruction as a reusable preset"
+                >
+                  <BookmarkPlus className="w-3.5 h-3.5 text-spoon-caramel" />
+                  Save as Preset
+                </Button>
+              </div>
+            </div>
+
+            {/* Active Storage Lines */}
+            {storageCare.length > 0 ? (
+              <ul className="space-y-1.5 mb-4">
+                {storageCare.map((info, idx) => (
+                  <li
+                    key={idx}
+                    className="flex items-center justify-between p-2.5 rounded-xl bg-spoon-cream text-xs text-spoon-dark border border-spoon-border/70"
+                  >
+                    <span className="font-medium">• {info}</span>
+                    <button
+                      type="button"
+                      onClick={() =>
+                        setStorageCare(storageCare.filter((_, i) => i !== idx))
+                      }
+                      className="text-spoon-muted hover:text-rose-600 p-1 rounded-md transition-colors"
+                      title="Remove line"
+                    >
+                      <X className="w-3.5 h-3.5" />
+                    </button>
+                  </li>
+                ))}
+              </ul>
+            ) : (
+              <p className="text-xs text-spoon-muted mb-4 italic">
+                No storage instructions added yet. Type above or click a preset below.
+              </p>
+            )}
+
+            {/* Quick Storage Presets Section */}
+            <div className="pt-3 border-t border-spoon-border/40">
+              <div className="flex items-center justify-between mb-2">
+                <span className="text-[11px] font-bold uppercase tracking-wider text-spoon-muted flex items-center gap-1.5">
+                  <Sparkles className="w-3.5 h-3.5 text-spoon-caramel" />
+                  Quick Storage Presets (Click to toggle)
+                </span>
+              </div>
+
+              <div className="flex flex-wrap gap-1.5">
+                {/* Built-in Presets */}
+                {DEFAULT_STORAGE_PRESETS.map((preset, idx) => {
+                  const isSelected = storageCare.includes(preset);
+                  return (
+                    <button
+                      key={`storage-preset-${idx}`}
+                      type="button"
+                      onClick={() => {
+                        if (isSelected) {
+                          setStorageCare(storageCare.filter((item) => item !== preset));
+                        } else {
+                          setStorageCare([...storageCare, preset]);
+                        }
+                      }}
+                      className={`text-xs px-2.5 py-1 rounded-lg border transition-all text-left flex items-center gap-1.5 ${
+                        isSelected
+                          ? "bg-spoon-caramel/15 border-spoon-caramel text-spoon-dark font-medium"
+                          : "bg-spoon-sand/50 hover:bg-spoon-sand border-spoon-border text-spoon-dark/80"
+                      }`}
+                    >
+                      <span>{preset}</span>
+                      {isSelected ? (
+                        <CheckCircle2 className="w-3 h-3 text-spoon-caramel shrink-0" />
+                      ) : (
+                        <Plus className="w-3 h-3 text-spoon-muted shrink-0" />
+                      )}
+                    </button>
+                  );
+                })}
+
+                {/* Custom Saved Presets */}
+                {customStoragePresets.map((preset, idx) => {
+                  const isSelected = storageCare.includes(preset);
+                  return (
+                    <span
+                      key={`custom-storage-${idx}`}
+                      className={`inline-flex items-center gap-1 text-xs px-2.5 py-1 rounded-lg border transition-all ${
+                        isSelected
+                          ? "bg-amber-100/70 border-amber-400 text-amber-950 font-medium"
+                          : "bg-amber-50/50 hover:bg-amber-100/50 border-amber-200 text-amber-900"
+                      }`}
+                    >
+                      <button
+                        type="button"
+                        onClick={() => {
+                          if (isSelected) {
+                            setStorageCare(storageCare.filter((item) => item !== preset));
+                          } else {
+                            setStorageCare([...storageCare, preset]);
+                          }
+                        }}
+                        className="flex items-center gap-1.5 text-left"
+                      >
+                        <span>⭐ {preset}</span>
+                        {isSelected && <CheckCircle2 className="w-3 h-3 text-amber-600 shrink-0" />}
+                      </button>
+                      <button
+                        type="button"
+                        onClick={(e) => handleDeleteCustomStoragePreset(preset, e)}
+                        className="text-amber-500 hover:text-rose-600 ml-1 p-0.5 rounded"
+                        title="Delete custom storage preset"
                       >
                         <X className="w-3 h-3" />
                       </button>

@@ -438,6 +438,9 @@ export default function AdminProductsPage() {
                               {item.allergen_info && item.allergen_info.length > 0
                                 ? `${item.allergen_info.length} Allergen Note${item.allergen_info.length > 1 ? "s" : ""}`
                                 : "No Allergens"}
+                              {item.storage_care && item.storage_care.length > 0
+                                ? ` • ${item.storage_care.length} Care`
+                                : ""}
                             </span>
                           </span>
                         </div>
