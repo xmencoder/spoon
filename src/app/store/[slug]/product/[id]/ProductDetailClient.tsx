@@ -1,6 +1,6 @@
 "use client";
 
-import React, { useState } from "react";
+import React, { useState, useEffect } from "react";
 import Link from "next/link";
 import Image from "next/image";
 import { useCart } from "@/lib/store/CartContext";
@@ -13,14 +13,7 @@ import {
   Check,
   ChevronLeft,
   ChevronRight,
-  Truck,
-  Gift,
-  ShieldCheck,
-  Box,
   Star,
-  Quote,
-  X,
-  Sparkles,
   ArrowRight,
 } from "lucide-react";
 import {
@@ -36,6 +29,7 @@ interface Props {
   categoryName: string;
   slug: string;
   badge?: string;
+  recommendedProducts?: Product[];
 }
 
 // Custom feature icons matching the 4 circular badges in the photo
@@ -131,32 +125,124 @@ export default function ProductDetailClient({
   categoryName,
   slug,
   badge: badgeProp,
+  recommendedProducts = [],
 }: Props) {
-  const { addItem, totalItems } = useCart();
+  const { addItem, totalItems, getProductQuantity } = useCart();
   const [quantity, setQuantity] = useState(1);
   const [activeImageIndex, setActiveImageIndex] = useState(0);
-  const [activeTab, setActiveTab] = useState<"allergen" | "storage">("allergen");
   const [isFavorite, setIsFavorite] = useState(false);
   const [isAdded, setIsAdded] = useState(false);
-  const [show3DModal, setShow3DModal] = useState(false);
-  const [rotationAngle, setRotationAngle] = useState(0);
+
+  // Normalize gallery images so multiple photos always show correctly
+  let allGalleryImages: string[] = [];
+  if (Array.isArray(product.gallery_images)) {
+    allGalleryImages = product.gallery_images.filter(
+      (img): img is string => typeof img === "string" && img.trim().length > 0
+    );
+  } else if (typeof product.gallery_images === "string") {
+    try {
+      const parsed = JSON.parse(product.gallery_images);
+      if (Array.isArray(parsed)) {
+        allGalleryImages = parsed.filter(
+          (img): img is string => typeof img === "string" && img.trim().length > 0
+        );
+      }
+    } catch {
+      allGalleryImages = (product.gallery_images as string)
+        .split(",")
+        .map((s) => s.trim())
+        .filter(Boolean);
+    }
+  }
+
+  if (product.image_url && !allGalleryImages.includes(product.image_url)) {
+    allGalleryImages = [product.image_url, ...allGalleryImages];
+  }
+
+  const gallery =
+    allGalleryImages.length > 0
+      ? allGalleryImages
+      : [
+          product.image_url ||
+          "https://images.unsplash.com/photo-1578985545062-69928b1d9587?w=800&auto=format&fit=crop&q=80",
+        ];
+
+  const currentImage = gallery[activeImageIndex] || gallery[0];
 
   // Get rich product details (from curated BAKERY_PRODUCTS or fallback)
-  const detail: BakeryProductDetail = getBakeryProductDetail(
+  const baseDetail: BakeryProductDetail = getBakeryProductDetail(
     product.id,
     product.name,
     product.price,
-    product.image_url || undefined,
+    gallery[0],
     product.description || undefined,
     categoryName
   );
 
-  const gallery =
-    detail.galleryImages && detail.galleryImages.length > 0
-      ? detail.galleryImages
-      : [detail.mainImage];
+  // Override with actual DB product fields when available (admin-created products)
+  const detail: BakeryProductDetail = {
+    ...baseDetail,
+    name: product.name || baseDetail.name,
+    price: product.price ?? baseDetail.price,
+    subtitle: product.description || baseDetail.subtitle,
+    mainImage: gallery[0],
+    galleryImages: gallery,
+    // Use DB sizes/addons if they have entries, otherwise keep fallback
+    ...(product.sizes && Array.isArray(product.sizes) && product.sizes.length > 0
+      ? { sizes: product.sizes as BakeryProductDetail["sizes"] }
+      : {}),
+    ...(product.addons && Array.isArray(product.addons) && product.addons.length > 0
+      ? { addons: product.addons as BakeryProductDetail["addons"] }
+      : {}),
+    // Use DB tags if available
+    ...(product.tags && product.tags.length > 0
+      ? { tags: product.tags }
+      : {}),
+    // Use DB allergen/storage info
+    ...(product.allergen_info && product.allergen_info.length > 0
+      ? { allergenInfo: product.allergen_info }
+      : {}),
+    ...(product.storage_care && product.storage_care.length > 0
+      ? { storageCare: product.storage_care }
+      : {}),
+    // Use DB story text
+    ...(product.story_text
+      ? { storyText: product.story_text }
+      : {}),
+    // Use DB rating
+    ...(product.rating != null
+      ? { rating: Number(product.rating) }
+      : {}),
+  };
 
-  const currentImage = gallery[activeImageIndex] || detail.mainImage;
+  const initialSizeId =
+    detail.sizes?.find((s) => s.isDefault)?.id || detail.sizes?.[0]?.id || "";
+  const [selectedSizeId, setSelectedSizeId] = useState<string>(initialSizeId);
+  const [selectedAddonIds, setSelectedAddonIds] = useState<string[]>([]);
+
+  useEffect(() => {
+    if (detail.sizes && detail.sizes.length > 0) {
+      const def = detail.sizes.find((s) => s.isDefault)?.id || detail.sizes[0].id;
+      setSelectedSizeId(def);
+      setSelectedAddonIds([]);
+    }
+  }, [detail.id]);
+
+  const selectedSizeObj =
+    detail.sizes?.find((s) => s.id === selectedSizeId) || detail.sizes?.[0];
+  const basePrice = selectedSizeObj?.price ?? detail.price;
+  const addonsTotal = (detail.addons || [])
+    .filter((a) => selectedAddonIds.includes(a.id))
+    .reduce((sum, a) => sum + a.price, 0);
+  const unitPrice = basePrice + addonsTotal;
+
+  const toggleAddon = (addonId: string) => {
+    setSelectedAddonIds((prev) =>
+      prev.includes(addonId)
+        ? prev.filter((id) => id !== addonId)
+        : [...prev, addonId]
+    );
+  };
 
   const handlePrevImage = () => {
     setActiveImageIndex((prev) => (prev > 0 ? prev - 1 : gallery.length - 1));
@@ -170,25 +256,65 @@ export default function ProductDetailClient({
   const handleDecrement = () => setQuantity((q) => Math.max(1, q - 1));
 
   const handleAddToCart = () => {
-    for (let i = 0; i < quantity; i++) {
-      addItem(product);
-    }
+    const selectedSizeLabel = selectedSizeObj?.label;
+    const selectedAddonObjects = (detail.addons || []).filter((a) =>
+      selectedAddonIds.includes(a.id)
+    );
+
+    const variantId = `${product.id}-${selectedSizeId || "default"}-${[...selectedAddonIds].sort().join("-")}`;
+
+    const variantName = selectedSizeLabel
+      ? `${detail.name} (${selectedSizeLabel}${
+          selectedAddonObjects.length > 0
+            ? ` + ${selectedAddonObjects.map((a) => a.label.split("/")[0].trim()).join(", ")}`
+            : ""
+        })`
+      : detail.name;
+
+    const variantDesc = [
+      selectedSizeLabel ? `Size: ${selectedSizeLabel}` : null,
+      selectedAddonObjects.length > 0
+        ? `Add-ons: ${selectedAddonObjects.map((a) => `${a.label} (+₹${a.price})`).join(", ")}`
+        : null,
+      detail.subtitle || product.description,
+    ]
+      .filter(Boolean)
+      .join(" • ");
+
+    const configuredProduct: Product = {
+      ...product,
+      id: variantId,
+      name: detail.name,
+      price: unitPrice,
+      description: variantDesc,
+    };
+
+    addItem(configuredProduct, quantity, {
+      sizeLabel: selectedSizeLabel,
+      addons: selectedAddonObjects.map((a) => ({
+        id: a.id,
+        label: a.label.split("/")[0].trim(),
+        price: a.price,
+      })),
+      unitPrice,
+    });
+
     setIsAdded(true);
     setTimeout(() => setIsAdded(false), 2000);
   };
 
-  const handleAddRecommended = (item: typeof RECOMMENDED_PRODUCTS[0]) => {
+  const handleAddRecommended = (item: Product) => {
     addItem({
       id: item.id,
       restaurant_id: restaurant.id,
       name: item.name,
       price: item.price,
-      image_url: item.image,
+      image_url: item.image_url || gallery[0],
       available: true,
       featured: true,
-      category_id: null,
-      sort_order: 0,
-      description: "",
+      category_id: item.category_id || null,
+      sort_order: item.sort_order || 0,
+      description: item.description || "",
     });
   };
 
@@ -261,15 +387,6 @@ export default function ProductDetailClient({
               >
                 <div className="w-2.5 h-2.5 rounded-full bg-[#238234]" />
               </div>
-
-              {/* "View in 3D" interactive button (bottom-left) */}
-              <button
-                onClick={() => setShow3DModal(true)}
-                className="absolute bottom-4 left-4 z-10 flex items-center gap-1.5 px-3.5 py-1.5 rounded-full bg-black/45 hover:bg-black/60 backdrop-blur-md border border-white/30 text-white text-xs font-medium shadow-md transition-all active:scale-95 cursor-pointer"
-              >
-                <Box className="w-3.5 h-3.5" />
-                <span>View in 3D</span>
-              </button>
             </div>
 
             {/* Thumbnail Carousel Row */}
@@ -316,32 +433,19 @@ export default function ProductDetailClient({
               </button>
             </div>
 
-            {/* ── "A Little About This Cake" Section ── */}
-            <div className="pt-4 border-t border-[#DFD3C1] space-y-3.5">
-              <h2 className="font-serif text-2xl font-bold text-[#29251F]">
-                {detail.storyTitle}
+            {/* ── "A Little About This Item" Section ── */}
+            <div className="pt-4 border-t border-[#DFD3C1] space-y-2">
+              <h2 className="font-serif text-xl sm:text-2xl font-bold text-[#29251F]">
+                {detail.storyTitle || "A Little About This Item"}
               </h2>
-              <p className="text-sm sm:text-base text-[#5F5545] leading-relaxed">
+              <p className="text-xs sm:text-sm text-[#5F5545] leading-relaxed">
                 {detail.storyText}
               </p>
-
-              {/* Quote Card */}
-              {detail.quote && (
-                <div className="rounded-2xl bg-[#EBE0CF] border border-[#D8CABA] p-4 flex items-center justify-between gap-3 shadow-2xs">
-                  <div className="flex items-center gap-3">
-                    <Quote className="w-5 h-5 text-[#A34B3D] shrink-0 fill-[#A34B3D]/20" />
-                    <p className="font-serif italic text-sm sm:text-base text-[#463D31]">
-                      &ldquo;{detail.quote}&rdquo;
-                    </p>
-                  </div>
-                  <span className="text-lg text-[#A34B3D]/80 font-serif">♡</span>
-                </div>
-              )}
             </div>
           </div>
 
           {/* ═══════════════════════════════════════════════════ */}
-          {/* ── RIGHT COLUMN: Product Info, Price, Tabs & Cart ── */}
+          {/* ── RIGHT COLUMN: Product Info, Price, Sizes, Addons & Cart ── */}
           {/* ═══════════════════════════════════════════════════ */}
           <div className="lg:col-span-6 space-y-5 sm:space-y-6">
             {/* Top Row: Bestseller Badge + Doodle Text */}
@@ -362,7 +466,7 @@ export default function ProductDetailClient({
               )}
             </div>
 
-            {/* Product Title */}
+            {/* Product Title & Subtitle */}
             <div>
               <h1 className="font-serif text-3xl sm:text-4xl lg:text-[2.6rem] font-bold text-[#29251F] leading-[1.12] tracking-tight">
                 {detail.name}
@@ -373,7 +477,7 @@ export default function ProductDetailClient({
             </div>
 
             {/* Star Rating & Reviews & Wishlist Heart */}
-            <div className="flex items-center justify-between gap-3 pt-1">
+            <div className="flex items-center justify-between gap-3 pt-0.5">
               <div className="flex items-center gap-2">
                 <div className="flex items-center text-[#DF9E26]">
                   {[...Array(5)].map((_, i) => (
@@ -403,170 +507,289 @@ export default function ProductDetailClient({
               </button>
             </div>
 
-            {/* Price Block */}
-            <div className="space-y-0.5">
-              <div className="font-serif text-3xl sm:text-4xl font-bold text-[#29251F]">
-                ₹{detail.price}
+            {/* Dynamic Price Block */}
+            <div className="space-y-0.5 pt-1">
+              <div className="flex items-baseline gap-2.5">
+                <span className="font-serif text-3xl sm:text-4xl font-bold text-[#29251F]">
+                  ₹{unitPrice}
+                </span>
+                {addonsTotal > 0 && (
+                  <span className="text-xs text-[#7A6E5D] font-medium">
+                    (₹{basePrice} base + ₹{addonsTotal} add-ons)
+                  </span>
+                )}
               </div>
               <p className="text-xs text-[#7D7261]">
                 (Inclusive of all taxes)
               </p>
             </div>
 
-            {/* Quantity Stepper & Add to Cart */}
-            <div className="flex items-center gap-3 sm:gap-4 pt-1">
-              {/* Stepper */}
-              <div className="flex items-center rounded-xl bg-[#EDE3D4] border border-[#D5C6B1] px-2 py-1.5">
-                <button
-                  onClick={handleDecrement}
-                  className="w-8 h-8 rounded-lg flex items-center justify-center text-[#554D3F] hover:text-[#29251F] hover:bg-[#DFD3C0] transition-colors cursor-pointer"
-                  aria-label="Decrease quantity"
-                >
-                  <Minus className="w-4 h-4" />
-                </button>
-                <span className="w-9 text-center font-serif text-base font-bold text-[#29251F]">
-                  {quantity}
-                </span>
-                <button
-                  onClick={handleIncrement}
-                  className="w-8 h-8 rounded-lg flex items-center justify-center text-[#554D3F] hover:text-[#29251F] hover:bg-[#DFD3C0] transition-colors cursor-pointer"
-                  aria-label="Increase quantity"
-                >
-                  <Plus className="w-4 h-4" />
-                </button>
-              </div>
-
-              {/* Add to Cart Button */}
-              <button
-                onClick={handleAddToCart}
-                className={`flex-1 flex items-center justify-center gap-2.5 py-3.5 px-6 rounded-xl font-semibold text-sm sm:text-base text-white shadow-md transition-all duration-200 cursor-pointer active:scale-[0.98] ${
-                  isAdded
-                    ? "bg-[#4D7C47]"
-                    : "bg-[#A34B3D] hover:bg-[#8F3F32]"
-                }`}
-              >
-                {isAdded ? (
-                  <>
-                    <Check className="w-5 h-5 stroke-[2.5]" />
-                    <span>Added to Cart!</span>
-                  </>
-                ) : (
-                  <>
-                    <ShoppingCart className="w-5 h-5" />
-                    <span>Add to Cart</span>
-                  </>
-                )}
-              </button>
-            </div>
-
-            {/* 4 Feature Badges Row */}
-            <div className="grid grid-cols-4 gap-2 pt-3">
-              {detail.featureBadges.map((badge) => (
-                <div
-                  key={badge.id}
-                  className="flex flex-col items-center text-center gap-2"
-                >
-                  <div className="w-12 h-12 sm:w-14 sm:h-14 rounded-full bg-[#EAE0D1] border border-[#D7C9B6] flex items-center justify-center shadow-2xs">
-                    <FeatureIcon type={badge.icon} />
-                  </div>
-                  <span className="text-[10px] sm:text-[11px] font-medium text-[#594E3F] leading-tight max-w-[80px]">
-                    {badge.label}
+            {/* ── SIZE / PACK SELECTION ── */}
+            {detail.sizes && detail.sizes.length > 0 && (
+              <div className="space-y-2 pt-1">
+                <div className="flex items-center justify-between">
+                  <span className="text-[11px] font-bold uppercase tracking-wider text-[#736754]">
+                    {detail.categorySlug === "muffins"
+                      ? "Select Pack"
+                      : "Portion & Size"}
                   </span>
-                </div>
-              ))}
-            </div>
-
-            {/* ── TABS CONTAINER (Allergen Info, Storage & Care) ── */}
-            <div className="rounded-2xl bg-[#EBE0CF] border border-[#D8CABA] p-4 sm:p-5 shadow-2xs space-y-4">
-              {/* Tab Navigation Header */}
-              <div className="flex border-b border-[#D5C6B3] gap-6 text-xs sm:text-sm font-semibold text-[#6E6352]">
-                <button
-                  onClick={() => setActiveTab("allergen")}
-                  className={`pb-2 transition-colors relative cursor-pointer ${
-                    activeTab === "allergen"
-                      ? "text-[#29251F]"
-                      : "hover:text-[#29251F]"
-                  }`}
-                >
-                  Allergen Info
-                  {activeTab === "allergen" && (
-                    <span className="absolute bottom-0 left-0 right-0 h-0.5 bg-[#A34B3D]" />
+                  {selectedSizeObj?.label && (
+                    <span className="text-xs text-[#A34B3D] font-bold">
+                      {selectedSizeObj.label}
+                    </span>
                   )}
-                </button>
+                </div>
 
-                <button
-                  onClick={() => setActiveTab("storage")}
-                  className={`pb-2 transition-colors relative cursor-pointer ${
-                    activeTab === "storage"
-                      ? "text-[#29251F]"
-                      : "hover:text-[#29251F]"
-                  }`}
-                >
-                  Storage & Care
-                  {activeTab === "storage" && (
-                    <span className="absolute bottom-0 left-0 right-0 h-0.5 bg-[#A34B3D]" />
+                <div className="flex flex-wrap gap-2.5">
+                  {detail.sizes.map((s) => {
+                    const isSelected = selectedSizeId === s.id;
+                    return (
+                      <button
+                        key={s.id}
+                        type="button"
+                        onClick={() => setSelectedSizeId(s.id)}
+                        className={`flex items-center gap-2 px-4 py-2.5 rounded-xl text-xs sm:text-sm font-bold transition-all duration-200 cursor-pointer border ${
+                          isSelected
+                            ? "bg-[#A34B3D] text-[#FAF5ED] border-[#A34B3D] shadow-sm scale-[1.02] ring-1.5 ring-[#A34B3D]/30"
+                            : "bg-[#FAF4EB] text-[#3E362A] border-[#D8CABA] hover:border-[#968972] hover:bg-[#FDF8F3]"
+                        }`}
+                      >
+                        <span>{s.label}</span>
+                        {s.price !== undefined && (
+                          <span
+                            className={`text-[11px] px-2 py-0.5 rounded-lg font-black transition-colors ${
+                              isSelected
+                                ? "bg-white/20 text-white"
+                                : "bg-[#EDE2D1] text-[#7A362B]"
+                            }`}
+                          >
+                            ₹{s.price}
+                          </span>
+                        )}
+                      </button>
+                    );
+                  })}
+                </div>
+              </div>
+            )}
+
+            {/* ── HANDCRAFTED ADD-ONS SELECTION ── */}
+            {detail.addons && detail.addons.length > 0 && (
+              <div className="space-y-2.5 pt-2">
+                <div className="flex items-center justify-between">
+                  <div className="flex items-center gap-2">
+                    <span className="text-[11px] font-bold uppercase tracking-wider text-[#736754]">
+                      Customize & Add-ons
+                    </span>
+                    <span className="text-[10px] font-semibold px-2 py-0.5 rounded-full bg-[#EADCCB] text-[#554D3F]">
+                      Optional
+                    </span>
+                  </div>
+                  {selectedAddonIds.length > 0 && (
+                    <span className="text-xs font-bold text-[#A34B3D] animate-in fade-in duration-200">
+                      +{selectedAddonIds.length} selected (+₹{addonsTotal})
+                    </span>
                   )}
-                </button>
-              </div>
-
-              {/* Tab 1: Allergen Info */}
-              {activeTab === "allergen" && (
-                <div className="space-y-2 text-xs sm:text-sm text-[#554B3B] leading-relaxed pt-1">
-                  {detail.allergenInfo.map((info, idx) => (
-                    <div key={idx} className="flex items-start gap-2">
-                      <span className="text-[#A34B3D] mt-1 font-bold">•</span>
-                      <span>{info}</span>
-                    </div>
-                  ))}
                 </div>
-              )}
 
-              {/* Tab 2: Storage & Care */}
-              {activeTab === "storage" && (
-                <div className="space-y-2 text-xs sm:text-sm text-[#554B3B] leading-relaxed pt-1">
-                  {detail.storageCare.map((tip, idx) => (
-                    <div key={idx} className="flex items-start gap-2">
-                      <span className="text-[#A34B3D] mt-1 font-bold">✓</span>
-                      <span>{tip}</span>
-                    </div>
-                  ))}
+                <div className="grid grid-cols-1 sm:grid-cols-2 gap-3">
+                  {detail.addons.map((addon) => {
+                    const isSelected = selectedAddonIds.includes(addon.id);
+                    const subtitle =
+                      addon.id === "wholewheat"
+                        ? "100% stoneground whole grain"
+                        : addon.id === "birthday"
+                        ? "Gold celebration topper"
+                        : addon.id === "message-card"
+                        ? "Handwritten calligraphy card"
+                        : addon.id === "candles" || addon.id === "candle"
+                        ? "Celebration taper candle"
+                        : addon.id === "gift-box"
+                        ? "Ribbon gift packaging"
+                        : "Handcrafted addition";
+
+                    return (
+                      <button
+                        key={addon.id}
+                        type="button"
+                        onClick={() => toggleAddon(addon.id)}
+                        className={`group relative flex items-center justify-between p-3.5 sm:p-4 rounded-2xl border text-left transition-all duration-200 cursor-pointer select-none active:scale-[0.99] ${
+                          isSelected
+                            ? "bg-[#FFF9F3] border-[#A34B3D] shadow-[0_2px_14px_rgba(163,75,61,0.12)] ring-1.5 ring-[#A34B3D] -translate-y-0.5"
+                            : "bg-[#FAF4EB]/90 border-[#D8C9B5] hover:border-[#968972] hover:bg-[#FAF4EB] hover:-translate-y-0.5 shadow-2xs hover:shadow-xs"
+                        }`}
+                      >
+                        <div className="flex items-center gap-3 min-w-0 pr-1.5">
+                          {/* Icon Medallion */}
+                          <div
+                            className={`w-9 h-9 rounded-xl flex items-center justify-center text-lg shrink-0 transition-all duration-200 ${
+                              isSelected
+                                ? "bg-[#A34B3D]/12 ring-1 ring-[#A34B3D]/30 scale-105"
+                                : "bg-[#EDE2D1] text-[#554D3F] group-hover:bg-[#E5D7C2]"
+                            }`}
+                          >
+                            <span>{addon.icon || "✨"}</span>
+                          </div>
+
+                          {/* Label & Description (Fully visible, no ellipsis) */}
+                          <div className="min-w-0 flex-1">
+                            <span
+                              className={`text-xs sm:text-[13px] font-bold block leading-snug transition-colors ${
+                                isSelected ? "text-[#29251F]" : "text-[#3D3529]"
+                              }`}
+                            >
+                              {addon.label}
+                            </span>
+                            <span className="text-[10.5px] sm:text-[11px] text-[#7A6D5A] mt-0.5 block leading-tight">
+                              {subtitle}
+                            </span>
+                          </div>
+                        </div>
+
+                        {/* Price Tag & Checkbox */}
+                        <div className="flex items-center gap-2 shrink-0 ml-2">
+                          <span
+                            className={`text-[11.5px] sm:text-xs font-bold px-2 py-0.5 rounded-full whitespace-nowrap transition-all ${
+                              isSelected
+                                ? "bg-[#A34B3D] text-[#FAF5ED]"
+                                : "bg-[#EDE2D1] text-[#7A362B] group-hover:bg-[#E3D4BF]"
+                            }`}
+                          >
+                            +₹{addon.price}
+                          </span>
+
+                          <div
+                            className={`w-5 h-5 rounded-lg border flex items-center justify-center transition-all duration-200 shrink-0 ${
+                              isSelected
+                                ? "bg-[#A34B3D] border-[#A34B3D] text-white shadow-xs scale-105"
+                                : "border-[#B5A490] bg-white/80 group-hover:border-[#7A362B]"
+                            }`}
+                          >
+                            {isSelected && (
+                              <Check className="w-3.5 h-3.5 stroke-[3]" />
+                            )}
+                          </div>
+                        </div>
+                      </button>
+                    );
+                  })}
                 </div>
-              )}
-            </div>
-
-            {/* ── VALUE PROPS / TRUST BAR ── */}
-            <div className="rounded-2xl bg-[#EBE0CF] border border-[#D8CABA] p-3.5 sm:p-4 grid grid-cols-3 divide-x divide-[#D5C6B3] text-center shadow-2xs">
-              {/* Delivery */}
-              <div className="px-2 flex flex-col items-center">
-                <Truck className="w-5 h-5 text-[#5F5444] mb-1" />
-                <span className="text-xs sm:text-sm font-bold text-[#29251F]">
-                  Delivery in 12–24 hours
-                </span>
-                <span className="text-[10px] text-[#6E6352] mt-0.5">
-                  Freshly baked & carefully packed
-                </span>
               </div>
+            )}
 
-              {/* Gifting */}
-              <div className="px-2 flex flex-col items-center">
-                <Gift className="w-5 h-5 text-[#5F5444] mb-1" />
-                <span className="text-xs sm:text-sm font-bold text-[#29251F]">
-                  Perfect for gifting
-                </span>
-                <span className="text-[10px] text-[#6E6352] mt-0.5">
-                  Add a personal note
-                </span>
+            {/* Already in Basket Banner */}
+            {getProductQuantity(product.id) > 0 && (
+              <div className="flex items-center justify-between p-3.5 rounded-2xl bg-[#4D7C47]/10 border border-[#4D7C47]/30 text-[#29251F] text-xs animate-in fade-in">
+                <div className="flex items-center gap-2.5">
+                  <span className="w-5 h-5 rounded-full bg-[#4D7C47] text-white flex items-center justify-center shrink-0">
+                    <Check className="w-3 h-3 stroke-[3]" />
+                  </span>
+                  <div>
+                    <p className="font-bold text-[#2D5A27]">
+                      Already in your basket ({getProductQuantity(product.id)} item{getProductQuantity(product.id) > 1 ? "s" : ""})
+                    </p>
+                    <p className="text-[11px] text-[#554D3F]">
+                      You can add more quantities or select additional toppings below.
+                    </p>
+                  </div>
+                </div>
+                <Link
+                  href={`/store/${slug}/cart`}
+                  className="font-bold text-[#A34B3D] hover:text-[#7A362B] text-xs underline shrink-0 pl-2"
+                >
+                  View Cart
+                </Link>
               </div>
+            )}
 
-              {/* Hygienic */}
-              <div className="px-2 flex flex-col items-center">
-                <ShieldCheck className="w-5 h-5 text-[#5F5444] mb-1" />
-                <span className="text-xs sm:text-sm font-bold text-[#29251F]">
-                  100% Hygienic
-                </span>
-                <span className="text-[10px] text-[#6E6352] mt-0.5">
-                  Baked with the highest standards
-                </span>
+            {/* Quantity Stepper & Add to Cart */}
+            {(() => {
+              const isSoldOut =
+                !product.available ||
+                (product.order_limit != null &&
+                  product.order_limit > 0 &&
+                  (product.total_ordered || 0) >= product.order_limit);
+
+              if (isSoldOut) {
+                return (
+                  <div className="w-full py-4 px-6 rounded-xl bg-rose-950/10 border border-rose-900/20 text-rose-900 text-center font-bold text-sm tracking-wider uppercase">
+                    Sold Out (Order Limit Reached or Product Unavailable)
+                  </div>
+                );
+              }
+
+              return (
+                <div className="flex items-center gap-3 sm:gap-4 pt-1">
+                  {/* Stepper */}
+                  <div className="flex items-center rounded-xl bg-[#EDE3D4] border border-[#D5C6B1] px-2 py-1.5">
+                    <button
+                      onClick={handleDecrement}
+                      className="w-8 h-8 rounded-lg flex items-center justify-center text-[#554D3F] hover:text-[#29251F] hover:bg-[#DFD3C0] transition-colors cursor-pointer"
+                      aria-label="Decrease quantity"
+                    >
+                      <Minus className="w-4 h-4" />
+                    </button>
+                    <span className="w-9 text-center font-serif text-base font-bold text-[#29251F]">
+                      {quantity}
+                    </span>
+                    <button
+                      onClick={handleIncrement}
+                      className="w-8 h-8 rounded-lg flex items-center justify-center text-[#554D3F] hover:text-[#29251F] hover:bg-[#DFD3C0] transition-colors cursor-pointer"
+                      aria-label="Increase quantity"
+                    >
+                      <Plus className="w-4 h-4" />
+                    </button>
+                  </div>
+
+                  {/* Add to Cart Button */}
+                  <button
+                    onClick={handleAddToCart}
+                    className={`flex-1 flex items-center justify-center gap-2.5 py-3.5 px-6 rounded-xl font-semibold text-sm sm:text-base text-white shadow-md transition-all duration-200 cursor-pointer active:scale-[0.98] ${
+                      isAdded
+                        ? "bg-[#4D7C47]"
+                        : getProductQuantity(product.id) > 0
+                        ? "bg-[#5D6B3F] hover:bg-[#4E5B33]"
+                        : "bg-[#A34B3D] hover:bg-[#8F3F32]"
+                    }`}
+                  >
+                    {isAdded ? (
+                      <>
+                        <Check className="w-5 h-5 stroke-[2.5]" />
+                        <span>Added to Cart!</span>
+                      </>
+                    ) : getProductQuantity(product.id) > 0 ? (
+                      <>
+                        <Check className="w-5 h-5 stroke-[2.5]" />
+                        <span>
+                          In Cart ({getProductQuantity(product.id)}) • Add More (+₹{unitPrice * quantity})
+                        </span>
+                      </>
+                    ) : (
+                      <>
+                        <ShoppingCart className="w-5 h-5" />
+                        <span>
+                          Add to Cart • ₹{unitPrice * quantity}
+                        </span>
+                      </>
+                    )}
+                  </button>
+                </div>
+              );
+            })()}
+
+            {/* ── ALLERGEN INFO (Clean, concise card) ── */}
+            <div className="rounded-2xl bg-[#EBE0CF] border border-[#D8CABA] p-4 sm:p-5 shadow-2xs space-y-2.5">
+              <div className="flex items-center gap-2 text-xs sm:text-sm font-bold text-[#29251F]">
+                <span className="w-2 h-2 rounded-full bg-[#A34B3D]" />
+                <span>Allergen Info</span>
+              </div>
+              <div className="space-y-1.5 text-xs sm:text-sm text-[#554B3B] leading-relaxed">
+                {detail.allergenInfo.map((info, idx) => (
+                  <div key={idx} className="flex items-start gap-2">
+                    <span className="text-[#A34B3D] mt-0.5 font-bold">•</span>
+                    <span>{info}</span>
+                  </div>
+                ))}
               </div>
             </div>
           </div>
@@ -575,80 +798,71 @@ export default function ProductDetailClient({
         {/* ══════════════════════════════════════════════════════════ */}
         {/* ═══ "YOU MAY ALSO LIKE" SECTION ═══ */}
         {/* ══════════════════════════════════════════════════════════ */}
-        <section className="mt-16 sm:mt-24 pt-8">
-          <div className="flex items-center justify-between mb-6">
-            <h2 className="font-serif text-2xl sm:text-3xl font-bold text-[#29251F]">
-              You May Also Like
-            </h2>
-            <div className="hidden sm:block">
-              <SpoonDivider />
-            </div>
-            <Link
-              href="/#menu"
-              className="flex items-center gap-1 text-xs sm:text-sm font-semibold text-[#29251F] hover:text-[#A34B3D] transition-colors"
-            >
-              <span>See All</span>
-              <ArrowRight className="w-3.5 h-3.5" />
-            </Link>
-          </div>
-
-          <div className="grid grid-cols-2 sm:grid-cols-3 lg:grid-cols-5 gap-4 sm:gap-5">
-            {RECOMMENDED_PRODUCTS.map((rec) => (
-              <div
-                key={rec.id}
-                className="group flex flex-col rounded-2xl bg-[#EBE0CF] border border-[#D8CABA] p-2.5 sm:p-3 shadow-2xs hover:shadow-md hover:border-[#91885D]/60 transition-all duration-300"
+        {recommendedProducts && recommendedProducts.length > 0 && (
+          <section className="mt-16 sm:mt-24 pt-8">
+            <div className="flex items-center justify-between mb-6">
+              <h2 className="font-serif text-2xl sm:text-3xl font-bold text-[#29251F]">
+                You May Also Like
+              </h2>
+              <div className="hidden sm:block">
+                <SpoonDivider />
+              </div>
+              <Link
+                href="/#menu"
+                className="flex items-center gap-1 text-xs sm:text-sm font-semibold text-[#29251F] hover:text-[#A34B3D] transition-colors"
               >
-                {/* Photo */}
-                <Link
-                  href={`/store/${slug}/product/${rec.id}`}
-                  className="relative aspect-square w-full rounded-xl overflow-hidden bg-[#E2D5C3] block cursor-pointer"
-                >
-                  <Image
-                    src={rec.image}
-                    alt={rec.name}
-                    fill
-                    sizes="(max-width: 640px) 50vw, (max-width: 1024px) 33vw, 20vw"
-                    className="object-cover transition-transform duration-300 group-hover:scale-105"
-                  />
-                  {/* Heart button */}
-                  <button
-                    onClick={(e) => {
-                      e.preventDefault();
-                      e.stopPropagation();
-                    }}
-                    className="absolute top-2 right-2 w-7 h-7 rounded-full bg-black/30 backdrop-blur-xs flex items-center justify-center text-white hover:bg-black/50 transition-colors"
-                    aria-label="Wishlist"
-                  >
-                    <Heart className="w-3.5 h-3.5 text-white" />
-                  </button>
-                </Link>
+                <span>See All</span>
+                <ArrowRight className="w-3.5 h-3.5" />
+              </Link>
+            </div>
 
-                {/* Details */}
-                <div className="flex flex-col flex-1 justify-between pt-2.5">
+            <div className="grid grid-cols-2 sm:grid-cols-3 lg:grid-cols-5 gap-4 sm:gap-5">
+              {recommendedProducts.map((rec) => (
+                <div
+                  key={rec.id}
+                  className="group flex flex-col rounded-2xl bg-[#EBE0CF] border border-[#D8CABA] p-2.5 sm:p-3 shadow-2xs hover:shadow-md hover:border-[#91885D]/60 transition-all duration-300"
+                >
+                  {/* Photo */}
                   <Link
                     href={`/store/${slug}/product/${rec.id}`}
-                    className="font-serif font-bold text-xs sm:text-sm text-[#29251F] line-clamp-2 hover:text-[#A34B3D] transition-colors"
+                    className="relative aspect-square w-full rounded-xl overflow-hidden bg-[#E2D5C3] block cursor-pointer"
                   >
-                    {rec.name}
+                    <Image
+                      src={rec.image_url || gallery[0]}
+                      alt={rec.name}
+                      fill
+                      sizes="(max-width: 640px) 50vw, (max-width: 1024px) 33vw, 20vw"
+                      className="object-cover transition-transform duration-300 group-hover:scale-105"
+                    />
                   </Link>
 
-                  <div className="flex items-center justify-between pt-2 mt-auto">
-                    <span className="font-serif font-bold text-sm text-[#29251F]">
-                      ₹{rec.price}
-                    </span>
-                    <button
-                      onClick={() => handleAddRecommended(rec)}
-                      className="w-8 h-8 rounded-lg bg-[#A34B3D] hover:bg-[#8F3F32] text-white flex items-center justify-center shadow-xs transition-transform active:scale-90 cursor-pointer"
-                      aria-label={`Add ${rec.name} to cart`}
+                  {/* Details */}
+                  <div className="flex flex-col flex-1 justify-between pt-2.5">
+                    <Link
+                      href={`/store/${slug}/product/${rec.id}`}
+                      className="font-serif font-bold text-xs sm:text-sm text-[#29251F] line-clamp-2 hover:text-[#A34B3D] transition-colors"
                     >
-                      <ShoppingCart className="w-3.5 h-3.5" />
-                    </button>
+                      {rec.name}
+                    </Link>
+
+                    <div className="flex items-center justify-between pt-2 mt-auto">
+                      <span className="font-serif font-bold text-sm text-[#29251F]">
+                        ₹{rec.price}
+                      </span>
+                      <button
+                        onClick={() => handleAddRecommended(rec)}
+                        className="w-8 h-8 rounded-lg bg-[#A34B3D] hover:bg-[#8F3F32] text-white flex items-center justify-center shadow-xs transition-transform active:scale-90 cursor-pointer"
+                        aria-label={`Add ${rec.name} to cart`}
+                      >
+                        <ShoppingCart className="w-3.5 h-3.5" />
+                      </button>
+                    </div>
                   </div>
                 </div>
-              </div>
-            ))}
-          </div>
-        </section>
+              ))}
+            </div>
+          </section>
+        )}
 
         {/* ══════════════════════════════════════════════════════════ */}
         {/* ═══ VINTAGE BANNER RIBBON (MATCHING EXACT PHOTO) ═══ */}
@@ -691,69 +905,6 @@ export default function ProductDetailClient({
           </div>
         </div>
       </main>
-
-      {/* ═══ INTERACTIVE 3D MODAL ═══ */}
-      {show3DModal && (
-        <div className="fixed inset-0 z-50 flex items-center justify-center bg-black/70 backdrop-blur-sm p-4">
-          <div className="relative w-full max-w-lg rounded-3xl bg-[#FAF5ED] border border-[#D9CBB7] p-6 shadow-2xl space-y-4">
-            {/* Close */}
-            <button
-              onClick={() => setShow3DModal(false)}
-              className="absolute top-4 right-4 p-2 rounded-full bg-[#EDE2D3] hover:bg-[#DFD3C0] text-[#29251F] transition-colors cursor-pointer"
-            >
-              <X className="w-5 h-5" />
-            </button>
-
-            <div className="text-center">
-              <h3 className="font-serif text-xl font-bold text-[#29251F]">
-                360° Cake Studio
-              </h3>
-              <p className="text-xs text-[#695F50] mt-0.5">
-                Drag slider to rotate and inspect this artisanal creation
-              </p>
-            </div>
-
-            {/* 3D Viewer Box */}
-            <div className="relative aspect-square w-full rounded-2xl overflow-hidden bg-[#E6DAC9] border border-[#D2C3AF] flex items-center justify-center shadow-inner">
-              <div
-                className="relative w-4/5 h-4/5 transition-transform duration-100 ease-out"
-                style={{
-                  transform: `rotateY(${rotationAngle}deg) scale(1.05)`,
-                  perspective: "1000px",
-                }}
-              >
-                <Image
-                  src={currentImage}
-                  alt={detail.name}
-                  fill
-                  className="object-cover rounded-2xl shadow-xl"
-                />
-              </div>
-
-              <div className="absolute bottom-3 left-3 flex items-center gap-1.5 px-2.5 py-1 rounded-full bg-black/40 text-white text-[10px] backdrop-blur-xs">
-                <Sparkles className="w-3 h-3 text-[#E8D5BC]" />
-                <span>Drag to inspect</span>
-              </div>
-            </div>
-
-            {/* Rotation slider */}
-            <div className="space-y-1.5 pt-2">
-              <div className="flex items-center justify-between text-xs text-[#695F50]">
-                <span>Rotate 360°</span>
-                <span>{rotationAngle}°</span>
-              </div>
-              <input
-                type="range"
-                min="0"
-                max="360"
-                value={rotationAngle}
-                onChange={(e) => setRotationAngle(Number(e.target.value))}
-                className="w-full accent-[#A34B3D] cursor-pointer"
-              />
-            </div>
-          </div>
-        </div>
-      )}
     </div>
   );
 }

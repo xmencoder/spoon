@@ -38,7 +38,24 @@ export async function getOrCreateAdminRestaurant(): Promise<Restaurant | null> {
 
     if (restaurants && restaurants.length > 0) {
       const owned = restaurants.find((r) => r.owner_id === user.id);
-      return (owned || restaurants[0]) as Restaurant;
+      if (owned) return owned as Restaurant;
+
+      // If restaurant exists but has no owner, claim it for this authenticated admin
+      const target = restaurants[0];
+      if (!target.owner_id) {
+        try {
+          const { data: claimed } = await supabase
+            .from("restaurants")
+            .update({ owner_id: user.id })
+            .eq("id", target.id)
+            .select()
+            .single();
+          if (claimed) return claimed as Restaurant;
+        } catch {
+          // ignore claim failure and return target
+        }
+      }
+      return target as Restaurant;
     }
 
     // Auto-provision a default restaurant for newly registered admin
@@ -172,7 +189,11 @@ export async function createAdminCategory(
     .select()
     .single();
 
-  if (error) throw error;
+  if (error) {
+    console.error("createAdminCategory Supabase error:", error);
+    throw new Error(error.message || "Failed to create category");
+  }
+
   return data as Category;
 }
 
@@ -227,6 +248,48 @@ export async function reorderAdminCategories(
 }
 
 /**
+ * Unpack embedded metadata if columns were missing in older Supabase schema
+ */
+export function unpackProductMetadata(product: any): Product {
+  if (!product) return product;
+  const p = { ...product };
+
+  if (p.description && p.description.includes("<!-- BAKERY_META:")) {
+    try {
+      const match = p.description.match(/<!-- BAKERY_META:([\s\S]*?) -->/);
+      if (match && match[1]) {
+        const meta = JSON.parse(match[1]);
+        if (!p.gallery_images || p.gallery_images.length === 0) p.gallery_images = meta.gallery_images;
+        if (!p.sizes || p.sizes.length === 0) p.sizes = meta.sizes;
+        if (!p.addons || p.addons.length === 0) p.addons = meta.addons;
+        if (!p.tags || p.tags.length === 0) p.tags = meta.tags;
+        if (!p.story_text) p.story_text = meta.story_text;
+        if (!p.badge) p.badge = meta.badge;
+        if (p.order_limit === undefined || p.order_limit === null) p.order_limit = meta.order_limit;
+        if (p.total_ordered === undefined || p.total_ordered === null) p.total_ordered = meta.total_ordered;
+      }
+      p.description = p.description.replace(/<!-- BAKERY_META:([\s\S]*?) -->/, "").trim();
+    } catch {
+      // ignore parse errors
+    }
+  }
+
+  // Ensure gallery_images is always a valid array
+  if (!p.gallery_images || !Array.isArray(p.gallery_images) || p.gallery_images.length === 0) {
+    if (p.image_url) {
+      p.gallery_images = [p.image_url];
+    } else {
+      p.gallery_images = [];
+    }
+  }
+
+  p.total_ordered = Number(p.total_ordered || 0);
+  p.order_limit = p.order_limit != null && p.order_limit !== "" ? Number(p.order_limit) : null;
+
+  return p as Product;
+}
+
+/**
  * Fetch all products for a restaurant with category information
  */
 export async function getAdminProducts(
@@ -251,7 +314,7 @@ export async function getAdminProducts(
 
   const { data, error } = await query;
   if (error) throw error;
-  return (data as Product[]) || [];
+  return (data || []).map(unpackProductMetadata);
 }
 
 /**
@@ -268,7 +331,7 @@ export async function getAdminProductById(
     .maybeSingle();
 
   if (error) throw error;
-  return data as Product | null;
+  return data ? unpackProductMetadata(data) : null;
 }
 
 /**
@@ -278,44 +341,124 @@ export async function createAdminProduct(
   restaurantId: string,
   productData: {
     name: string;
-    description: string;
+    description?: string;
     price: number;
-    category_id: string;
-    available: boolean;
-    featured: boolean;
+    category_id?: string | null;
+    available?: boolean;
+    featured?: boolean;
     sort_order?: number;
+    badge?: string | null;
+    order_limit?: number | null;
+    total_ordered?: number | null;
+    image_url?: string | null;
+    gallery_images?: string[] | null;
+    sizes?: any;
+    addons?: any;
+    tags?: string[];
+    allergen_info?: string[];
+    storage_care?: string[];
+    is_veg?: boolean;
+    story_text?: string | null;
+    rating?: number;
   },
   imageFile?: File | null
 ): Promise<Product> {
-  let imageUrl: string | null = null;
+  let imageUrl: string | null = productData.image_url || null;
 
   if (imageFile) {
     const uploadResult = await uploadProductImage(restaurantId, imageFile);
-    if (uploadResult.error) {
-      throw new Error(`Failed to upload image: ${uploadResult.error}`);
+    if (uploadResult.url) {
+      imageUrl = uploadResult.url;
     }
-    imageUrl = uploadResult.url;
   }
 
   const supabase = createClient();
+  const galleryList = productData.gallery_images && productData.gallery_images.length > 0
+    ? productData.gallery_images
+    : (imageUrl ? [imageUrl] : []);
+  
+  const coverUrl = imageUrl || (galleryList.length > 0 ? galleryList[0] : null);
+
+  // Attempt rich insert with all bakery attributes
+  const fullPayload = {
+    restaurant_id: restaurantId,
+    name: productData.name.trim(),
+    description: productData.description?.trim() || null,
+    price: productData.price,
+    category_id: productData.category_id || null,
+    available: productData.available ?? true,
+    featured: productData.featured ?? false,
+    sort_order: productData.sort_order || 0,
+    image_url: coverUrl,
+    gallery_images: galleryList,
+    badge: productData.badge || null,
+    order_limit: productData.order_limit || null,
+    total_ordered: productData.total_ordered || 0,
+    sizes: productData.sizes || [],
+    addons: productData.addons || [],
+    tags: productData.tags || [],
+    allergen_info: productData.allergen_info || [],
+    storage_care: productData.storage_care || [],
+    is_veg: productData.is_veg ?? true,
+    story_text: productData.story_text || null,
+    rating: productData.rating || 4.8,
+  };
+
   const { data, error } = await supabase
     .from("products")
-    .insert({
-      restaurant_id: restaurantId,
-      name: productData.name.trim(),
-      description: productData.description.trim() || null,
-      price: productData.price,
-      category_id: productData.category_id || null,
-      available: productData.available,
-      featured: productData.featured,
-      sort_order: productData.sort_order || 0,
-      image_url: imageUrl,
-    })
+    .insert(fullPayload)
     .select()
     .single();
 
-  if (error) throw error;
-  return data as Product;
+  if (error) {
+    console.warn("Full payload insert notice, trying safe fallback insert:", error.message);
+    
+    // Embed rich metadata into description comment for seamless resilience
+    const metaPayload = {
+      gallery_images: galleryList,
+      sizes: productData.sizes || [],
+      addons: productData.addons || [],
+      tags: productData.tags || [],
+      story_text: productData.story_text || null,
+      badge: productData.badge || null,
+      is_veg: productData.is_veg ?? true,
+      order_limit: productData.order_limit || null,
+      total_ordered: productData.total_ordered || 0,
+    };
+    const cleanDesc = productData.description?.trim() || "";
+    const descriptionWithMeta = cleanDesc
+      ? `${cleanDesc}\n<!-- BAKERY_META:${JSON.stringify(metaPayload)} -->`
+      : `<!-- BAKERY_META:${JSON.stringify(metaPayload)} -->`;
+
+    const basicPayload = {
+      restaurant_id: restaurantId,
+      name: productData.name.trim(),
+      description: descriptionWithMeta,
+      price: productData.price,
+      category_id: productData.category_id || null,
+      available: productData.available ?? true,
+      featured: productData.featured ?? false,
+      sort_order: productData.sort_order || 0,
+      image_url: coverUrl,
+    };
+
+    const { data: fallbackData, error: fallbackError } = await supabase
+      .from("products")
+      .insert(basicPayload)
+      .select()
+      .single();
+
+    if (!fallbackError && fallbackData) {
+      return unpackProductMetadata(fallbackData);
+    }
+
+    const detailMsg = [fallbackError?.message || error.message, error.details, error.hint]
+      .filter(Boolean)
+      .join(" - ");
+    throw new Error(detailMsg || "Database insert failed");
+  }
+
+  return unpackProductMetadata(data);
 }
 
 /**
@@ -331,10 +474,14 @@ export async function updateAdminProduct(
 
   if (newImageFile) {
     const uploadResult = await uploadProductImage(restaurantId, newImageFile);
-    if (uploadResult.error) {
-      throw new Error(`Failed to upload new image: ${uploadResult.error}`);
+    if (uploadResult.url) {
+      updates.image_url = uploadResult.url;
     }
-    updates.image_url = uploadResult.url;
+  }
+
+  // Ensure gallery_images is array if passed
+  if (updates.gallery_images && !Array.isArray(updates.gallery_images)) {
+    updates.gallery_images = [updates.gallery_images];
   }
 
   const supabase = createClient();
@@ -345,8 +492,72 @@ export async function updateAdminProduct(
     .select()
     .single();
 
-  if (error) throw error;
-  return data as Product;
+  if (error) {
+    console.warn("Full payload update notice, trying safe fallback update:", error.message);
+
+    // Fallback: Embed rich metadata into description comment for seamless resilience
+    const metaPayload = {
+      gallery_images: updates.gallery_images || (updates.image_url ? [updates.image_url] : []),
+      sizes: updates.sizes || [],
+      addons: updates.addons || [],
+      tags: updates.tags || [],
+      story_text: updates.story_text || null,
+      badge: updates.badge || null,
+      is_veg: updates.is_veg ?? true,
+      order_limit: updates.order_limit !== undefined ? updates.order_limit : null,
+      total_ordered: updates.total_ordered !== undefined ? updates.total_ordered : 0,
+    };
+    const cleanDesc = (updates.description || "").replace(/<!-- BAKERY_META:([\s\S]*?) -->/, "").trim();
+    const descriptionWithMeta = cleanDesc
+      ? `${cleanDesc}\n<!-- BAKERY_META:${JSON.stringify(metaPayload)} -->`
+      : `<!-- BAKERY_META:${JSON.stringify(metaPayload)} -->`;
+
+    const basicUpdates: any = {};
+    if (updates.name !== undefined) basicUpdates.name = updates.name;
+    basicUpdates.description = descriptionWithMeta;
+    if (updates.price !== undefined) basicUpdates.price = updates.price;
+    if (updates.category_id !== undefined) basicUpdates.category_id = updates.category_id;
+    if (updates.available !== undefined) basicUpdates.available = updates.available;
+    if (updates.featured !== undefined) basicUpdates.featured = updates.featured;
+    if (updates.sort_order !== undefined) basicUpdates.sort_order = updates.sort_order;
+    if (updates.image_url !== undefined) basicUpdates.image_url = updates.image_url;
+
+    const { data: fallbackData, error: fallbackError } = await supabase
+      .from("products")
+      .update(basicUpdates)
+      .eq("id", productId)
+      .select()
+      .single();
+
+    if (!fallbackError && fallbackData) {
+      return unpackProductMetadata(fallbackData);
+    }
+
+    const detailMsg = [fallbackError?.message || error.message, error.details, error.hint]
+      .filter(Boolean)
+      .join(" - ");
+    throw new Error(detailMsg || "Database update failed");
+  }
+
+  return unpackProductMetadata(data);
+}
+
+/**
+ * Reset ordered count for a product back to 0
+ */
+export async function resetProductOrderCount(productId: string): Promise<void> {
+  const supabase = createClient();
+  const { data: prod } = await supabase
+    .from("products")
+    .select("*")
+    .eq("id", productId)
+    .single();
+
+  if (prod) {
+    await updateAdminProduct(productId, prod.restaurant_id, {
+      total_ordered: 0,
+    });
+  }
 }
 
 /**

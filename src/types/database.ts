@@ -31,7 +31,23 @@ export interface Category {
   restaurant_id: string;
   name: string;
   sort_order: number;
+  image_url?: string | null;
+  category_limit?: number | null;
   created_at?: string;
+}
+
+export interface ProductSizeOption {
+  id: string;
+  label: string;
+  price?: number;
+  isDefault?: boolean;
+}
+
+export interface ProductAddonOption {
+  id: string;
+  label: string;
+  price: number;
+  icon?: string;
 }
 
 export interface Product {
@@ -45,6 +61,18 @@ export interface Product {
   available: boolean;
   featured: boolean;
   sort_order: number;
+  badge?: string | null;
+  order_limit?: number | null;
+  total_ordered?: number | null;
+  sizes?: ProductSizeOption[] | null;
+  addons?: ProductAddonOption[] | null;
+  tags?: string[] | null;
+  allergen_info?: string[] | null;
+  storage_care?: string[] | null;
+  gallery_images?: string[] | null;
+  is_veg?: boolean | null;
+  story_text?: string | null;
+  rating?: number | null;
   created_at?: string;
   updated_at?: string;
 }

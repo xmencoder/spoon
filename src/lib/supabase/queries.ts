@@ -68,6 +68,45 @@ export async function getCategories(restaurantId: string): Promise<Category[]> {
   return data as Category[];
 }
 
+function unpackProduct(product: any): Product {
+  if (!product) return product;
+  const p = { ...product };
+
+  if (p.description && typeof p.description === "string" && p.description.includes("<!-- BAKERY_META:")) {
+    try {
+      const match = p.description.match(/<!-- BAKERY_META:([\s\S]*?) -->/);
+      if (match && match[1]) {
+        const meta = JSON.parse(match[1]);
+        if (!p.gallery_images || p.gallery_images.length === 0) p.gallery_images = meta.gallery_images;
+        if (!p.sizes || p.sizes.length === 0) p.sizes = meta.sizes;
+        if (!p.addons || p.addons.length === 0) p.addons = meta.addons;
+        if (!p.tags || p.tags.length === 0) p.tags = meta.tags;
+        if (!p.story_text) p.story_text = meta.story_text;
+        if (!p.badge) p.badge = meta.badge;
+        if (p.order_limit === undefined || p.order_limit === null) p.order_limit = meta.order_limit;
+        if (p.total_ordered === undefined || p.total_ordered === null) p.total_ordered = meta.total_ordered;
+      }
+      p.description = p.description.replace(/<!-- BAKERY_META:([\s\S]*?) -->/, "").trim();
+    } catch {
+      // ignore
+    }
+  }
+
+  // Ensure gallery_images is array
+  if (!p.gallery_images || !Array.isArray(p.gallery_images) || p.gallery_images.length === 0) {
+    if (p.image_url) {
+      p.gallery_images = [p.image_url];
+    } else {
+      p.gallery_images = [];
+    }
+  }
+
+  p.total_ordered = Number(p.total_ordered || 0);
+  p.order_limit = p.order_limit != null && p.order_limit !== "" ? Number(p.order_limit) : null;
+
+  return p as Product;
+}
+
 /**
  * Fetch products for a restaurant, optionally filtered by category
  */
@@ -90,7 +129,7 @@ export async function getProducts(
   if (error || !data) {
     return [];
   }
-  return data as Product[];
+  return (data as any[]).map(unpackProduct);
 }
 
 /**
@@ -107,7 +146,7 @@ export async function getProductById(productId: string): Promise<Product | null>
   if (error || !data) {
     return null;
   }
-  return data as Product;
+  return unpackProduct(data);
 }
 
 /**

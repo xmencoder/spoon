@@ -6,46 +6,20 @@ import Image from "next/image";
 import { usePathname } from "next/navigation";
 import { Search, ShoppingCart, X } from "lucide-react";
 
+import { useCart, DEFAULT_RESTAURANT_SLUG } from "@/lib/store/CartContext";
+
 interface HeaderProps {
   cartCount?: number;
 }
 
-export function Header({ cartCount: initialCartCount = 0 }: HeaderProps) {
-  const [cartCount, setCartCount] = useState(initialCartCount);
+export function Header({ cartCount: initialCartCount }: HeaderProps) {
+  const { totalItems, openCartDrawer, restaurantSlug } = useCart();
   const [isSearchOpen, setIsSearchOpen] = useState(false);
   const [searchQuery, setSearchQuery] = useState("");
   const pathname = usePathname();
 
-  // Sync cart count from localStorage
-  useEffect(() => {
-    const updateCount = () => {
-      try {
-        const stored = localStorage.getItem("spoon_cart_the-indulgent-spoon");
-        if (stored) {
-          const items = JSON.parse(stored);
-          if (Array.isArray(items)) {
-            const count = items.reduce(
-              (sum: number, item: { quantity?: number }) =>
-                sum + (item.quantity || 1),
-              0
-            );
-            setCartCount(count);
-            return;
-          }
-        }
-      } catch {
-        // fallback
-      }
-    };
-
-    updateCount();
-    window.addEventListener("storage", updateCount);
-    const interval = setInterval(updateCount, 1500);
-    return () => {
-      window.removeEventListener("storage", updateCount);
-      clearInterval(interval);
-    };
-  }, [initialCartCount]);
+  const effectiveCartCount = totalItems !== undefined ? totalItems : (initialCartCount || 0);
+  const activeSlug = restaurantSlug || DEFAULT_RESTAURANT_SLUG;
 
   return (
     <header className="sticky top-0 left-0 right-0 z-50 w-full shadow-[0_4px_20px_rgba(41,37,31,0.18)]">
@@ -97,7 +71,7 @@ export function Header({ cartCount: initialCartCount = 0 }: HeaderProps) {
             </Link>
 
             <Link
-              href="/#about"
+              href="/#founders-note"
               className="text-[#E6DBC9] hover:text-white transition-colors duration-200 hidden sm:inline"
             >
               Our Story
@@ -160,17 +134,18 @@ export function Header({ cartCount: initialCartCount = 0 }: HeaderProps) {
             </div>
 
             <Link
-              href="/store/the-indulgent-spoon/cart"
-              className="relative p-1 text-[#E6DBC9] hover:text-white transition-colors flex items-center justify-center cursor-pointer"
-              aria-label="View Cart"
+              href={`/store/${activeSlug}/cart`}
+              className="relative p-1 text-[#E6DBC9] hover:text-white transition-colors flex items-center justify-center cursor-pointer group"
+              aria-label="View Shopping Cart"
+              title="View Cart"
             >
               <ShoppingCart
-                className="w-5 h-5 text-[#EAE0D1] hover:text-white transition-colors"
+                className="w-5 h-5 text-[#EAE0D1] group-hover:text-white transition-colors"
                 strokeWidth={1.75}
               />
-              {cartCount > 0 && (
-                <span className="absolute -top-1 -right-2 bg-[#B54A3D] text-white text-[9.5px] font-bold w-4 h-4 rounded-full flex items-center justify-center shadow-xs border border-[#7A774D]">
-                  {cartCount}
+              {effectiveCartCount > 0 && (
+                <span className="absolute -top-1 -right-2 bg-[#B54A3D] text-white text-[9.5px] font-bold w-4.5 h-4.5 rounded-full flex items-center justify-center shadow-xs border border-[#7A774D] animate-in zoom-in-50">
+                  {effectiveCartCount}
                 </span>
               )}
             </Link>

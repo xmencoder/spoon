@@ -22,8 +22,18 @@ export function validateImageFile(file: File): { valid: boolean; error?: string 
   return { valid: true };
 }
 
+export function fileToBase64(file: File): Promise<string> {
+  return new Promise((resolve, reject) => {
+    const reader = new FileReader();
+    reader.onload = () => resolve(reader.result as string);
+    reader.onerror = (error) => reject(error);
+    reader.readAsDataURL(file);
+  });
+}
+
 /**
- * Upload a product image to Supabase Storage inside the restaurant's folder
+ * Upload a product image to Supabase Storage inside the restaurant's folder.
+ * Falls back gracefully to base64 Data URL if storage bucket is not configured.
  */
 export async function uploadProductImage(
   restaurantId: string,
@@ -34,27 +44,66 @@ export async function uploadProductImage(
     return { url: null, error: validation.error || "Invalid file" };
   }
 
-  const supabase = createClient();
-  const fileExt = file.name.split(".").pop();
-  const fileName = `${Date.now()}-${Math.random().toString(36).substring(2, 8)}.${fileExt}`;
-  const filePath = `${restaurantId}/${fileName}`;
+  try {
+    const supabase = createClient();
+    const fileExt = file.name.split(".").pop();
+    const fileName = `${Date.now()}-${Math.random().toString(36).substring(2, 8)}.${fileExt}`;
+    const filePath = `${restaurantId}/${fileName}`;
 
-  const { error: uploadError } = await supabase.storage
-    .from(PRODUCT_STORAGE_BUCKET)
-    .upload(filePath, file, {
-      cacheControl: "3600",
-      upsert: false,
-    });
+    const { error: uploadError } = await supabase.storage
+      .from(PRODUCT_STORAGE_BUCKET)
+      .upload(filePath, file, {
+        cacheControl: "3600",
+        upsert: false,
+      });
 
-  if (uploadError) {
-    return { url: null, error: uploadError.message };
+    if (!uploadError) {
+      const {
+        data: { publicUrl },
+      } = supabase.storage.from(PRODUCT_STORAGE_BUCKET).getPublicUrl(filePath);
+
+      if (publicUrl) {
+        return { url: publicUrl, error: null };
+      }
+    } else {
+      console.warn("Supabase storage upload returned error, falling back to data URL:", uploadError.message);
+    }
+  } catch (storageErr) {
+    console.warn("Supabase storage upload threw exception, falling back to data URL:", storageErr);
   }
 
-  const {
-    data: { publicUrl },
-  } = supabase.storage.from(PRODUCT_STORAGE_BUCKET).getPublicUrl(filePath);
+  // Graceful fallback to Data URL (base64) so product creation NEVER fails
+  try {
+    const dataUrl = await fileToBase64(file);
+    return { url: dataUrl, error: null };
+  } catch (convErr) {
+    return { url: null, error: "Failed to read image file" };
+  }
+}
 
-  return { url: publicUrl, error: null };
+/**
+ * Upload multiple product images in parallel to Supabase Storage
+ */
+export async function uploadMultipleProductImages(
+  restaurantId: string,
+  files: File[]
+): Promise<{ urls: string[]; errors: string[] }> {
+  const results = await Promise.all(
+    files.map((file) => uploadProductImage(restaurantId, file))
+  );
+
+  const urls: string[] = [];
+  const errors: string[] = [];
+
+  results.forEach((res, index) => {
+    if (res.url) {
+      urls.push(res.url);
+    } else if (res.error) {
+      errors.push(`File ${files[index].name}: ${res.error}`);
+    }
+  });
+
+  return { urls, errors };
 }
 
 /**
@@ -76,4 +125,14 @@ export async function deleteProductImage(
   }
 
   return { success: true, error: null };
+}
+
+/**
+ * Upload a category image to Supabase Storage
+ */
+export async function uploadCategoryImage(
+  restaurantId: string,
+  file: File
+): Promise<{ url: string | null; error: string | null }> {
+  return uploadProductImage(restaurantId, file);
 }

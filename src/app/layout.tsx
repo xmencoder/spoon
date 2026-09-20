@@ -32,6 +32,9 @@ export const metadata: Metadata = {
   },
 };
 
+import { CartProvider } from "@/lib/store/CartContext";
+import { CartDrawer } from "@/components/cart/CartDrawer";
+
 export default function RootLayout({
   children,
 }: {
@@ -43,7 +46,10 @@ export default function RootLayout({
       className={`${playfair.variable} ${jakarta.variable} ${caveat.variable} h-full antialiased`}
     >
       <body className="min-h-full flex flex-col bg-[#D9BC9E] text-[#29251F] font-sans selection:bg-[#C26B59] selection:text-[#F5EBDD]">
-        {children}
+        <CartProvider restaurantSlug="the-indulgent-spoon">
+          <CartDrawer />
+          {children}
+        </CartProvider>
       </body>
     </html>
   );

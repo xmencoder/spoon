@@ -1,11 +1,10 @@
 import {
   getRestaurantBySlug,
   getProductById,
+  getProducts,
   getCategories,
   getDefaultRestaurant,
 } from "@/lib/supabase/queries";
-import { MOCK_PRODUCTS } from "@/lib/products-data";
-import { BAKERY_PRODUCTS, getBakeryProductDetail } from "@/lib/bakery-products";
 import type { Metadata } from "next";
 import ProductDetailClient from "./ProductDetailClient";
 import type { Product, Restaurant } from "@/types/database";
@@ -42,20 +41,9 @@ export async function generateMetadata({ params }: Props): Promise<Metadata> {
   } catch {
     dbProduct = null;
   }
-  const bakeryProduct = BAKERY_PRODUCTS[id];
-  const mockProduct = MOCK_PRODUCTS.find((m) => m.id === id);
 
-  const title =
-    dbProduct?.name ||
-    bakeryProduct?.name ||
-    mockProduct?.name ||
-    "Artisanal Bakery Creation";
-
-  const description =
-    dbProduct?.description ||
-    bakeryProduct?.subtitle ||
-    mockProduct?.description ||
-    "Order freshly prepared artisanal bakery creations online.";
+  const title = dbProduct?.name || "Artisanal Bakery Creation";
+  const description = dbProduct?.description || "Order freshly prepared artisanal bakery creations online.";
 
   return {
     title: `${title} — The Indulgent Spoon`,
@@ -68,6 +56,7 @@ export default async function ProductDetailPage({ params }: Props) {
 
   let restaurant: Restaurant | null = null;
   let dbProduct: Product | null = null;
+  let otherProducts: Product[] = [];
 
   try {
     [restaurant, dbProduct] = await Promise.all([
@@ -89,62 +78,37 @@ export default async function ProductDetailPage({ params }: Props) {
     }
   }
 
+  // Fetch sibling products for recommendations
+  if (restaurant?.id) {
+    try {
+      const all = await getProducts(restaurant.id);
+      otherProducts = all.filter((p) => p.id !== id).slice(0, 5);
+    } catch {
+      otherProducts = [];
+    }
+  }
+
   let product: Product | null = dbProduct;
   let badge: string | undefined = undefined;
-  let categoryName = "Cakes";
+  let categoryName = "Bakery";
 
-  // Check BAKERY_PRODUCTS first (matches exact design in the image)
-  const bakery = BAKERY_PRODUCTS[id];
-  if (bakery) {
+  if (dbProduct) {
+    product = dbProduct;
+    badge = (dbProduct.badge as string) || undefined;
+  } else {
+    // Fallback stub if id not found in DB
     product = {
-      id: bakery.id,
+      id,
       restaurant_id: restaurant.id,
       category_id: null,
-      name: bakery.name,
-      description: bakery.subtitle,
-      price: bakery.price,
-      image_url: bakery.mainImage,
+      name: "Bakery Item",
+      description: "Artisanal bake prepared with premium ingredients.",
+      price: 500,
+      image_url: "https://images.unsplash.com/photo-1578985545062-69928b1d9587?w=800&auto=format&fit=crop&q=80",
       available: true,
       featured: true,
       sort_order: 0,
     };
-    badge = bakery.badge;
-    categoryName = bakery.category;
-  } else if (!product) {
-    const mock = MOCK_PRODUCTS.find((m) => m.id === id);
-    if (mock) {
-      product = {
-        id: mock.id,
-        restaurant_id: restaurant.id,
-        category_id: null,
-        name: mock.name,
-        description: mock.description,
-        price: mock.price,
-        image_url: mock.image,
-        available: true,
-        featured: true,
-        sort_order: 0,
-      };
-      badge = mock.badge;
-      categoryName = mock.category;
-    } else {
-      // Dynamic fallback detail for any clicked item
-      const dynamicDetail = getBakeryProductDetail(id);
-      product = {
-        id: dynamicDetail.id,
-        restaurant_id: restaurant.id,
-        category_id: null,
-        name: dynamicDetail.name,
-        description: dynamicDetail.subtitle,
-        price: dynamicDetail.price,
-        image_url: dynamicDetail.mainImage,
-        available: true,
-        featured: true,
-        sort_order: 0,
-      };
-      badge = dynamicDetail.badge;
-      categoryName = dynamicDetail.category;
-    }
   }
 
   // If we have restaurant categories in DB, attempt lookup
@@ -165,6 +129,7 @@ export default async function ProductDetailPage({ params }: Props) {
       categoryName={categoryName}
       slug={slug}
       badge={badge}
+      recommendedProducts={otherProducts}
     />
   );
 }

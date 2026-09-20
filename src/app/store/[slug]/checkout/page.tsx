@@ -27,8 +27,17 @@ import { createClient } from "@/lib/supabase/client";
 export default function CheckoutPage() {
   const params = useParams();
   const slug = params?.slug as string;
-  const router = useRouter();
-  const { items, totalItems, subtotal, clearCart } = useCart();
+  const {
+    items,
+    totalItems,
+    subtotal,
+    deliveryFee: defaultDeliveryFee,
+    packagingFee,
+    giftNoteFee,
+    hasGiftNote,
+    giftNote,
+    clearCart,
+  } = useCart();
 
   const [restaurant, setRestaurant] = useState<Restaurant | null>(null);
   const [loadingRestaurant, setLoadingRestaurant] = useState(true);
@@ -59,8 +68,9 @@ export default function CheckoutPage() {
   }, [slug]);
 
   const deliveryCharge =
-    orderType === "delivery" ? (restaurant?.delivery_charge ?? 40) : 0;
-  const total = subtotal + deliveryCharge;
+    orderType === "delivery" ? (restaurant?.delivery_charge ?? defaultDeliveryFee) : 0;
+  const currentGiftFee = hasGiftNote ? giftNoteFee : 0;
+  const total = subtotal + deliveryCharge + packagingFee + currentGiftFee;
   const minimumOrder = restaurant?.minimum_order ?? 0;
 
   // Validation
@@ -73,6 +83,8 @@ export default function CheckoutPage() {
     name.trim().length >= 2 &&
     phone.trim().length >= 7 &&
     (orderType === "takeaway" || address.trim().length >= 5);
+
+  const router = useRouter();
 
   const handleSubmit = async (e: React.FormEvent) => {
     e.preventDefault();
@@ -89,12 +101,19 @@ export default function CheckoutPage() {
         deliveryAddress: address,
         cartItems: items.map((i) => ({
           productId: i.product.id,
+          productName: i.product.name,
           quantity: i.quantity,
+          unitPrice: i.unitPrice,
+          sizeLabel: i.sizeLabel,
+          addons: i.addons,
         })),
         restaurantId: restaurant.id,
         restaurantSlug: slug,
         whatsappNumber: restaurant.whatsapp_number,
         deliveryCharge,
+        packagingCharge: packagingFee,
+        hasGiftNote,
+        giftNote,
       });
 
       if (!result.success || !result.whatsappUrl) {
@@ -311,34 +330,45 @@ export default function CheckoutPage() {
           <h2 className="font-serif font-bold text-base text-[#29251F]">
             Order Summary
           </h2>
-          <div className="space-y-2">
-            {items.map(({ product, quantity }) => (
+          <div className="space-y-2.5">
+            {items.map((item) => (
               <div
-                key={product.id}
-                className="flex items-center gap-2.5 text-xs"
+                key={item.id}
+                className="flex items-start gap-2.5 text-xs"
               >
-                {product.image_url && (
-                  <div className="relative h-8 w-8 shrink-0 rounded-lg overflow-hidden bg-[#E8D5BC] border border-[#91885D]/20">
+                {item.product.image_url ? (
+                  <div className="relative h-9 w-9 shrink-0 rounded-lg overflow-hidden bg-[#E8D5BC] border border-[#91885D]/20 mt-0.5">
                     <Image
-                      src={product.image_url}
-                      alt={product.name}
+                      src={item.product.image_url}
+                      alt={item.product.name}
                       fill
                       className="object-cover"
-                      sizes="32px"
+                      sizes="36px"
                     />
                   </div>
-                )}
-                {!product.image_url && (
-                  <div className="h-8 w-8 shrink-0 rounded-lg bg-[#E8D5BC] flex items-center justify-center">
+                ) : (
+                  <div className="h-9 w-9 shrink-0 rounded-lg bg-[#E8D5BC] flex items-center justify-center mt-0.5">
                     <Utensils className="h-3.5 w-3.5 text-[#696053]" />
                   </div>
                 )}
-                <span className="flex-1 text-[#29251F] font-medium">
-                  {product.name}{" "}
-                  <span className="text-[#696053]">× {quantity}</span>
-                </span>
-                <span className="font-bold text-[#29251F]">
-                  {formatPrice(product.price * quantity)}
+                <div className="flex-1 min-w-0">
+                  <p className="text-[#29251F] font-semibold leading-tight">
+                    {item.product.name}{" "}
+                    <span className="text-[#696053] font-normal">× {item.quantity}</span>
+                  </p>
+                  {item.sizeLabel && (
+                    <p className="text-[10px] text-[#7A6B5A]">
+                      Size: {item.sizeLabel}
+                    </p>
+                  )}
+                  {item.addons && item.addons.length > 0 && (
+                    <p className="text-[10px] text-[#696053]">
+                      + {item.addons.map((a) => `${a.label}`).join(", ")}
+                    </p>
+                  )}
+                </div>
+                <span className="font-bold text-[#29251F] shrink-0">
+                  {formatPrice(item.unitPrice * item.quantity)}
                 </span>
               </div>
             ))}
@@ -346,16 +376,26 @@ export default function CheckoutPage() {
 
           <div className="border-t border-[#91885D]/25 pt-3 space-y-1.5 text-xs">
             <div className="flex justify-between text-[#696053]">
-              <span>Subtotal</span>
+              <span>Subtotal ({totalItems} items)</span>
               <span>{formatPrice(subtotal)}</span>
             </div>
             <div className="flex justify-between text-[#696053]">
-              <span>Delivery charge</span>
+              <span>Delivery fee</span>
               <span>
                 {deliveryCharge > 0 ? formatPrice(deliveryCharge) : "Free"}
               </span>
             </div>
-            <div className="flex justify-between font-serif font-bold text-base text-[#29251F] pt-1 border-t border-[#91885D]/25">
+            <div className="flex justify-between text-[#696053]">
+              <span>Packaging &amp; Care</span>
+              <span>{formatPrice(packagingFee)}</span>
+            </div>
+            {hasGiftNote && (
+              <div className="flex justify-between text-[#C26B59] font-medium">
+                <span>Gift Note &amp; Ribbon</span>
+                <span>+{formatPrice(giftNoteFee)}</span>
+              </div>
+            )}
+            <div className="flex justify-between font-serif font-bold text-base text-[#29251F] pt-2 border-t border-[#91885D]/25">
               <span>Total</span>
               <span>{formatPrice(total)}</span>
             </div>

@@ -12,7 +12,6 @@ import {
 } from "@/lib/admin/admin-service";
 import type { Product, Category } from "@/types/database";
 import { Button } from "@/components/ui/button";
-import { Badge } from "@/components/ui/badge";
 import {
   Plus,
   Search,
@@ -23,6 +22,10 @@ import {
   AlertTriangle,
   Star,
   CheckCircle2,
+  Cake,
+  Layers,
+  ShoppingBag,
+  Sparkles,
 } from "lucide-react";
 import { formatPrice } from "@/lib/utils";
 
@@ -36,7 +39,6 @@ export default function AdminProductsPage() {
   const [deleteModalProduct, setDeleteModalProduct] = useState<Product | null>(null);
   const [isDeleting, setIsDeleting] = useState(false);
   const [feedback, setFeedback] = useState<{ type: "success" | "error"; message: string } | null>(null);
-  const [isPending, startTransition] = useTransition();
 
   const loadData = async (restId: string) => {
     try {
@@ -123,25 +125,65 @@ export default function AdminProductsPage() {
     }
   };
 
+  const totalCount = products.length;
+  const availableCount = products.filter((p) => p.available).length;
+  const featuredCount = products.filter((p) => p.featured).length;
+
   return (
-    <div className="max-w-6xl space-y-6">
+    <div className="max-w-6xl space-y-6 pb-12">
       {/* Top Bar */}
       <div className="flex flex-col sm:flex-row sm:items-center justify-between gap-4 pb-2 border-b border-spoon-border/60">
         <div>
-          <h1 className="font-serif text-3xl font-bold text-spoon-dark">
+          <h1 className="font-serif text-2xl sm:text-3xl font-bold text-spoon-dark">
             Product Management
           </h1>
           <p className="text-xs text-spoon-muted mt-1">
-            Create, update pricing, upload photography, or toggle availability.
+            Manage your artisanal bakery catalog, pricing, variants, add-ons, and stock availability.
           </p>
         </div>
 
         <Link href="/admin/products/new">
-          <Button size="sm" className="gap-1.5 font-bold text-xs uppercase tracking-wider">
+          <Button size="sm" className="gap-1.5 font-bold text-xs uppercase tracking-wider h-10 px-5 shadow-warm-xs">
             <Plus className="h-4 w-4" />
             <span>Add New Product</span>
           </Button>
         </Link>
+      </div>
+
+      {/* Quick Metrics Bar */}
+      <div className="grid grid-cols-2 sm:grid-cols-4 gap-3.5">
+        <div className="rounded-2xl border border-spoon-border bg-white p-4 shadow-warm-xs">
+          <span className="text-[10.5px] font-bold uppercase tracking-wider text-spoon-muted block">
+            Total Catalog
+          </span>
+          <span className="font-serif text-2xl font-bold text-spoon-dark mt-0.5 block">
+            {totalCount} Items
+          </span>
+        </div>
+        <div className="rounded-2xl border border-emerald-200 bg-emerald-50/50 p-4 shadow-warm-xs">
+          <span className="text-[10.5px] font-bold uppercase tracking-wider text-emerald-800 block">
+            Available Live
+          </span>
+          <span className="font-serif text-2xl font-bold text-emerald-900 mt-0.5 block">
+            {availableCount} Active
+          </span>
+        </div>
+        <div className="rounded-2xl border border-amber-200 bg-amber-50/50 p-4 shadow-warm-xs">
+          <span className="text-[10.5px] font-bold uppercase tracking-wider text-amber-800 block">
+            Chef&apos;s Featured
+          </span>
+          <span className="font-serif text-2xl font-bold text-amber-900 mt-0.5 block">
+            {featuredCount} Starred
+          </span>
+        </div>
+        <div className="rounded-2xl border border-spoon-border bg-white p-4 shadow-warm-xs">
+          <span className="text-[10.5px] font-bold uppercase tracking-wider text-spoon-muted block">
+            Categories
+          </span>
+          <span className="font-serif text-2xl font-bold text-spoon-dark mt-0.5 block">
+            {categories.length} Sections
+          </span>
+        </div>
       </div>
 
       {/* Notifications */}
@@ -163,33 +205,62 @@ export default function AdminProductsPage() {
       )}
 
       {/* Filter and Search Bar */}
-      <div className="flex flex-col sm:flex-row items-center gap-3">
-        {/* Search */}
-        <form onSubmit={handleSearch} className="relative flex-1 w-full">
-          <Search className="absolute left-3.5 top-1/2 -translate-y-1/2 h-4 w-4 text-spoon-muted" />
-          <input
-            type="text"
-            value={searchQuery}
-            onChange={(e) => setSearchQuery(e.target.value)}
-            placeholder="Search dishes by title..."
-            className="w-full rounded-2xl border border-spoon-border bg-white pl-10 pr-4 py-2 text-xs text-spoon-dark placeholder:text-spoon-muted focus:outline-none focus:ring-2 focus:ring-spoon-caramel/20"
-          />
-        </form>
+      <div className="space-y-3">
+        <div className="flex flex-col sm:flex-row items-center gap-3">
+          {/* Search */}
+          <form onSubmit={handleSearch} className="relative flex-1 w-full">
+            <Search className="absolute left-3.5 top-1/2 -translate-y-1/2 h-4 w-4 text-spoon-muted" />
+            <input
+              type="text"
+              value={searchQuery}
+              onChange={(e) => setSearchQuery(e.target.value)}
+              placeholder="Search products by title..."
+              className="w-full rounded-2xl border border-spoon-border bg-white pl-10 pr-4 py-2.5 text-xs text-spoon-dark placeholder:text-spoon-muted focus:outline-none focus:ring-2 focus:ring-spoon-caramel/20"
+            />
+          </form>
 
-        {/* Category dropdown */}
-        <div className="w-full sm:w-56 shrink-0">
-          <select
-            value={selectedCategory}
-            onChange={(e) => setSelectedCategory(e.target.value)}
-            className="w-full rounded-2xl border border-spoon-border bg-white px-3.5 py-2 text-xs font-semibold text-spoon-dark focus:outline-none focus:ring-2 focus:ring-spoon-caramel/20"
+          {/* Category selector */}
+          <div className="w-full sm:w-60 shrink-0">
+            <select
+              value={selectedCategory}
+              onChange={(e) => setSelectedCategory(e.target.value)}
+              className="w-full rounded-2xl border border-spoon-border bg-white px-3.5 py-2.5 text-xs font-semibold text-spoon-dark focus:outline-none focus:ring-2 focus:ring-spoon-caramel/20"
+            >
+              <option value="all">All Categories ({products.length})</option>
+              {categories.map((cat) => (
+                <option key={cat.id} value={cat.id}>
+                  {cat.name}
+                </option>
+              ))}
+            </select>
+          </div>
+        </div>
+
+        {/* Category Pills Slider */}
+        <div className="flex items-center gap-1.5 overflow-x-auto pb-1 scrollbar-none">
+          <button
+            onClick={() => setSelectedCategory("all")}
+            className={`px-3 py-1.5 rounded-xl text-xs font-bold whitespace-nowrap transition-all ${
+              selectedCategory === "all"
+                ? "bg-spoon-dark text-white shadow-xs"
+                : "bg-white text-spoon-dark border border-spoon-border hover:bg-spoon-sand/50"
+            }`}
           >
-            <option value="all">All Categories ({products.length})</option>
-            {categories.map((cat) => (
-              <option key={cat.id} value={cat.id}>
-                {cat.name}
-              </option>
-            ))}
-          </select>
+            All Categories
+          </button>
+          {categories.map((cat) => (
+            <button
+              key={cat.id}
+              onClick={() => setSelectedCategory(cat.id)}
+              className={`px-3 py-1.5 rounded-xl text-xs font-bold whitespace-nowrap transition-all ${
+                selectedCategory === cat.id
+                  ? "bg-spoon-caramel text-white shadow-xs"
+                  : "bg-white text-spoon-dark border border-spoon-border hover:bg-spoon-sand/50"
+              }`}
+            >
+              {cat.name}
+            </button>
+          ))}
         </div>
       </div>
 
@@ -200,17 +271,17 @@ export default function AdminProductsPage() {
             <Loader2 className="h-6 w-6 animate-spin text-spoon-caramel" />
           </div>
         ) : products.length === 0 ? (
-          <div className="py-16 text-center">
+          <div className="py-16 text-center px-4">
             <div className="mx-auto mb-3 flex h-14 w-14 items-center justify-center rounded-2xl bg-spoon-sand text-spoon-caramel">
-              <Utensils className="h-7 w-7" />
+              <Cake className="h-7 w-7" />
             </div>
             <h3 className="font-serif text-lg font-bold text-spoon-dark">
               No products found
             </h3>
             <p className="mt-1 text-xs text-spoon-muted max-w-sm mx-auto">
               {searchQuery
-                ? `No dishes matched "${searchQuery}". Try changing your search query.`
-                : "No dishes added yet in this category. Click 'Add New Product' to create your first dish."}
+                ? `No dishes matched "${searchQuery}". Try a different keyword.`
+                : "No products added in this category yet. Click below to create one or run the seed script."}
             </p>
             <div className="mt-6">
               <Link href="/admin/products/new">
@@ -228,7 +299,8 @@ export default function AdminProductsPage() {
                 <tr>
                   <th className="px-6 py-4">Item & Photography</th>
                   <th className="px-6 py-4">Category</th>
-                  <th className="px-6 py-4">Price</th>
+                  <th className="px-6 py-4">Base Price</th>
+                  <th className="px-6 py-4">Variants & Add-ons</th>
                   <th className="px-6 py-4">Availability</th>
                   <th className="px-6 py-4 text-right">Actions</th>
                 </tr>
@@ -239,6 +311,9 @@ export default function AdminProductsPage() {
                     categories.find((c) => c.id === item.category_id)?.name ||
                     "General";
 
+                  const sizeCount = item.sizes?.length || 0;
+                  const addonCount = item.addons?.length || 0;
+
                   return (
                     <tr
                       key={item.id}
@@ -247,33 +322,61 @@ export default function AdminProductsPage() {
                       {/* Product details with image */}
                       <td className="px-6 py-4">
                         <div className="flex items-center gap-3.5">
-                          <div className="relative h-12 w-12 shrink-0 overflow-hidden rounded-xl bg-spoon-sand border border-spoon-border/70">
+                          <div className="relative h-14 w-14 shrink-0 overflow-hidden rounded-2xl bg-spoon-sand border border-spoon-border/70 shadow-2xs">
                             {item.image_url ? (
                               <Image
                                 src={item.image_url}
                                 alt={item.name}
                                 fill
                                 className="object-cover"
-                                sizes="48px"
+                                sizes="56px"
                               />
                             ) : (
                               <div className="flex h-full w-full items-center justify-center text-spoon-muted">
-                                <Utensils className="h-5 w-5" />
+                                <Cake className="h-6 w-6" />
                               </div>
                             )}
                           </div>
                           <div>
-                            <div className="flex items-center gap-2">
+                            <div className="flex flex-wrap items-center gap-1.5">
+                              {/* Pure Veg Green Icon */}
+                              <div
+                                className="w-3.5 h-3.5 border border-[#238234] bg-white flex items-center justify-center p-0.5 rounded-[3px] shrink-0"
+                                title={item.is_veg !== false ? "100% Eggless / Veg" : "Contains Egg"}
+                              >
+                                <span
+                                  className={`w-1.5 h-1.5 rounded-full ${
+                                    item.is_veg !== false ? "bg-[#238234]" : "bg-rose-600"
+                                  }`}
+                                />
+                              </div>
+
                               <span className="font-serif font-bold text-sm text-spoon-dark block group-hover:text-spoon-caramel transition-colors">
                                 {item.name}
                               </span>
+
+                              {item.badge && (
+                                <span
+                                  className={`inline-block px-1.5 py-0.5 rounded text-[8.5px] font-bold uppercase tracking-wider text-white shadow-2xs ${
+                                    item.badge === "BESTSELLER"
+                                      ? "bg-[#8E2822]"
+                                      : item.badge === "POPULAR"
+                                      ? "bg-[#A33D31]"
+                                      : "bg-[#B04336]"
+                                  }`}
+                                >
+                                  {item.badge}
+                                </span>
+                              )}
+
                               {item.featured && (
-                                <span className="inline-flex items-center gap-1 rounded-md bg-amber-100 text-amber-900 px-1.5 py-0.5 text-[9px] font-bold uppercase tracking-wider">
+                                <span className="inline-flex items-center gap-1 rounded bg-amber-100 text-amber-900 px-1.5 py-0.5 text-[8.5px] font-bold uppercase tracking-wider">
                                   <Star className="h-2.5 w-2.5 fill-amber-500 text-amber-500" />
                                   <span>Featured</span>
                                 </span>
                               )}
                             </div>
+
                             <p className="text-[11px] text-spoon-muted line-clamp-1 max-w-sm mt-0.5">
                               {item.description || "No description provided."}
                             </p>
@@ -293,7 +396,29 @@ export default function AdminProductsPage() {
                         {formatPrice(item.price)}
                       </td>
 
-                      {/* Availability toggle switch */}
+                      {/* Variants & Addons info */}
+                      <td className="px-6 py-4">
+                        <div className="flex flex-col gap-1 text-[11px]">
+                          <span className="inline-flex items-center gap-1 text-spoon-dark font-medium">
+                            <Layers className="w-3 h-3 text-spoon-caramel" />
+                            <span>
+                              {sizeCount > 0
+                                ? `${sizeCount} Size Options`
+                                : "1 Default Size"}
+                            </span>
+                          </span>
+                          <span className="inline-flex items-center gap-1 text-spoon-muted">
+                            <ShoppingBag className="w-3 h-3 text-spoon-muted" />
+                            <span>
+                              {addonCount > 0
+                                ? `${addonCount} Custom Add-ons`
+                                : "No Add-ons"}
+                            </span>
+                          </span>
+                        </div>
+                      </td>
+
+                      {/* Availability toggle */}
                       <td className="px-6 py-4">
                         <button
                           onClick={() => handleToggleAvailability(item)}
@@ -302,7 +427,7 @@ export default function AdminProductsPage() {
                               ? "bg-emerald-100 text-emerald-800 hover:bg-emerald-200"
                               : "bg-rose-100 text-rose-800 hover:bg-rose-200"
                           }`}
-                          title="Click to toggle availability"
+                          title="Click to toggle live availability"
                         >
                           <span
                             className={`h-2 w-2 rounded-full ${
@@ -318,8 +443,8 @@ export default function AdminProductsPage() {
                         <div className="inline-flex items-center gap-2">
                           <Link href={`/admin/products/${item.id}`}>
                             <button
-                              className="rounded-lg p-2 text-spoon-muted hover:text-spoon-dark hover:bg-spoon-sand transition-colors"
-                              title="Edit product"
+                              className="rounded-xl p-2 text-spoon-muted hover:text-spoon-dark hover:bg-spoon-sand transition-colors"
+                              title="Edit product details"
                             >
                               <Edit2 className="h-4 w-4" />
                             </button>
@@ -327,7 +452,7 @@ export default function AdminProductsPage() {
 
                           <button
                             onClick={() => setDeleteModalProduct(item)}
-                            className="rounded-lg p-2 text-rose-600 hover:bg-rose-50 transition-colors"
+                            className="rounded-xl p-2 text-rose-600 hover:bg-rose-50 transition-colors"
                             title="Delete product"
                           >
                             <Trash2 className="h-4 w-4" />
@@ -343,7 +468,7 @@ export default function AdminProductsPage() {
         )}
       </div>
 
-      {/* Confirmation Modal Before Deletion */}
+      {/* Confirmation Modal */}
       {deleteModalProduct && (
         <div className="fixed inset-0 z-50 flex items-center justify-center bg-black/40 p-4 backdrop-blur-xs">
           <div className="w-full max-w-md rounded-3xl border border-spoon-border bg-white p-6 shadow-2xl space-y-4">

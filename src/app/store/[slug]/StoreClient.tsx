@@ -195,6 +195,7 @@ export default function StoreClient({
               <CategoryChip
                 key={cat.id}
                 label={cat.name}
+                imageUrl={cat.image_url}
                 active={activeCategory === cat.id}
                 onClick={() => setActiveCategory(cat.id)}
               />
@@ -348,10 +349,16 @@ function ProductCard({
   onIncrement: () => void;
   onDecrement: () => void;
 }) {
+  const isSoldOut =
+    !product.available ||
+    (product.order_limit != null &&
+      product.order_limit > 0 &&
+      (product.total_ordered || 0) >= product.order_limit);
+
   return (
     <div
       className={`flex gap-3 rounded-2xl border bg-[#F5EBDD] p-3 shadow-warm-sm transition-all ${
-        product.available
+        !isSoldOut
           ? "border-[#91885D]/30 hover:border-[#91885D]/60 hover:shadow-warm-md"
           : "border-[#91885D]/20 opacity-60"
       }`}
@@ -374,7 +381,7 @@ function ProductCard({
             <Utensils className="h-6 w-6" />
           </div>
         )}
-        {!product.available && (
+        {isSoldOut && (
           <div className="absolute inset-0 bg-[#29251F]/60 flex items-center justify-center">
             <span className="text-[9px] font-bold text-[#F5EBDD] uppercase tracking-wider">
               Sold Out
@@ -410,7 +417,7 @@ function ProductCard({
           <span className="font-serif font-bold text-sm text-[#29251F]">
             {formatPrice(product.price)}
           </span>
-          {product.available ? (
+          {!isSoldOut ? (
             quantity > 0 ? (
               <QuantityControl
                 quantity={quantity}
@@ -427,8 +434,8 @@ function ProductCard({
               </button>
             )
           ) : (
-            <span className="text-[10px] font-bold text-[#A95145] uppercase tracking-wider">
-              Unavailable
+            <span className="text-[10px] font-bold text-[#A95145] bg-[#A95145]/10 px-2.5 py-1 rounded-full border border-[#A95145]/20 uppercase tracking-wider">
+              Sold Out
             </span>
           )}
         </div>
@@ -473,10 +480,12 @@ function QuantityControl({
 // ── CATEGORY CHIP ──
 function CategoryChip({
   label,
+  imageUrl,
   active,
   onClick,
 }: {
   label: string;
+  imageUrl?: string | null;
   active: boolean;
   onClick: () => void;
 }) {
@@ -484,13 +493,18 @@ function CategoryChip({
     <button
       onClick={onClick}
       data-active={active}
-      className={`shrink-0 rounded-xl px-4 py-1.5 text-xs font-bold transition-all whitespace-nowrap cursor-pointer ${
+      className={`shrink-0 flex items-center gap-2 rounded-xl px-3.5 py-1.5 text-xs font-bold transition-all whitespace-nowrap cursor-pointer ${
         active
           ? "bg-[#C26B59] text-[#F5EBDD] shadow-warm-sm"
           : "bg-[#F5EBDD] border border-[#91885D]/30 text-[#29251F] hover:border-[#C26B59]"
       }`}
     >
-      {label}
+      {imageUrl && (
+        <span className="relative h-5 w-5 rounded-full overflow-hidden shrink-0 border border-current/20 inline-block">
+          <Image src={imageUrl} alt={label} fill className="object-cover" />
+        </span>
+      )}
+      <span>{label}</span>
     </button>
   );
 }

@@ -13,38 +13,35 @@
 # testing
 /coverage
 
-# next.js
+# next.js & build output
 /.next/
 /out/
+/build/
+*.tsbuildinfo
+next-env.d.ts
 
-# production
-/build
-
-# misc
-.DS_Store
-*.pem
-
-# debug
+# debug logs
 npm-debug.log*
 yarn-debug.log*
 yarn-error.log*
 .pnpm-debug.log*
 
-# env files (can opt-in for committing if needed)
+# environment variables
 .env
 .env.local
-.env.*.local
-.env*
-!.env.example
+.env.development.local
+.env.test.local
+.env.production.local
+.env*.local
 
-# vercel
+# vercel & system
 .vercel
-
-# typescript
-*.tsbuildinfo
-next-env.d.ts
-
-# OS & IDE
+.DS_Store
 Thumbs.db
+*.pem
+
+# IDE & agent workspace files
 .vscode/
 .idea/
+.agents/
+.gemini/

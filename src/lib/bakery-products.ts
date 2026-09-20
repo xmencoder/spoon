@@ -9,6 +9,66 @@ export interface FeatureBadge {
   label: string;
 }
 
+export interface ProductSizeOption {
+  id: string;
+  label: string;
+  price?: number;
+  isDefault?: boolean;
+}
+
+export interface ProductAddonOption {
+  id: string;
+  label: string;
+  price: number;
+  icon?: string;
+}
+
+// 1. Tea Cakes: Size 350 gms; Add-ons: Birthday +40, Message card +20, Candle +40
+export const TEA_CAKE_SIZES: ProductSizeOption[] = [
+  { id: "size-350g", label: "350 gms", isDefault: true },
+];
+
+export const TEA_CAKE_ADDONS: ProductAddonOption[] = [
+  { id: "birthday", label: "Birthday Tag", price: 40, icon: "🎂" },
+  { id: "message-card", label: "Message Card", price: 20, icon: "💌" },
+  { id: "candle", label: "Celebration Candle", price: 40, icon: "🕯️" },
+];
+
+// 2. Muffins: Pack of 4 -> 500, Pack of 8 -> 1000, Pack of 12 -> 1500
+// Add-ons: Birthday -> 40, Message card -> 20, Candles -> 40, Gift box -> 40
+export const MUFFIN_PACKS: ProductSizeOption[] = [
+  { id: "pack-4", label: "Pack of 4", price: 500, isDefault: true },
+  { id: "pack-8", label: "Pack of 8", price: 1000 },
+  { id: "pack-12", label: "Pack of 12", price: 1500 },
+];
+
+export const MUFFIN_ADDONS: ProductAddonOption[] = [
+  { id: "birthday", label: "Birthday Tag", price: 40, icon: "🎂" },
+  { id: "message-card", label: "Message Card", price: 20, icon: "💌" },
+  { id: "candles", label: "Celebration Candles", price: 40, icon: "🕯️" },
+  { id: "gift-box", label: "Gift Box", price: 40, icon: "🎁" },
+];
+
+// 3. Spreads: Size 240 gm; Add-ons same as Tea Cake
+export const SPREAD_SIZES: ProductSizeOption[] = [
+  { id: "size-240g", label: "240 gm", isDefault: true },
+];
+
+export const SPREAD_ADDONS: ProductAddonOption[] = [
+  { id: "birthday", label: "Birthday Tag", price: 40, icon: "🎂" },
+  { id: "message-card", label: "Message Card", price: 20, icon: "💌" },
+  { id: "candle", label: "Celebration Candle", price: 40, icon: "🕯️" },
+];
+
+// 4. Sourdough: Add-ons ONLY Wholewheat -> +100 rs
+export const SOURDOUGH_SIZES: ProductSizeOption[] = [
+  { id: "loaf-500g", label: "Artisanal Loaf (500g)", isDefault: true },
+];
+
+export const SOURDOUGH_ADDONS: ProductAddonOption[] = [
+  { id: "wholewheat", label: "Wholewheat", price: 100, icon: "🌾" },
+];
+
 export interface BakeryProductDetail {
   id: string;
   name: string;
@@ -16,6 +76,8 @@ export interface BakeryProductDetail {
   price: number;
   category: string;
   categorySlug: string;
+  sizes?: ProductSizeOption[];
+  addons?: ProductAddonOption[];
   badge?: string;
   doodleTopRight?: string;
   imageScript?: string;
@@ -71,6 +133,8 @@ export const BAKERY_PRODUCTS: Record<string, BakeryProductDetail> = {
     price: 900,
     category: "Cakes",
     categorySlug: "tea-cake",
+    sizes: TEA_CAKE_SIZES,
+    addons: TEA_CAKE_ADDONS,
     badge: "BESTSELLER",
     doodleTopRight: "Good Desserts Happier Days ♡",
     imageScript: "A slice of happiness ♡",
@@ -122,6 +186,8 @@ export const BAKERY_PRODUCTS: Record<string, BakeryProductDetail> = {
     price: 999,
     category: "Cakes",
     categorySlug: "tea-cake",
+    sizes: TEA_CAKE_SIZES,
+    addons: TEA_CAKE_ADDONS,
     badge: "POPULAR",
     doodleTopRight: "Pure Chocolate Bliss ♡",
     imageScript: "Rich & Decadent ♡",
@@ -172,6 +238,8 @@ export const BAKERY_PRODUCTS: Record<string, BakeryProductDetail> = {
     price: 950,
     category: "Cakes",
     categorySlug: "tea-cake",
+    sizes: TEA_CAKE_SIZES,
+    addons: TEA_CAKE_ADDONS,
     badge: "BESTSELLER",
     doodleTopRight: "Love in Every Bite ♡",
     imageScript: "Velvety perfection ♡",
@@ -220,6 +288,8 @@ export const BAKERY_PRODUCTS: Record<string, BakeryProductDetail> = {
     price: 799,
     category: "Cakes",
     categorySlug: "tea-cake",
+    sizes: TEA_CAKE_SIZES,
+    addons: TEA_CAKE_ADDONS,
     badge: "NEW!",
     doodleTopRight: "Sunlit Morning Zest ♡",
     imageScript: "Zesty sunshine ♡",
@@ -407,6 +477,274 @@ export const BAKERY_PRODUCTS: Record<string, BakeryProductDetail> = {
       "biscoff-cheesecake",
     ],
   },
+  "wild-blueberry-muffin": {
+    id: "wild-blueberry-muffin",
+    name: "Wild Blueberry Streusel Muffin",
+    subtitle:
+      "Bursting with juicy wild blueberries and crowned with crispy brown sugar streusel.",
+    price: 500,
+    category: "Muffins",
+    categorySlug: "muffins",
+    sizes: MUFFIN_PACKS,
+    addons: MUFFIN_ADDONS,
+    badge: "BESTSELLER",
+    doodleTopRight: "Berry Delight ♡",
+    imageScript: "Berry bliss in every bite ♡",
+    rating: 4.8,
+    reviewCount: "720 reviews",
+    mainImage:
+      "https://images.unsplash.com/photo-1586985289688-ca3cf47d3e6e?w=800&auto=format&fit=crop&q=80",
+    galleryImages: [
+      "https://images.unsplash.com/photo-1586985289688-ca3cf47d3e6e?w=800&auto=format&fit=crop&q=80",
+      "https://images.unsplash.com/photo-1558961363-fa8fdf82db35?w=800&auto=format&fit=crop&q=80",
+      "https://images.unsplash.com/photo-1578985545062-69928b1d9587?w=800&auto=format&fit=crop&q=80",
+      "https://images.unsplash.com/photo-1549465220-1a8b9238cd48?w=800&auto=format&fit=crop&q=80",
+    ],
+    storyTitle: "A Little About This Muffin",
+    storyText:
+      "Crafted with hand-picked wild blueberries and slow-baked for a super-tender golden crumb topped with a crisp cinnamon streusel crown.",
+    quote: "Fresh berries make every morning sweeter.",
+    featureBadges: [
+      { id: "1", icon: "leaf", label: "Real Blueberries" },
+      { id: "2", icon: "butter", label: "Golden Butter Crumb" },
+      { id: "3", icon: "chips", label: "Crisp Streusel" },
+      { id: "4", icon: "heart", label: "Freshly Baked" },
+    ],
+    ingredients: STANDARD_INGREDIENTS,
+    allergenInfo: [
+      "Contains Wheat (Gluten), Dairy (Butter & Milk).",
+      "100% Eggless variant available upon request.",
+      "Handcrafted in a boutique kitchen handling tree nuts.",
+    ],
+    storageCare: [
+      "Store at room temperature in an airtight box for up to 3 days.",
+      "Warm in microwave for 10 seconds before eating for freshly baked fluffiness.",
+    ],
+    recommendedIds: [
+      "belgian-double-choco-muffin",
+      "og-choco-chip-butter-cake",
+      "lemon-drizzle-cake",
+    ],
+  },
+  "belgian-double-choco-muffin": {
+    id: "belgian-double-choco-muffin",
+    name: "Double Belgian Choco Muffin",
+    subtitle:
+      "Rich dark chocolate muffin loaded with gooey Belgian chocolate molten drops.",
+    price: 500,
+    category: "Muffins",
+    categorySlug: "muffins",
+    sizes: MUFFIN_PACKS,
+    addons: MUFFIN_ADDONS,
+    badge: "POPULAR",
+    doodleTopRight: "Molten Core Magic ♡",
+    imageScript: "Double chocolate heaven ♡",
+    rating: 4.9,
+    reviewCount: "890 reviews",
+    mainImage:
+      "https://images.unsplash.com/photo-1558961363-fa8fdf82db35?w=800&auto=format&fit=crop&q=80",
+    galleryImages: [
+      "https://images.unsplash.com/photo-1558961363-fa8fdf82db35?w=800&auto=format&fit=crop&q=80",
+      "https://images.unsplash.com/photo-1586985289688-ca3cf47d3e6e?w=800&auto=format&fit=crop&q=80",
+      "https://images.unsplash.com/photo-1606313564200-e75d5e30476c?w=800&auto=format&fit=crop&q=80",
+    ],
+    storyTitle: "A Little About This Muffin",
+    storyText:
+      "Loaded with double couverture Belgian cocoa and bursting with molten chocolate chips in every bite. Intensely chocolatey and cloud-soft.",
+    quote: "Double the chocolate, double the happiness.",
+    featureBadges: [
+      { id: "1", icon: "chips", label: "Belgian Couverture" },
+      { id: "2", icon: "butter", label: "Pure Dairy Butter" },
+      { id: "3", icon: "heart", label: "Freshly Baked" },
+    ],
+    ingredients: STANDARD_INGREDIENTS,
+    allergenInfo: [
+      "Contains Wheat (Gluten), Dairy (Butter & Milk), Soy Lecithin.",
+      "100% Eggless available upon request.",
+      "May contain traces of tree nuts.",
+    ],
+    storageCare: [
+      "Store at room temperature in an airtight box for up to 3 days.",
+      "Microwave for 12 seconds for molten lava chocolate drops.",
+    ],
+    recommendedIds: [
+      "wild-blueberry-muffin",
+      "og-choco-chip-butter-cake",
+      "intense-chocolate-butter-cake",
+    ],
+  },
+  "zero-sugar-hazelnut-spread": {
+    id: "zero-sugar-hazelnut-spread",
+    name: "Zero-Sugar Roasted Hazelnut Spread",
+    subtitle:
+      "Pure stone-ground Turkish hazelnuts blended with raw cacao and monkfruit sweetener.",
+    price: 480,
+    category: "Spreads",
+    categorySlug: "spreads",
+    sizes: SPREAD_SIZES,
+    addons: SPREAD_ADDONS,
+    badge: "POPULAR",
+    doodleTopRight: "Guilt-Free Indulgence ♡",
+    imageScript: "70% Roasted Hazelnuts ♡",
+    rating: 4.9,
+    reviewCount: "540 reviews",
+    mainImage:
+      "https://images.unsplash.com/photo-1589733955941-5eeaf752f6dd?w=800&auto=format&fit=crop&q=80",
+    galleryImages: [
+      "https://images.unsplash.com/photo-1589733955941-5eeaf752f6dd?w=800&auto=format&fit=crop&q=80",
+      "https://images.unsplash.com/photo-1551024709-8f23befc6f87?w=800&auto=format&fit=crop&q=80",
+    ],
+    storyTitle: "A Little About This Spread",
+    storyText:
+      "Stone-ground in small batches with 70% slow-roasted Turkish hazelnuts, organic cocoa butter, and plant-based monkfruit. Silky smooth, luscious, and 100% refined sugar-free.",
+    quote: "Guilt-free chocolate luxury by the spoonful.",
+    featureBadges: [
+      { id: "1", icon: "leaf", label: "Zero Refined Sugar" },
+      { id: "2", icon: "chips", label: "70% Hazelnuts" },
+      { id: "3", icon: "heart", label: "Keto Friendly" },
+    ],
+    ingredients: STANDARD_INGREDIENTS,
+    allergenInfo: [
+      "Contains Tree Nuts (Hazelnuts), Dairy (Milk Solids).",
+      "100% Refined Sugar-Free & Keto Friendly.",
+      "Zero palm oil, zero artificial preservatives.",
+    ],
+    storageCare: [
+      "Store in a cool, dry place. Oil separation is natural; stir before use.",
+      "Do not refrigerate to maintain spreadability.",
+    ],
+    recommendedIds: [
+      "artisanal-salted-caramel-spread",
+      "country-sourdough-batard",
+      "og-choco-chip-butter-cake",
+    ],
+  },
+  "artisanal-salted-caramel-spread": {
+    id: "artisanal-salted-caramel-spread",
+    name: "Artisanal Fleur de Sel Caramel",
+    subtitle:
+      "Slow-caramelized dairy cream simmered with Madagascar vanilla and mineral-rich sea salt.",
+    price: 390,
+    category: "Spreads",
+    categorySlug: "spreads",
+    sizes: SPREAD_SIZES,
+    addons: SPREAD_ADDONS,
+    badge: "NEW!",
+    doodleTopRight: "Buttery & Golden ♡",
+    imageScript: "Slow-caramelized perfection ♡",
+    rating: 4.8,
+    reviewCount: "410 reviews",
+    mainImage:
+      "https://images.unsplash.com/photo-1551024709-8f23befc6f87?w=800&auto=format&fit=crop&q=80",
+    galleryImages: [
+      "https://images.unsplash.com/photo-1551024709-8f23befc6f87?w=800&auto=format&fit=crop&q=80",
+      "https://images.unsplash.com/photo-1589733955941-5eeaf752f6dd?w=800&auto=format&fit=crop&q=80",
+    ],
+    storyTitle: "A Little About This Spread",
+    storyText:
+      "Slow-simmered pure butter and heavy dairy cream kissed with Madagascan Bourbon vanilla and hand-harvested Fleur de Sel salt. Drizzle over warm pancakes, sourdough, or enjoy straight from the jar.",
+    quote: "Golden caramel magic for your breakfast table.",
+    featureBadges: [
+      { id: "1", icon: "butter", label: "Pure Dairy Cream" },
+      { id: "2", icon: "leaf", label: "Fleur de Sel" },
+      { id: "3", icon: "heart", label: "Handcrafted" },
+    ],
+    ingredients: STANDARD_INGREDIENTS,
+    allergenInfo: [
+      "Contains Dairy (Butter & Fresh Cream).",
+      "100% Vegetarian recipe.",
+      "Zero chemical additives.",
+    ],
+    storageCare: [
+      "Store at room temperature or refrigerate for up to 4 weeks.",
+      "Warm slightly to loosen texture for drizzling.",
+    ],
+    recommendedIds: [
+      "zero-sugar-hazelnut-spread",
+      "wild-blueberry-muffin",
+      "og-choco-chip-butter-cake",
+    ],
+  },
+  "country-sourdough-batard": {
+    id: "country-sourdough-batard",
+    name: "Artisanal Country Sourdough",
+    subtitle:
+      "36-hour slow fermented wild yeast sourdough with blistered caramel crust and open crumb.",
+    price: 290,
+    category: "Sourdough",
+    categorySlug: "sourdough",
+    sizes: SOURDOUGH_SIZES,
+    addons: SOURDOUGH_ADDONS,
+    badge: "BESTSELLER",
+    doodleTopRight: "Wild Ferment ♡",
+    imageScript: "Crispy crust & open crumb ♡",
+    rating: 4.9,
+    reviewCount: "820 reviews",
+    mainImage:
+      "https://images.unsplash.com/photo-1589367920969-ab8e050bbb04?w=800&auto=format&fit=crop&q=80",
+    galleryImages: [
+      "https://images.unsplash.com/photo-1589367920969-ab8e050bbb04?w=800&auto=format&fit=crop&q=80",
+      "https://images.unsplash.com/photo-1509440159596-0249088772ff?w=800&auto=format&fit=crop&q=80",
+    ],
+    storyTitle: "A Little About This Sourdough",
+    storyText:
+      "Naturally leavened with our decade-old sourdough starter. Fermented for 36 hours for rich depth of flavor and easy digestion.",
+    quote: "Good bread takes time, patience, and wild air.",
+    featureBadges: [],
+    ingredients: STANDARD_INGREDIENTS,
+    allergenInfo: [
+      "Contains Wheat (Gluten).",
+      "100% Naturally Vegan, zero commercial yeast, zero dairy.",
+    ],
+    storageCare: [
+      "Keep cut-side down on a wooden cutting board for 2 days, or in a linen bag.",
+      "Toast slices for 2–3 minutes for optimal crunch.",
+    ],
+    recommendedIds: [
+      "zero-sugar-hazelnut-spread",
+      "artisanal-salted-caramel-spread",
+    ],
+  },
+  "olive-rosemary-sourdough": {
+    id: "olive-rosemary-sourdough",
+    name: "Kalamata Olive & Rosemary Sourdough",
+    subtitle:
+      "Infused with organic Tuscan extra virgin olive oil, fragrant rosemary, and Greek Kalamata olives.",
+    price: 340,
+    category: "Sourdough",
+    categorySlug: "sourdough",
+    sizes: SOURDOUGH_SIZES,
+    addons: SOURDOUGH_ADDONS,
+    badge: "NEW!",
+    doodleTopRight: "Mediterranean Magic ♡",
+    imageScript: "Fragrant & Savory ♡",
+    rating: 4.8,
+    reviewCount: "390 reviews",
+    mainImage:
+      "https://images.unsplash.com/photo-1509440159596-0249088772ff?w=800&auto=format&fit=crop&q=80",
+    galleryImages: [
+      "https://images.unsplash.com/photo-1509440159596-0249088772ff?w=800&auto=format&fit=crop&q=80",
+      "https://images.unsplash.com/photo-1589367920969-ab8e050bbb04?w=800&auto=format&fit=crop&q=80",
+    ],
+    storyTitle: "A Little About This Sourdough",
+    storyText:
+      "Studded with plump Greek Kalamata olives and fresh garden rosemary, folded into our signature slow-fermented sourdough dough.",
+    quote: "A savory slice of Mediterranean warmth.",
+    featureBadges: [],
+    ingredients: STANDARD_INGREDIENTS,
+    allergenInfo: [
+      "Contains Wheat (Gluten).",
+      "100% Vegan, zero dairy.",
+    ],
+    storageCare: [
+      "Store in a breathable bread bag for up to 3 days.",
+      "Re-crisp in oven at 180°C for 5 minutes.",
+    ],
+    recommendedIds: [
+      "country-sourdough-batard",
+      "zero-sugar-hazelnut-spread",
+    ],
+  },
 };
 
 // Also list the 5 recommended items for "You May Also Like"
@@ -466,11 +804,34 @@ export function getBakeryProductDetail(
 
   // Generate rich fallback detail matching the exact layout
   const name = fallbackName || "Artisanal Delight";
-  const price = fallbackPrice || 499;
+  const category = fallbackCategory || "Artisanal Bakery";
+  const lower = `${id} ${name} ${category}`.toLowerCase();
+
+  let sizes = TEA_CAKE_SIZES;
+  let addons = TEA_CAKE_ADDONS;
+  let categorySlug = "tea-cake";
+  let defaultPrice = fallbackPrice || 499;
+
+  if (lower.includes("muffin")) {
+    sizes = MUFFIN_PACKS;
+    addons = MUFFIN_ADDONS;
+    categorySlug = "muffins";
+    defaultPrice = 500;
+  } else if (lower.includes("spread")) {
+    sizes = SPREAD_SIZES;
+    addons = SPREAD_ADDONS;
+    categorySlug = "spreads";
+  } else if (lower.includes("sourdough")) {
+    sizes = SOURDOUGH_SIZES;
+    addons = SOURDOUGH_ADDONS;
+    categorySlug = "sourdough";
+    defaultPrice = fallbackPrice || 290;
+  }
+
+  const price = defaultPrice;
   const image =
     fallbackImage ||
     "https://images.unsplash.com/photo-1578985545062-69928b1d9587?w=800&auto=format&fit=crop&q=80";
-  const category = fallbackCategory || "Artisanal Bakery";
 
   return {
     id,
@@ -480,7 +841,9 @@ export function getBakeryProductDetail(
       "Handcrafted with pure butter and premium ingredients. Freshly baked.",
     price,
     category,
-    categorySlug: "menu",
+    categorySlug,
+    sizes,
+    addons,
     badge: "POPULAR",
     doodleTopRight: "Good Desserts Happier Days ♡",
     imageScript: "A slice of happiness ♡",

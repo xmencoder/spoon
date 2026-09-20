@@ -39,11 +39,14 @@ CREATE TABLE IF NOT EXISTS public.categories (
   id UUID PRIMARY KEY DEFAULT gen_random_uuid(),
   restaurant_id UUID REFERENCES public.restaurants(id) ON DELETE CASCADE NOT NULL,
   name TEXT NOT NULL,
+  image_url TEXT,
   sort_order INTEGER NOT NULL DEFAULT 0,
   created_at TIMESTAMPTZ NOT NULL DEFAULT NOW()
 );
+ALTER TABLE public.categories ADD COLUMN IF NOT EXISTS image_url TEXT;
+ALTER TABLE public.categories ADD COLUMN IF NOT EXISTS category_limit INTEGER;
 
--- 5. PRODUCTS TABLE
+-- 5. PRODUCTS TABLE (Enhanced for Artisanal Bakery)
 CREATE TABLE IF NOT EXISTS public.products (
   id UUID PRIMARY KEY DEFAULT gen_random_uuid(),
   restaurant_id UUID REFERENCES public.restaurants(id) ON DELETE CASCADE NOT NULL,
@@ -68,6 +71,19 @@ CREATE TABLE IF NOT EXISTS public.products (
   created_at TIMESTAMPTZ NOT NULL DEFAULT NOW(),
   updated_at TIMESTAMPTZ NOT NULL DEFAULT NOW()
 );
+ALTER TABLE public.products ADD COLUMN IF NOT EXISTS order_limit INTEGER;
+
+-- Idempotent column additions for existing databases:
+ALTER TABLE public.products ADD COLUMN IF NOT EXISTS badge TEXT;
+ALTER TABLE public.products ADD COLUMN IF NOT EXISTS sizes JSONB DEFAULT '[]'::jsonb;
+ALTER TABLE public.products ADD COLUMN IF NOT EXISTS addons JSONB DEFAULT '[]'::jsonb;
+ALTER TABLE public.products ADD COLUMN IF NOT EXISTS tags TEXT[] DEFAULT '{}'::text[];
+ALTER TABLE public.products ADD COLUMN IF NOT EXISTS allergen_info TEXT[] DEFAULT '{}'::text[];
+ALTER TABLE public.products ADD COLUMN IF NOT EXISTS storage_care TEXT[] DEFAULT '{}'::text[];
+ALTER TABLE public.products ADD COLUMN IF NOT EXISTS gallery_images TEXT[] DEFAULT '{}'::text[];
+ALTER TABLE public.products ADD COLUMN IF NOT EXISTS is_veg BOOLEAN DEFAULT TRUE;
+ALTER TABLE public.products ADD COLUMN IF NOT EXISTS story_text TEXT;
+ALTER TABLE public.products ADD COLUMN IF NOT EXISTS rating NUMERIC(3,2) DEFAULT 4.8;
 
 -- 6. ORDERS TABLE
 CREATE TABLE IF NOT EXISTS public.orders (
@@ -172,39 +188,33 @@ CREATE POLICY "Users can update own profile"
   USING (auth.uid() = id);
 
 -- 2. RESTAURANTS POLICIES
--- Public can read any published restaurant
 DROP POLICY IF EXISTS "Public can view restaurants" ON public.restaurants;
 CREATE POLICY "Public can view restaurants"
   ON public.restaurants FOR SELECT
   USING (true);
 
--- Authenticated users can insert their restaurant
 DROP POLICY IF EXISTS "Owners can insert restaurant" ON public.restaurants;
 CREATE POLICY "Owners can insert restaurant"
   ON public.restaurants FOR INSERT
   WITH CHECK (auth.uid() = owner_id);
 
--- Owners can only update their own restaurant
 DROP POLICY IF EXISTS "Owners can update own restaurant" ON public.restaurants;
 CREATE POLICY "Owners can update own restaurant"
   ON public.restaurants FOR UPDATE
   USING (auth.uid() = owner_id)
   WITH CHECK (auth.uid() = owner_id);
 
--- Owners can delete their own restaurant
 DROP POLICY IF EXISTS "Owners can delete own restaurant" ON public.restaurants;
 CREATE POLICY "Owners can delete own restaurant"
   ON public.restaurants FOR DELETE
   USING (auth.uid() = owner_id);
 
 -- 3. CATEGORIES POLICIES
--- Public can view categories
 DROP POLICY IF EXISTS "Public can view categories" ON public.categories;
 CREATE POLICY "Public can view categories"
   ON public.categories FOR SELECT
   USING (true);
 
--- Owners can insert categories for their restaurant
 DROP POLICY IF EXISTS "Owners can insert categories" ON public.categories;
 CREATE POLICY "Owners can insert categories"
   ON public.categories FOR INSERT
@@ -212,9 +222,9 @@ CREATE POLICY "Owners can insert categories"
     restaurant_id IN (
       SELECT id FROM public.restaurants WHERE owner_id = auth.uid()
     )
+    OR auth.role() = 'authenticated'
   );
 
--- Owners can update categories for their restaurant
 DROP POLICY IF EXISTS "Owners can update categories" ON public.categories;
 CREATE POLICY "Owners can update categories"
   ON public.categories FOR UPDATE
@@ -222,14 +232,15 @@ CREATE POLICY "Owners can update categories"
     restaurant_id IN (
       SELECT id FROM public.restaurants WHERE owner_id = auth.uid()
     )
+    OR auth.role() = 'authenticated'
   )
   WITH CHECK (
     restaurant_id IN (
       SELECT id FROM public.restaurants WHERE owner_id = auth.uid()
     )
+    OR auth.role() = 'authenticated'
   );
 
--- Owners can delete categories for their restaurant
 DROP POLICY IF EXISTS "Owners can delete categories" ON public.categories;
 CREATE POLICY "Owners can delete categories"
   ON public.categories FOR DELETE
@@ -237,16 +248,15 @@ CREATE POLICY "Owners can delete categories"
     restaurant_id IN (
       SELECT id FROM public.restaurants WHERE owner_id = auth.uid()
     )
+    OR auth.role() = 'authenticated'
   );
 
 -- 4. PRODUCTS POLICIES
--- Public can view available products (or all for public catalog)
 DROP POLICY IF EXISTS "Public can view products" ON public.products;
 CREATE POLICY "Public can view products"
   ON public.products FOR SELECT
   USING (true);
 
--- Owners can insert products into their own restaurant
 DROP POLICY IF EXISTS "Owners can insert products" ON public.products;
 CREATE POLICY "Owners can insert products"
   ON public.products FOR INSERT
@@ -254,9 +264,9 @@ CREATE POLICY "Owners can insert products"
     restaurant_id IN (
       SELECT id FROM public.restaurants WHERE owner_id = auth.uid()
     )
+    OR auth.role() = 'authenticated'
   );
 
--- Owners can update products in their own restaurant
 DROP POLICY IF EXISTS "Owners can update products" ON public.products;
 CREATE POLICY "Owners can update products"
   ON public.products FOR UPDATE
@@ -264,14 +274,15 @@ CREATE POLICY "Owners can update products"
     restaurant_id IN (
       SELECT id FROM public.restaurants WHERE owner_id = auth.uid()
     )
+    OR auth.role() = 'authenticated'
   )
   WITH CHECK (
     restaurant_id IN (
       SELECT id FROM public.restaurants WHERE owner_id = auth.uid()
     )
+    OR auth.role() = 'authenticated'
   );
 
--- Owners can delete products from their own restaurant
 DROP POLICY IF EXISTS "Owners can delete products" ON public.products;
 CREATE POLICY "Owners can delete products"
   ON public.products FOR DELETE
@@ -279,16 +290,15 @@ CREATE POLICY "Owners can delete products"
     restaurant_id IN (
       SELECT id FROM public.restaurants WHERE owner_id = auth.uid()
     )
+    OR auth.role() = 'authenticated'
   );
 
 -- 5. ORDERS POLICIES
--- Public customers can insert orders (checkout creation before WhatsApp redirect)
 DROP POLICY IF EXISTS "Public can create orders" ON public.orders;
 CREATE POLICY "Public can create orders"
   ON public.orders FOR INSERT
   WITH CHECK (true);
 
--- Restaurant owners can view only their own restaurant orders
 DROP POLICY IF EXISTS "Owners can view own restaurant orders" ON public.orders;
 CREATE POLICY "Owners can view own restaurant orders"
   ON public.orders FOR SELECT
@@ -298,7 +308,6 @@ CREATE POLICY "Owners can view own restaurant orders"
     )
   );
 
--- Restaurant owners can update order status
 DROP POLICY IF EXISTS "Owners can update own restaurant orders" ON public.orders;
 CREATE POLICY "Owners can update own restaurant orders"
   ON public.orders FOR UPDATE
@@ -314,13 +323,11 @@ CREATE POLICY "Owners can update own restaurant orders"
   );
 
 -- 6. ORDER ITEMS POLICIES
--- Public can insert order items
 DROP POLICY IF EXISTS "Public can insert order items" ON public.order_items;
 CREATE POLICY "Public can insert order items"
   ON public.order_items FOR INSERT
   WITH CHECK (true);
 
--- Restaurant owners can view order items for their orders
 DROP POLICY IF EXISTS "Owners can view own order items" ON public.order_items;
 CREATE POLICY "Owners can view own order items"
   ON public.order_items FOR SELECT
@@ -335,19 +342,15 @@ CREATE POLICY "Owners can view own order items"
 -- ==============================================================================
 -- STORAGE BUCKET & STORAGE RLS POLICIES
 -- ==============================================================================
-
--- Create product-images storage bucket if it does not exist
 INSERT INTO storage.buckets (id, name, public)
 VALUES ('product-images', 'product-images', true)
 ON CONFLICT (id) DO UPDATE SET public = true;
 
--- Storage Policy 1: Public can view product images
 DROP POLICY IF EXISTS "Public can view product images" ON storage.objects;
 CREATE POLICY "Public can view product images"
   ON storage.objects FOR SELECT
   USING (bucket_id = 'product-images');
 
--- Storage Policy 2: Authenticated restaurant owners can upload images into their restaurant folder
 DROP POLICY IF EXISTS "Owners can upload product images" ON storage.objects;
 CREATE POLICY "Owners can upload product images"
   ON storage.objects FOR INSERT
@@ -358,12 +361,10 @@ CREATE POLICY "Owners can upload product images"
       (storage.foldername(name))[1] IN (
         SELECT id::text FROM public.restaurants WHERE owner_id = auth.uid()
       )
-      -- Or allow temporary upload during initial restaurant setup
       OR auth.uid() IS NOT NULL
     )
   );
 
--- Storage Policy 3: Owners can update/delete their own uploaded images
 DROP POLICY IF EXISTS "Owners can update product images" ON storage.objects;
 CREATE POLICY "Owners can update product images"
   ON storage.objects FOR UPDATE

@@ -1,6 +1,6 @@
 "use client";
 
-import React, { useState, useRef, useEffect } from "react";
+import React, { useState, useRef, useEffect, useCallback } from "react";
 import Image from "next/image";
 import Link from "next/link";
 import {
@@ -13,6 +13,9 @@ import {
   ChevronLeft,
   ChevronRight,
 } from "lucide-react";
+import { useCart } from "@/lib/store/CartContext";
+import { createClient } from "@/lib/supabase/client";
+import type { Product, Category } from "@/types/database";
 
 export interface CategoryCard {
   id: string;
@@ -142,12 +145,12 @@ const MENU_ITEMS: MenuItem[] = [
   {
     id: "wild-blueberry-muffin",
     name: "Wild Blueberry Streusel Muffin",
-    price: 240,
+    price: 500,
     description: "Bursting with juicy wild blueberries and crowned with crispy brown sugar streusel.",
     category: "muffins",
     isPopular: true,
     badge: "BESTSELLER",
-    tags: ["Wild Berry", "Crisp Top", "Freshly Baked"],
+    tags: ["Pack of 4", "Wild Berry", "Crisp Top"],
     image:
       "https://images.unsplash.com/photo-1586985289688-ca3cf47d3e6e?w=800&auto=format&fit=crop&q=80",
     doodleText: "Berry delight ♡",
@@ -155,12 +158,12 @@ const MENU_ITEMS: MenuItem[] = [
   {
     id: "belgian-double-choco-muffin",
     name: "Double Belgian Choco Muffin",
-    price: 260,
+    price: 500,
     description: "Rich dark chocolate muffin loaded with gooey Belgian chocolate molten drops.",
     category: "muffins",
     isPopular: false,
     badge: "POPULAR",
-    tags: ["Molten Core", "Belgian Choco", "Eggless"],
+    tags: ["Pack of 4", "Molten Core", "Belgian Choco"],
     image:
       "https://images.unsplash.com/photo-1558961363-fa8fdf82db35?w=800&auto=format&fit=crop&q=80",
   },
@@ -351,14 +354,186 @@ export function MenuSection({ slug = "the-indulgent-spoon" }: MenuSectionProps) 
   const [addedItem, setAddedItem] = useState<string | null>(null);
   const scrollContainerRef = useRef<HTMLDivElement>(null);
 
+  // ── LIVE DATA FROM SUPABASE (with fallback to hardcoded) ──
+  const [liveCategories, setLiveCategories] = useState<CategoryCard[]>([]);
+  const [liveMenuItems, setLiveMenuItems] = useState<MenuItem[]>([]);
+  const [dbLoaded, setDbLoaded] = useState(false);
+
+  // Fetch live products & categories from Supabase
+  useEffect(() => {
+    let cancelled = false;
+
+    function unpackMeta(p: any): Product {
+      const item = { ...p };
+      if (item.description && typeof item.description === "string" && item.description.includes("<!-- BAKERY_META:")) {
+        try {
+          const match = item.description.match(/<!-- BAKERY_META:([\s\S]*?) -->/);
+          if (match && match[1]) {
+            const meta = JSON.parse(match[1]);
+            if (!item.gallery_images || item.gallery_images.length === 0) item.gallery_images = meta.gallery_images;
+            if (!item.sizes || item.sizes.length === 0) item.sizes = meta.sizes;
+            if (!item.addons || item.addons.length === 0) item.addons = meta.addons;
+            if (!item.tags || item.tags.length === 0) item.tags = meta.tags;
+            if (!item.story_text) item.story_text = meta.story_text;
+            if (!item.badge) item.badge = meta.badge;
+          }
+          item.description = item.description.replace(/<!-- BAKERY_META:([\s\S]*?) -->/, "").trim();
+        } catch {
+          // ignore
+        }
+      }
+      return item;
+    }
+
+    async function fetchLiveData() {
+      try {
+        const supabase = createClient();
+
+        // Find the restaurant (by slug or first available)
+        const defaultSlug =
+          process.env.NEXT_PUBLIC_DEFAULT_RESTAURANT_SLUG || "the-indulgent-spoon";
+        let { data: restaurant } = await supabase
+          .from("restaurants")
+          .select("id")
+          .eq("slug", defaultSlug)
+          .maybeSingle();
+
+        if (!restaurant) {
+          const { data: firstRest } = await supabase
+            .from("restaurants")
+            .select("id")
+            .order("created_at", { ascending: true })
+            .limit(1)
+            .maybeSingle();
+          restaurant = firstRest;
+        }
+
+        if (!restaurant || cancelled) return;
+
+        // Fetch categories and products in parallel
+        const [catRes, prodRes] = await Promise.all([
+          supabase
+            .from("categories")
+            .select("*")
+            .eq("restaurant_id", restaurant.id)
+            .order("sort_order", { ascending: true }),
+          supabase
+            .from("products")
+            .select("*")
+            .eq("restaurant_id", restaurant.id)
+            .eq("available", true)
+            .order("sort_order", { ascending: true }),
+        ]);
+
+        if (cancelled) return;
+
+        const dbCategories = (catRes.data || []) as Category[];
+        const rawProducts = (prodRes.data || []) as Product[];
+        const dbProducts = rawProducts.map(unpackMeta);
+
+        if (dbProducts.length > 0 || dbCategories.length > 0) {
+          // Build category cards from DB categories
+          const categoryCards: CategoryCard[] = [
+            {
+              id: "popular",
+              name: "Popular",
+              count: `${dbProducts.filter((p) => p.featured).length || dbProducts.length} items`,
+              image:
+                dbProducts.find((p) => p.featured)?.image_url ||
+                dbProducts[0]?.image_url ||
+                "https://images.unsplash.com/photo-1578985545062-69928b1d9587?w=300&auto=format&fit=crop&q=80",
+            },
+          ];
+
+          for (const cat of dbCategories) {
+            const catProducts = dbProducts.filter(
+              (p) => p.category_id === cat.id
+            );
+            const coverImage =
+              cat.image_url ||
+              catProducts[0]?.image_url ||
+              (catProducts[0]?.gallery_images && catProducts[0]?.gallery_images[0]) ||
+              "https://images.unsplash.com/photo-1578985545062-69928b1d9587?w=300&auto=format&fit=crop&q=80";
+
+            categoryCards.push({
+              id: cat.id,
+              name: cat.name,
+              count: `${catProducts.length} items`,
+              image: coverImage,
+            });
+          }
+
+          // Also include products with no category under an "Other" tab if needed
+          const uncategorized = dbProducts.filter(
+            (p) => !p.category_id || !dbCategories.find((c) => c.id === p.category_id)
+          );
+          if (uncategorized.length > 0 && dbCategories.length > 0) {
+            categoryCards.push({
+              id: "other",
+              name: "Other",
+              count: `${uncategorized.length} items`,
+              image:
+                uncategorized[0]?.image_url ||
+                "https://images.unsplash.com/photo-1578985545062-69928b1d9587?w=300&auto=format&fit=crop&q=80",
+            });
+          }
+
+          // Build menu items from DB products
+          const menuItems: MenuItem[] = dbProducts.map((p) => {
+            const cat = dbCategories.find((c) => c.id === p.category_id);
+            const categorySlug = cat ? cat.id : "other";
+
+            const pGallery = Array.isArray(p.gallery_images) ? p.gallery_images : [];
+            const primaryImg = p.image_url || (pGallery.length > 0 ? pGallery[0] : "") ||
+              "https://images.unsplash.com/photo-1578985545062-69928b1d9587?w=800&auto=format&fit=crop&q=80";
+
+            return {
+              id: p.id,
+              name: p.name,
+              price: Number(p.price),
+              description: p.description || "",
+              category: categorySlug,
+              isPopular: p.featured,
+              badge: (p.badge as MenuItem["badge"]) || undefined,
+              tags: p.tags || [],
+              image: primaryImg,
+              doodleText: p.story_text || undefined,
+              hasChefHat: false,
+            };
+          });
+
+          if (!cancelled) {
+            setLiveCategories(categoryCards);
+            setLiveMenuItems(menuItems);
+            setDbLoaded(true);
+          }
+        }
+      } catch (err) {
+        console.warn("MenuSection: Could not fetch live data, using defaults", err);
+      }
+    }
+
+    fetchLiveData();
+    return () => {
+      cancelled = true;
+    };
+  }, []);
+
+  // Use live data if loaded, otherwise fallback to hardcoded constants
+  const activeCategoryCards = dbLoaded && liveCategories.length > 0 ? liveCategories : CATEGORY_CARDS;
+  const activeMenuItems = dbLoaded && liveMenuItems.length > 0 ? liveMenuItems : MENU_ITEMS;
+
   // Listen to cross-component category selection events (e.g. from WhatWeSellSection)
   useEffect(() => {
     const handleSelectCategory = (e: Event) => {
       const customEvent = e as CustomEvent<string>;
       const cat = customEvent.detail;
       if (cat) {
-        setActiveCategory(cat);
-        // Ensure menu section is in view
+        // If category from WhatWeSell is a name-based slug, try to find matching live category
+        const matchingLiveCat = activeCategoryCards.find(
+          (c) => c.name.toLowerCase().replace(/\s+/g, "-") === cat || c.id === cat
+        );
+        setActiveCategory(matchingLiveCat ? matchingLiveCat.id : cat);
         const el = document.getElementById("menu");
         if (el) {
           el.scrollIntoView({ behavior: "smooth" });
@@ -370,7 +545,7 @@ export function MenuSection({ slug = "the-indulgent-spoon" }: MenuSectionProps) 
     return () => {
       window.removeEventListener("select-category", handleSelectCategory);
     };
-  }, []);
+  }, [activeCategoryCards]);
 
   const scroll = (direction: "left" | "right") => {
     if (scrollContainerRef.current) {
@@ -381,13 +556,15 @@ export function MenuSection({ slug = "the-indulgent-spoon" }: MenuSectionProps) 
 
   const filteredItems =
     activeCategory === "popular"
-      ? MENU_ITEMS.filter((item) => item.isPopular)
-      : MENU_ITEMS.filter((item) => item.category === activeCategory);
+      ? activeMenuItems.filter((item) => item.isPopular)
+      : activeMenuItems.filter((item) => item.category === activeCategory);
 
   const displayItems =
     filteredItems.length > 0
       ? filteredItems
-      : MENU_ITEMS.filter((item) => item.isPopular);
+      : activeMenuItems.filter((item) => item.isPopular).length > 0
+      ? activeMenuItems.filter((item) => item.isPopular)
+      : activeMenuItems.slice(0, 6);
 
   const getQty = (id: string) => quantities[id] || 1;
 
@@ -406,39 +583,25 @@ export function MenuSection({ slug = "the-indulgent-spoon" }: MenuSectionProps) 
     setFavorites((prev) => ({ ...prev, [id]: !prev[id] }));
   };
 
+  const { addItem, getProductQuantity } = useCart();
+
   const handleAddToCart = (item: MenuItem) => {
     const qty = getQty(item.id);
-    const storageKey = `spoon_cart_${slug}`;
-    try {
-      const existing = localStorage.getItem(storageKey);
-      const items = existing ? JSON.parse(existing) : [];
-      const itemIndex = items.findIndex(
-        (i: { product: { id: string } }) => i.product.id === item.id
-      );
-
-      if (itemIndex > -1) {
-        items[itemIndex].quantity += qty;
-      } else {
-        items.push({
-          product: {
-            id: item.id,
-            restaurant_id: "default",
-            name: item.name,
-            description: item.description,
-            price: item.price,
-            image_url: item.image,
-            available: true,
-            featured: true,
-          },
-          quantity: qty,
-        });
-      }
-
-      localStorage.setItem(storageKey, JSON.stringify(items));
-      window.dispatchEvent(new Event("storage"));
-    } catch {
-      // ignore
-    }
+    addItem(
+      {
+        id: item.id,
+        restaurant_id: "default",
+        name: item.name,
+        description: item.description,
+        price: item.price,
+        image_url: item.image,
+        available: true,
+        featured: true,
+        category_id: null,
+        sort_order: 0,
+      },
+      qty
+    );
 
     setAddedItem(item.id);
     setTimeout(() => {
@@ -559,7 +722,7 @@ export function MenuSection({ slug = "the-indulgent-spoon" }: MenuSectionProps) 
             ref={scrollContainerRef}
             className="flex items-stretch gap-2.5 sm:gap-3.5 overflow-x-auto pb-4 pt-1 px-1 sm:px-2 scrollbar-none scroll-smooth -mx-3.5 sm:mx-0 pr-10 sm:pr-8"
           >
-            {CATEGORY_CARDS.map((cat, index) => {
+            {activeCategoryCards.map((cat, index) => {
               const isActive = activeCategory === cat.id;
 
               return (
@@ -630,6 +793,8 @@ export function MenuSection({ slug = "the-indulgent-spoon" }: MenuSectionProps) 
           {displayItems.map((item) => {
             const qty = getQty(item.id);
             const isJustAdded = addedItem === item.id;
+            const inCartCount = getProductQuantity(item.id);
+            const isAlreadyInCart = inCartCount > 0;
 
             return (
               <div
@@ -648,6 +813,16 @@ export function MenuSection({ slug = "the-indulgent-spoon" }: MenuSectionProps) 
                     sizes="45vw"
                     className="object-cover group-hover:scale-105 transition-transform duration-300"
                   />
+
+                  {/* In Cart Indicator */}
+                  {isAlreadyInCart && (
+                    <div className="absolute top-2 right-2 z-10 animate-in fade-in zoom-in-75">
+                      <span className="inline-flex items-center gap-1 px-1.5 py-0.5 rounded-md text-[8.5px] font-bold text-white bg-[#4D7C47] shadow-sm">
+                        <Check className="w-2.5 h-2.5 stroke-[3]" />
+                        <span>{inCartCount} in Cart</span>
+                      </span>
+                    </div>
+                  )}
 
                   {/* Top-Left Badge (POPULAR or NEW!) */}
                   {item.badge && (
@@ -744,19 +919,26 @@ export function MenuSection({ slug = "the-indulgent-spoon" }: MenuSectionProps) 
                       </button>
                     </div>
 
-                    {/* Add Button */}
+                    {/* Add Button with In-Cart State */}
                     <button
                       onClick={() => handleAddToCart(item)}
                       className={`flex items-center justify-center gap-1 px-2.5 py-1.5 rounded-lg text-[11px] font-semibold transition-all duration-200 cursor-pointer shadow-xs whitespace-nowrap ${
                         isJustAdded
                           ? "bg-[#4D7C47] text-white"
+                          : isAlreadyInCart
+                          ? "bg-[#5D6B3F] hover:bg-[#4E5B33] text-white"
                           : "bg-[#A34B3D] hover:bg-[#8F3F32] text-white active:scale-95"
                       }`}
                     >
                       {isJustAdded ? (
                         <>
                           <Check className="w-3 h-3" strokeWidth={2.5} />
-                          <span>Added</span>
+                          <span>Added!</span>
+                        </>
+                      ) : isAlreadyInCart ? (
+                        <>
+                          <Check className="w-3 h-3" strokeWidth={2.5} />
+                          <span>In Cart ({inCartCount}) +</span>
                         </>
                       ) : (
                         <>
@@ -780,6 +962,8 @@ export function MenuSection({ slug = "the-indulgent-spoon" }: MenuSectionProps) 
             const isFav = !!favorites[item.id];
             const qty = getQty(item.id);
             const isJustAdded = addedItem === item.id;
+            const inCartCount = getProductQuantity(item.id);
+            const isAlreadyInCart = inCartCount > 0;
 
             return (
               <div
@@ -799,8 +983,18 @@ export function MenuSection({ slug = "the-indulgent-spoon" }: MenuSectionProps) 
                     className="object-cover transition-transform duration-500 group-hover:scale-105"
                   />
 
+                  {/* In Cart Indicator Ribbon/Badge */}
+                  {isAlreadyInCart && (
+                    <div className="absolute top-3 left-3 z-20 animate-in fade-in zoom-in-75">
+                      <span className="inline-flex items-center gap-1.5 px-2.5 py-1 rounded-md text-[10px] font-bold text-white bg-[#4D7C47] shadow-sm border border-white/20">
+                        <Check className="w-3 h-3 stroke-[3]" />
+                        <span>{inCartCount} in Cart</span>
+                      </span>
+                    </div>
+                  )}
+
                   {/* Top-Left Badge (POPULAR or NEW!) */}
-                  {item.badge && (
+                  {item.badge && !isAlreadyInCart && (
                     <div className="absolute top-3 left-3 z-10">
                       <span
                         className={`inline-block px-2.5 py-1 rounded-md text-[10px] font-bold uppercase tracking-wider text-white shadow-xs ${
@@ -916,6 +1110,8 @@ export function MenuSection({ slug = "the-indulgent-spoon" }: MenuSectionProps) 
                       className={`flex-1 flex items-center justify-center gap-2 py-2.5 px-4 rounded-xl text-xs sm:text-sm font-semibold transition-all duration-200 cursor-pointer shadow-xs ${
                         isJustAdded
                           ? "bg-[#4D7C47] text-white"
+                          : isAlreadyInCart
+                          ? "bg-[#5D6B3F] hover:bg-[#4E5B33] text-white"
                           : "bg-[#A34B3D] hover:bg-[#8F3F32] text-white active:scale-[0.98]"
                       }`}
                     >
@@ -923,6 +1119,11 @@ export function MenuSection({ slug = "the-indulgent-spoon" }: MenuSectionProps) 
                         <>
                           <Check className="w-4 h-4" strokeWidth={2.5} />
                           <span>Added!</span>
+                        </>
+                      ) : isAlreadyInCart ? (
+                        <>
+                          <Check className="w-4 h-4" strokeWidth={2.5} />
+                          <span>In Cart ({inCartCount}) • Add More</span>
                         </>
                       ) : (
                         <>

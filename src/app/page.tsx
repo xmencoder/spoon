@@ -12,7 +12,7 @@ import {
   Award,
 } from "lucide-react";
 import { MenuSection } from "@/components/home/MenuSection";
-import { WhatWeSellSection } from "@/components/home/WhatWeSellSection";
+import { FounderNoteSection } from "@/components/home/FounderNoteSection";
 import {
   getDefaultRestaurant,
   getCategories,
@@ -311,8 +311,8 @@ export default async function Home() {
       {/* ═══ OUR MENU SECTION (MATCHING PHOTO) ═══ */}
       <MenuSection slug={slug} />
 
-      {/* ═══ WHAT WE SELL SECTION (MATCHING PHOTO) ═══ */}
-      <WhatWeSellSection />
+      {/* ═══ FOUNDER'S NOTE ═══ */}
+      <FounderNoteSection />
 
       <Footer />
     </div>
