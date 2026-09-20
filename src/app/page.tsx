@@ -254,7 +254,7 @@ export default async function Home() {
           </p>
 
           {/* CTAs */}
-          <div className="flex flex-wrap justify-center gap-3 sm:gap-4 mt-8 sm:mt-10">
+          <div className="flex justify-center mt-8 sm:mt-10">
             <Link href="/#menu">
               <Button
                 variant="cta"
@@ -263,15 +263,6 @@ export default async function Home() {
               >
                 Order Now
                 <ArrowRight className="h-4 w-4" strokeWidth={2} />
-              </Button>
-            </Link>
-            <Link href="/#menu">
-              <Button
-                variant="outline"
-                size="lg"
-                className="rounded-full px-9 py-4 text-sm font-bold bg-[#F5EBDD] text-[#29251F] hover:bg-white hover:text-[#C26B59] border border-[#E0CFBB] shadow-[0_4px_20px_rgba(0,0,0,0.12)] transition-all duration-300 active:scale-95"
-              >
-                View Menu
               </Button>
             </Link>
           </div>
