@@ -25,10 +25,19 @@ export const metadata: Metadata = {
   description:
     "Order handcrafted fresh sourdough, zero-sugar spreads, and decadent desserts. 100% eggless products made fresh on order.",
   keywords: ["The Indulgent Spoon", "Artisanal Bakery", "Fresh Sourdough", "No Sugar Spreads", "Eggless Desserts", "Order Online"],
+  icons: {
+    icon: [
+      { url: "/logo-m.png", type: "image/png" },
+      { url: "/favicon.ico", type: "image/x-icon" },
+    ],
+    shortcut: "/logo-m.png",
+    apple: "/logo-m.png",
+  },
   openGraph: {
     title: "The Indulgent Spoon — Artisanal Bakery",
     description: "Handcrafted fresh sourdough, zero-sugar spreads, and 100% eggless desserts.",
     type: "website",
+    images: [{ url: "/logo-m.png" }],
   },
 };
 
