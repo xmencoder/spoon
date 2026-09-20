@@ -26,6 +26,7 @@ import {
   Layers,
   ShoppingBag,
   Sparkles,
+  ShieldAlert,
 } from "lucide-react";
 import { formatPrice } from "@/lib/utils";
 
@@ -380,6 +381,22 @@ export default function AdminProductsPage() {
                             <p className="text-[11px] text-spoon-muted line-clamp-1 max-w-sm mt-0.5">
                               {item.description || "No description provided."}
                             </p>
+
+                            {/* Allergen Information Badges */}
+                            {item.allergen_info && item.allergen_info.length > 0 && (
+                              <div className="flex flex-wrap items-center gap-1 mt-1.5">
+                                {item.allergen_info.map((al, idx) => (
+                                  <span
+                                    key={idx}
+                                    className="inline-flex items-center gap-1 rounded-md bg-[#FFF7EB] text-[#7A4016] border border-[#E9D4BE] px-2 py-0.5 text-[10px] font-medium shadow-2xs"
+                                    title={al}
+                                  >
+                                    <ShieldAlert className="w-2.5 h-2.5 text-spoon-caramel shrink-0" />
+                                    <span className="max-w-[220px] truncate">{al}</span>
+                                  </span>
+                                ))}
+                              </div>
+                            )}
                           </div>
                         </div>
                       </td>
@@ -413,6 +430,14 @@ export default function AdminProductsPage() {
                               {addonCount > 0
                                 ? `${addonCount} Custom Add-ons`
                                 : "No Add-ons"}
+                            </span>
+                          </span>
+                          <span className="inline-flex items-center gap-1 text-spoon-muted">
+                            <ShieldAlert className="w-3 h-3 text-spoon-caramel" />
+                            <span>
+                              {item.allergen_info && item.allergen_info.length > 0
+                                ? `${item.allergen_info.length} Allergen Note${item.allergen_info.length > 1 ? "s" : ""}`
+                                : "No Allergens"}
                             </span>
                           </span>
                         </div>

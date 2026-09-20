@@ -263,6 +263,8 @@ export function unpackProductMetadata(product: any): Product {
         if (!p.sizes || p.sizes.length === 0) p.sizes = meta.sizes;
         if (!p.addons || p.addons.length === 0) p.addons = meta.addons;
         if (!p.tags || p.tags.length === 0) p.tags = meta.tags;
+        if (!p.allergen_info || p.allergen_info.length === 0) p.allergen_info = meta.allergen_info || [];
+        if (!p.storage_care || p.storage_care.length === 0) p.storage_care = meta.storage_care || [];
         if (!p.story_text) p.story_text = meta.story_text;
         if (!p.badge) p.badge = meta.badge;
         if (p.order_limit === undefined || p.order_limit === null) p.order_limit = meta.order_limit;
@@ -419,6 +421,8 @@ export async function createAdminProduct(
       sizes: productData.sizes || [],
       addons: productData.addons || [],
       tags: productData.tags || [],
+      allergen_info: productData.allergen_info || [],
+      storage_care: productData.storage_care || [],
       story_text: productData.story_text || null,
       badge: productData.badge || null,
       is_veg: productData.is_veg ?? true,
@@ -501,6 +505,8 @@ export async function updateAdminProduct(
       sizes: updates.sizes || [],
       addons: updates.addons || [],
       tags: updates.tags || [],
+      allergen_info: updates.allergen_info || [],
+      storage_care: updates.storage_care || [],
       story_text: updates.story_text || null,
       badge: updates.badge || null,
       is_veg: updates.is_veg ?? true,

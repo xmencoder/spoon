@@ -198,10 +198,12 @@ export default function ProductDetailClient({
     ...(product.tags && product.tags.length > 0
       ? { tags: product.tags }
       : {}),
-    // Use DB allergen/storage info
-    ...(product.allergen_info && product.allergen_info.length > 0
-      ? { allergenInfo: product.allergen_info }
-      : {}),
+    // Use DB allergen/storage info strictly
+    allergenInfo: Array.isArray(product.allergen_info)
+      ? product.allergen_info
+      : (product.allergen_info
+          ? [product.allergen_info]
+          : (baseDetail?.allergenInfo || [])),
     ...(product.storage_care && product.storage_care.length > 0
       ? { storageCare: product.storage_care }
       : {}),
@@ -755,20 +757,22 @@ export default function ProductDetailClient({
             })()}
 
             {/* ── ALLERGEN INFO (Clean, concise card) ── */}
-            <div className="rounded-2xl bg-[#EBE0CF] border border-[#D8CABA] p-4 sm:p-5 shadow-2xs space-y-2.5">
-              <div className="flex items-center gap-2 text-xs sm:text-sm font-bold text-[#29251F]">
-                <span className="w-2 h-2 rounded-full bg-[#A34B3D]" />
-                <span>Allergen Info</span>
+            {detail.allergenInfo && detail.allergenInfo.length > 0 && (
+              <div className="rounded-2xl bg-[#EBE0CF] border border-[#D8CABA] p-4 sm:p-5 shadow-2xs space-y-2.5">
+                <div className="flex items-center gap-2 text-xs sm:text-sm font-bold text-[#29251F]">
+                  <span className="w-2 h-2 rounded-full bg-[#A34B3D]" />
+                  <span>Allergen Info</span>
+                </div>
+                <div className="space-y-1.5 text-xs sm:text-sm text-[#554B3B] leading-relaxed">
+                  {detail.allergenInfo.map((info, idx) => (
+                    <div key={idx} className="flex items-start gap-2">
+                      <span className="text-[#A34B3D] mt-0.5 font-bold">•</span>
+                      <span>{info}</span>
+                    </div>
+                  ))}
+                </div>
               </div>
-              <div className="space-y-1.5 text-xs sm:text-sm text-[#554B3B] leading-relaxed">
-                {detail.allergenInfo.map((info, idx) => (
-                  <div key={idx} className="flex items-start gap-2">
-                    <span className="text-[#A34B3D] mt-0.5 font-bold">•</span>
-                    <span>{info}</span>
-                  </div>
-                ))}
-              </div>
-            </div>
+            )}
           </div>
         </div>
 

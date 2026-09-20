@@ -81,6 +81,8 @@ function unpackProduct(product: any): Product {
         if (!p.sizes || p.sizes.length === 0) p.sizes = meta.sizes;
         if (!p.addons || p.addons.length === 0) p.addons = meta.addons;
         if (!p.tags || p.tags.length === 0) p.tags = meta.tags;
+        if (!p.allergen_info || p.allergen_info.length === 0) p.allergen_info = meta.allergen_info || [];
+        if (!p.storage_care || p.storage_care.length === 0) p.storage_care = meta.storage_care || [];
         if (!p.story_text) p.story_text = meta.story_text;
         if (!p.badge) p.badge = meta.badge;
         if (p.order_limit === undefined || p.order_limit === null) p.order_limit = meta.order_limit;
