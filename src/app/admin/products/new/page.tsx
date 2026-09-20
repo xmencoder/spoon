@@ -76,6 +76,8 @@ export default function AdminNewProductPage() {
   const [categoryId, setCategoryId] = useState("");
   const [badge, setBadge] = useState<string>("POPULAR");
   const [badgeSecondary, setBadgeSecondary] = useState<string>("NONE");
+  const [tags, setTags] = useState<string[]>(["100% Eggless", "Artisan Classic"]);
+  const [tagInput, setTagInput] = useState("");
   const [isVeg, setIsVeg] = useState(true);
   const [available, setAvailable] = useState(true);
   const [featured, setFeatured] = useState(false);
@@ -364,6 +366,14 @@ export default function AdminNewProductPage() {
     }
   };
 
+  // Add Tag
+  const handleAddTag = () => {
+    if (tagInput.trim() && !tags.includes(tagInput.trim())) {
+      setTags([...tags, tagInput.trim()]);
+      setTagInput("");
+    }
+  };
+
   // Add Storage Info
   const handleAddStorage = () => {
     if (storageInput.trim() && !storageCare.includes(storageInput.trim())) {
@@ -469,7 +479,7 @@ export default function AdminNewProductPage() {
         sort_order: parseInt(sortOrder, 10) || 0,
         sizes,
         addons,
-        tags: [],
+        tags,
         allergen_info: allergenInfo,
         storage_care: storageCare,
         image_url: coverImageUrl,
@@ -685,6 +695,97 @@ export default function AdminNewProductPage() {
                   <option value="SUGAR FREE">SUGAR FREE (Teal)</option>
                   <option value="GLUTEN FREE">GLUTEN FREE (Emerald)</option>
                 </select>
+              </div>
+            </div>
+
+            {/* Menu Tags */}
+            <div className="col-span-full pt-1">
+              <label className="block text-xs font-bold uppercase tracking-wider text-spoon-dark mb-1.5">
+                Product Tags (e.g. 100% Eggless, Freshly Baked, Artisan Classic)
+              </label>
+              <div className="flex gap-2 mb-2">
+                <Input
+                  value={tagInput}
+                  onChange={(e) => setTagInput(e.target.value)}
+                  onKeyDown={(e) => {
+                    if (e.key === "Enter") {
+                      e.preventDefault();
+                      handleAddTag();
+                    }
+                  }}
+                  placeholder="Type a tag and press Add..."
+                  className="text-xs flex-1"
+                />
+                <Button
+                  type="button"
+                  onClick={handleAddTag}
+                  variant="outline"
+                  size="sm"
+                  className="shrink-0 text-xs gap-1 font-semibold"
+                >
+                  <Plus className="w-3.5 h-3.5" />
+                  Add Tag
+                </Button>
+              </div>
+
+              {/* Active Tags */}
+              {tags.length > 0 && (
+                <div className="flex flex-wrap gap-1.5 mb-2">
+                  {tags.map((t, idx) => (
+                    <span
+                      key={idx}
+                      className="inline-flex items-center gap-1.5 px-2.5 py-1 rounded-lg bg-spoon-sand text-spoon-dark text-xs font-medium border border-spoon-border shadow-2xs"
+                    >
+                      <span>{t}</span>
+                      <button
+                        type="button"
+                        onClick={() => setTags(tags.filter((_, i) => i !== idx))}
+                        className="text-spoon-muted hover:text-rose-600 transition-colors"
+                        title="Remove tag"
+                      >
+                        <X className="w-3 h-3" />
+                      </button>
+                    </span>
+                  ))}
+                </div>
+              )}
+
+              {/* Quick Tag Suggestions */}
+              <div className="flex flex-wrap items-center gap-1.5 pt-1">
+                <span className="text-[10px] uppercase font-bold text-spoon-muted tracking-wider mr-1">
+                  Suggestions:
+                </span>
+                {[
+                  "100% Eggless",
+                  "Freshly Baked",
+                  "Artisan Classic",
+                  "Chef's Choice",
+                  "Zero Sugar",
+                  "Pure Butter",
+                  "Boutique Pack",
+                ].map((suggestion, sIdx) => {
+                  const isSelected = tags.includes(suggestion);
+                  return (
+                    <button
+                      key={sIdx}
+                      type="button"
+                      onClick={() => {
+                        if (isSelected) {
+                          setTags(tags.filter((t) => t !== suggestion));
+                        } else {
+                          setTags([...tags, suggestion]);
+                        }
+                      }}
+                      className={`text-[10px] px-2 py-0.5 rounded-md border transition-all ${
+                        isSelected
+                          ? "bg-spoon-caramel text-white border-spoon-caramel font-semibold"
+                          : "bg-spoon-sand/40 text-spoon-dark/70 border-spoon-border hover:bg-spoon-sand"
+                      }`}
+                    >
+                      {suggestion} {isSelected ? "✓" : "+"}
+                    </button>
+                  );
+                })}
               </div>
             </div>
 

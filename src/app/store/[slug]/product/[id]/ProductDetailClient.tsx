@@ -442,16 +442,17 @@ export default function ProductDetailClient({
           {/* ── RIGHT COLUMN: Product Info, Price, Sizes, Addons & Cart ── */}
           {/* ═══════════════════════════════════════════════════ */}
           <div className="lg:col-span-6 space-y-5 sm:space-y-6">
-            {/* Top Row: Ribbon Badges + Doodle Text */}
+            {/* Top Row: Ribbon Badges + Tags + Doodle Text */}
             <div className="flex items-center justify-between gap-4">
               <div className="flex flex-wrap items-center gap-2">
+                {/* Ribbon Badges */}
                 {((detail.badge || badgeProp) || "")
                   .split(",")
                   .map((b) => b.trim())
                   .filter((b) => b && b !== "NONE")
                   .map((b, bIdx) => (
                     <span
-                      key={bIdx}
+                      key={`ribbon-${bIdx}`}
                       className={`inline-block px-3 py-1 rounded-full text-[11px] font-bold uppercase tracking-wider shadow-xs ${
                         b === "BESTSELLER"
                           ? "bg-[#8E2822] text-[#F5EBDD]"
@@ -467,6 +468,18 @@ export default function ProductDetailClient({
                       }`}
                     >
                       {b}
+                    </span>
+                  ))}
+
+                {/* Product Tags */}
+                {detail.tags &&
+                  Array.isArray(detail.tags) &&
+                  detail.tags.map((tag, tIdx) => (
+                    <span
+                      key={`tag-${tIdx}`}
+                      className="inline-flex items-center px-2.5 py-0.5 rounded-full text-[11px] font-medium bg-[#EAE0D1] text-[#554D3F] border border-[#D5C6B1]"
+                    >
+                      #{tag}
                     </span>
                   ))}
               </div>

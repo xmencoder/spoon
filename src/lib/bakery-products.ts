@@ -79,6 +79,7 @@ export interface BakeryProductDetail {
   sizes?: ProductSizeOption[];
   addons?: ProductAddonOption[];
   badge?: string;
+  tags?: string[];
   doodleTopRight?: string;
   imageScript?: string;
   rating: number;
