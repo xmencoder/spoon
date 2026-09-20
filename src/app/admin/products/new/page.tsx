@@ -612,19 +612,6 @@ export default function AdminNewProductPage() {
               className="text-xs"
             />
           </div>
-
-          <div>
-            <label className="block text-xs font-bold uppercase tracking-wider text-spoon-dark mb-1.5">
-              Full Product Story / Description
-            </label>
-            <textarea
-              rows={3}
-              value={storyText}
-              onChange={(e) => setStoryText(e.target.value)}
-              placeholder="Our OG Choco Chip Butter Cake is a timeless classic. Rich, moist, and buttery, it is generously packed with premium chocolate chips in every bite..."
-              className="w-full rounded-2xl border border-spoon-border bg-white p-3.5 text-xs text-spoon-dark placeholder:text-spoon-muted focus:outline-none focus:ring-2 focus:ring-spoon-caramel/20"
-            />
-          </div>
         </div>
 
         {/* 2. MULTIPLE FOOD PHOTOGRAPHY & GALLERY */}
@@ -924,18 +911,6 @@ export default function AdminNewProductPage() {
                 key={add.id || idx}
                 className="flex items-center gap-3 p-3 rounded-2xl bg-spoon-cream/60 border border-spoon-border"
               >
-                <div className="w-14">
-                  <label className="text-[10px] font-bold text-spoon-muted uppercase block mb-1">
-                    Icon
-                  </label>
-                  <Input
-                    value={add.icon || ""}
-                    onChange={(e) => updateAddonItem(idx, "icon", e.target.value)}
-                    placeholder="🎂"
-                    className="text-xs bg-white text-center font-emoji"
-                  />
-                </div>
-
                 <div className="flex-1">
                   <label className="text-[10px] font-bold text-spoon-muted uppercase block mb-1">
                     Add-on Title

@@ -432,16 +432,6 @@ export default function ProductDetailClient({
                 <ChevronRight className="w-4 h-4" />
               </button>
             </div>
-
-            {/* ── "A Little About This Item" Section ── */}
-            <div className="pt-4 border-t border-[#DFD3C1] space-y-2">
-              <h2 className="font-serif text-xl sm:text-2xl font-bold text-[#29251F]">
-                {detail.storyTitle || "A Little About This Item"}
-              </h2>
-              <p className="text-xs sm:text-sm text-[#5F5545] leading-relaxed">
-                {detail.storyText}
-              </p>
-            </div>
           </div>
 
           {/* ═══════════════════════════════════════════════════ */}
@@ -619,31 +609,18 @@ export default function ProductDetailClient({
                             : "bg-[#FAF4EB]/90 border-[#D8C9B5] hover:border-[#968972] hover:bg-[#FAF4EB] hover:-translate-y-0.5 shadow-2xs hover:shadow-xs"
                         }`}
                       >
-                        <div className="flex items-center gap-3 min-w-0 pr-1.5">
-                          {/* Icon Medallion */}
-                          <div
-                            className={`w-9 h-9 rounded-xl flex items-center justify-center text-lg shrink-0 transition-all duration-200 ${
-                              isSelected
-                                ? "bg-[#A34B3D]/12 ring-1 ring-[#A34B3D]/30 scale-105"
-                                : "bg-[#EDE2D1] text-[#554D3F] group-hover:bg-[#E5D7C2]"
+                        <div className="min-w-0 flex-1 pr-1.5">
+                          {/* Label & Description (Fully visible, no ellipsis) */}
+                          <span
+                            className={`text-xs sm:text-[13px] font-bold block leading-snug transition-colors ${
+                              isSelected ? "text-[#29251F]" : "text-[#3D3529]"
                             }`}
                           >
-                            <span>{addon.icon || "✨"}</span>
-                          </div>
-
-                          {/* Label & Description (Fully visible, no ellipsis) */}
-                          <div className="min-w-0 flex-1">
-                            <span
-                              className={`text-xs sm:text-[13px] font-bold block leading-snug transition-colors ${
-                                isSelected ? "text-[#29251F]" : "text-[#3D3529]"
-                              }`}
-                            >
-                              {addon.label}
-                            </span>
-                            <span className="text-[10.5px] sm:text-[11px] text-[#7A6D5A] mt-0.5 block leading-tight">
-                              {subtitle}
-                            </span>
-                          </div>
+                            {addon.label}
+                          </span>
+                          <span className="text-[10.5px] sm:text-[11px] text-[#7A6D5A] mt-0.5 block leading-tight">
+                            {subtitle}
+                          </span>
                         </div>
 
                         {/* Price Tag & Checkbox */}
