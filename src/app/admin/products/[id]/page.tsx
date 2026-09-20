@@ -38,7 +38,17 @@ import {
   Star,
   Images,
   RotateCcw,
+  BookmarkPlus,
 } from "lucide-react";
+
+const DEFAULT_ALLERGEN_PRESETS = [
+  "Contains Wheat (Gluten), Dairy (Butter & Milk)",
+  "Contains Tree Nuts (Almonds, Pistachios) & Dairy",
+  "100% Eggless & Gelatin-Free",
+  "Contains Soy & Wheat (Gluten)",
+  "Gluten-Free & Dairy-Free",
+  "Nut-Free Facility",
+];
 
 interface GalleryItem {
   id: string;
@@ -86,16 +96,21 @@ export default function AdminEditProductPage() {
   // Add-ons
   const [addons, setAddons] = useState<ProductAddonOption[]>([]);
 
-  // Tags
-  const [tagInput, setTagInput] = useState("");
-  const [tags, setTags] = useState<string[]>([]);
-
-  // Allergen Info & Storage Care
+  // Allergen Info & Presets
   const [allergenInfo, setAllergenInfo] = useState<string[]>([]);
   const [allergenInput, setAllergenInput] = useState("");
+  const [customPresets, setCustomPresets] = useState<string[]>([]);
 
-  const [storageCare, setStorageCare] = useState<string[]>([]);
-  const [storageInput, setStorageInput] = useState("");
+  useEffect(() => {
+    try {
+      const saved = localStorage.getItem("spoon_allergen_presets");
+      if (saved) {
+        setCustomPresets(JSON.parse(saved));
+      }
+    } catch (e) {
+      console.error("Failed to load allergen presets", e);
+    }
+  }, []);
 
   // Status
   const [submitting, setSubmitting] = useState(false);
@@ -154,9 +169,7 @@ export default function AdminEditProductPage() {
             { id: "message-card", label: "Message Card", price: 20, icon: "💌" },
           ]
         );
-        setTags(prod.tags || ["Eggless", "Bestseller"]);
         setAllergenInfo(prod.allergen_info || ["Contains Wheat (Gluten), Dairy (Butter & Milk)"]);
-        setStorageCare(prod.storage_care || ["Room Temperature: 3–4 days in airtight container"]);
 
         // Fetch categories
         if (restaurant?.id) {
@@ -358,26 +371,50 @@ export default function AdminEditProductPage() {
     setAddons(addons.filter((_, i) => i !== index));
   };
 
-  // Tags
-  const handleAddTag = () => {
-    if (tagInput.trim() && !tags.includes(tagInput.trim())) {
-      setTags([...tags, tagInput.trim()]);
-      setTagInput("");
-    }
-  };
-
-  // Allergen & Storage
+  // Allergen Info & Presets
   const handleAddAllergen = () => {
-    if (allergenInput.trim()) {
+    if (allergenInput.trim() && !allergenInfo.includes(allergenInput.trim())) {
       setAllergenInfo([...allergenInfo, allergenInput.trim()]);
       setAllergenInput("");
     }
   };
 
-  const handleAddStorage = () => {
-    if (storageInput.trim()) {
-      setStorageCare([...storageCare, storageInput.trim()]);
-      setStorageInput("");
+  const handleSavePreset = (textToSave?: string) => {
+    const lineToSave = (
+      textToSave ||
+      allergenInput ||
+      (allergenInfo.length > 0 ? allergenInfo[allergenInfo.length - 1] : "")
+    ).trim();
+    if (!lineToSave) return;
+    if (
+      !customPresets.includes(lineToSave) &&
+      !DEFAULT_ALLERGEN_PRESETS.includes(lineToSave)
+    ) {
+      const updated = [...customPresets, lineToSave];
+      setCustomPresets(updated);
+      try {
+        localStorage.setItem("spoon_allergen_presets", JSON.stringify(updated));
+      } catch (e) {
+        console.error("Failed to save preset", e);
+      }
+    }
+    if (allergenInput.trim() && !allergenInfo.includes(allergenInput.trim())) {
+      setAllergenInfo([...allergenInfo, allergenInput.trim()]);
+      setAllergenInput("");
+    }
+  };
+
+  const handleDeleteCustomPreset = (
+    presetToDelete: string,
+    e: React.MouseEvent
+  ) => {
+    e.stopPropagation();
+    const updated = customPresets.filter((p) => p !== presetToDelete);
+    setCustomPresets(updated);
+    try {
+      localStorage.setItem("spoon_allergen_presets", JSON.stringify(updated));
+    } catch (e) {
+      console.error("Failed to delete preset", e);
     }
   };
 
@@ -435,9 +472,9 @@ export default function AdminEditProductPage() {
         sort_order: parseInt(sortOrder, 10) || 0,
         sizes,
         addons,
-        tags,
+        tags: [],
         allergen_info: allergenInfo,
-        storage_care: storageCare,
+        storage_care: [],
         image_url: coverImageUrl,
         gallery_images: finalImageUrls,
       };
@@ -1000,68 +1037,22 @@ export default function AdminEditProductPage() {
           </div>
         </div>
 
-        {/* 5. ALLERGENS & CARE */}
+        {/* 5. ALLERGEN INFORMATION */}
         <div className="rounded-3xl border border-spoon-border bg-white p-6 sm:p-8 shadow-warm-sm space-y-5">
-          <div className="border-b border-spoon-border/50 pb-3">
+          <div className="border-b border-spoon-border/50 pb-3 flex items-center justify-between">
             <h2 className="font-serif text-lg font-bold text-spoon-dark flex items-center gap-2">
               <ShieldAlert className="w-4 h-4 text-spoon-caramel" />
-              <span>5. Menu Badges, Allergens & Care Notes</span>
+              <span>5. Allergen Information</span>
             </h2>
           </div>
 
-          {/* Tags */}
-          <div>
-            <label className="block text-xs font-bold uppercase tracking-wider text-spoon-dark mb-1.5">
-              Menu Tags
-            </label>
-            <div className="flex gap-2 mb-2">
-              <Input
-                value={tagInput}
-                onChange={(e) => setTagInput(e.target.value)}
-                onKeyDown={(e) => {
-                  if (e.key === "Enter") {
-                    e.preventDefault();
-                    handleAddTag();
-                  }
-                }}
-                placeholder="Type tag and press Add..."
-                className="text-xs"
-              />
-              <Button
-                type="button"
-                onClick={handleAddTag}
-                variant="outline"
-                size="sm"
-                className="shrink-0 text-xs"
-              >
-                Add Tag
-              </Button>
-            </div>
-            <div className="flex flex-wrap gap-1.5">
-              {tags.map((t, idx) => (
-                <span
-                  key={idx}
-                  className="inline-flex items-center gap-1.5 px-2.5 py-1 rounded-lg bg-spoon-sand text-spoon-dark text-xs font-medium border border-spoon-border"
-                >
-                  <span>{t}</span>
-                  <button
-                    type="button"
-                    onClick={() => setTags(tags.filter((_, i) => i !== idx))}
-                    className="hover:text-rose-600"
-                  >
-                    <X className="w-3 h-3" />
-                  </button>
-                </span>
-              ))}
-            </div>
-          </div>
-
-          {/* Allergen Info */}
           <div>
             <label className="block text-xs font-bold uppercase tracking-wider text-spoon-dark mb-1.5">
               Allergen Information Lines
             </label>
-            <div className="flex gap-2 mb-2">
+
+            {/* Input + Add + Save Preset Button */}
+            <div className="flex flex-col sm:flex-row gap-2 mb-3">
               <Input
                 value={allergenInput}
                 onChange={(e) => setAllergenInput(e.target.value)}
@@ -1072,86 +1063,141 @@ export default function AdminEditProductPage() {
                   }
                 }}
                 placeholder="e.g. Contains Wheat (Gluten), Dairy (Butter & Milk)"
-                className="text-xs"
+                className="text-xs flex-1"
               />
-              <Button
-                type="button"
-                onClick={handleAddAllergen}
-                variant="outline"
-                size="sm"
-                className="shrink-0 text-xs"
-              >
-                Add Line
-              </Button>
-            </div>
-            <ul className="space-y-1.5">
-              {allergenInfo.map((info, idx) => (
-                <li
-                  key={idx}
-                  className="flex items-center justify-between p-2 rounded-xl bg-spoon-cream text-xs text-spoon-dark border border-spoon-border/70"
+              <div className="flex items-center gap-2 shrink-0">
+                <Button
+                  type="button"
+                  onClick={handleAddAllergen}
+                  variant="default"
+                  size="sm"
+                  className="bg-spoon-dark hover:bg-spoon-mocha text-white text-xs gap-1.5"
                 >
-                  <span>• {info}</span>
-                  <button
-                    type="button"
-                    onClick={() =>
-                      setAllergenInfo(allergenInfo.filter((_, i) => i !== idx))
-                    }
-                    className="text-spoon-muted hover:text-rose-600"
-                  >
-                    <X className="w-3.5 h-3.5" />
-                  </button>
-                </li>
-              ))}
-            </ul>
-          </div>
+                  <Plus className="w-3.5 h-3.5" />
+                  Add Line
+                </Button>
+                <Button
+                  type="button"
+                  onClick={() => handleSavePreset()}
+                  disabled={!allergenInput.trim() && allergenInfo.length === 0}
+                  variant="outline"
+                  size="sm"
+                  className="text-xs border-spoon-border text-spoon-dark hover:bg-spoon-sand gap-1.5"
+                  title="Save current allergen line as a reusable preset"
+                >
+                  <BookmarkPlus className="w-3.5 h-3.5 text-spoon-caramel" />
+                  Save as Preset
+                </Button>
+              </div>
+            </div>
 
-          {/* Storage Care */}
-          <div>
-            <label className="block text-xs font-bold uppercase tracking-wider text-spoon-dark mb-1.5">
-              Storage & Reheating Instructions
-            </label>
-            <div className="flex gap-2 mb-2">
-              <Input
-                value={storageInput}
-                onChange={(e) => setStorageInput(e.target.value)}
-                onKeyDown={(e) => {
-                  if (e.key === "Enter") {
-                    e.preventDefault();
-                    handleAddStorage();
-                  }
-                }}
-                placeholder="e.g. Microwave 10s for molten core"
-                className="text-xs"
-              />
-              <Button
-                type="button"
-                onClick={handleAddStorage}
-                variant="outline"
-                size="sm"
-                className="shrink-0 text-xs"
-              >
-                Add Line
-              </Button>
-            </div>
-            <ul className="space-y-1.5">
-              {storageCare.map((care, idx) => (
-                <li
-                  key={idx}
-                  className="flex items-center justify-between p-2 rounded-xl bg-spoon-cream text-xs text-spoon-dark border border-spoon-border/70"
-                >
-                  <span>• {care}</span>
-                  <button
-                    type="button"
-                    onClick={() =>
-                      setStorageCare(storageCare.filter((_, i) => i !== idx))
-                    }
-                    className="text-spoon-muted hover:text-rose-600"
+            {/* Active Allergen Lines */}
+            {allergenInfo.length > 0 ? (
+              <ul className="space-y-1.5 mb-4">
+                {allergenInfo.map((info, idx) => (
+                  <li
+                    key={idx}
+                    className="flex items-center justify-between p-2.5 rounded-xl bg-spoon-cream text-xs text-spoon-dark border border-spoon-border/70"
                   >
-                    <X className="w-3.5 h-3.5" />
-                  </button>
-                </li>
-              ))}
-            </ul>
+                    <span className="font-medium">• {info}</span>
+                    <button
+                      type="button"
+                      onClick={() =>
+                        setAllergenInfo(allergenInfo.filter((_, i) => i !== idx))
+                      }
+                      className="text-spoon-muted hover:text-rose-600 p-1 rounded-md transition-colors"
+                      title="Remove line"
+                    >
+                      <X className="w-3.5 h-3.5" />
+                    </button>
+                  </li>
+                ))}
+              </ul>
+            ) : (
+              <p className="text-xs text-spoon-muted mb-4 italic">
+                No allergen lines added yet. Type above or click a preset below.
+              </p>
+            )}
+
+            {/* Quick Presets Section */}
+            <div className="pt-3 border-t border-spoon-border/40">
+              <div className="flex items-center justify-between mb-2">
+                <span className="text-[11px] font-bold uppercase tracking-wider text-spoon-muted flex items-center gap-1.5">
+                  <Sparkles className="w-3.5 h-3.5 text-spoon-caramel" />
+                  Quick Allergen Presets (Click to toggle)
+                </span>
+              </div>
+
+              <div className="flex flex-wrap gap-1.5">
+                {/* Built-in Presets */}
+                {DEFAULT_ALLERGEN_PRESETS.map((preset, idx) => {
+                  const isSelected = allergenInfo.includes(preset);
+                  return (
+                    <button
+                      key={`preset-${idx}`}
+                      type="button"
+                      onClick={() => {
+                        if (isSelected) {
+                          setAllergenInfo(allergenInfo.filter((item) => item !== preset));
+                        } else {
+                          setAllergenInfo([...allergenInfo, preset]);
+                        }
+                      }}
+                      className={`text-xs px-2.5 py-1 rounded-lg border transition-all text-left flex items-center gap-1.5 ${
+                        isSelected
+                          ? "bg-spoon-caramel/15 border-spoon-caramel text-spoon-dark font-medium"
+                          : "bg-spoon-sand/50 hover:bg-spoon-sand border-spoon-border text-spoon-dark/80"
+                      }`}
+                    >
+                      <span>{preset}</span>
+                      {isSelected ? (
+                        <CheckCircle2 className="w-3 h-3 text-spoon-caramel shrink-0" />
+                      ) : (
+                        <Plus className="w-3 h-3 text-spoon-muted shrink-0" />
+                      )}
+                    </button>
+                  );
+                })}
+
+                {/* Custom Saved Presets */}
+                {customPresets.map((preset, idx) => {
+                  const isSelected = allergenInfo.includes(preset);
+                  return (
+                    <span
+                      key={`custom-${idx}`}
+                      className={`inline-flex items-center gap-1 text-xs px-2.5 py-1 rounded-lg border transition-all ${
+                        isSelected
+                          ? "bg-amber-100/70 border-amber-400 text-amber-950 font-medium"
+                          : "bg-amber-50/50 hover:bg-amber-100/50 border-amber-200 text-amber-900"
+                      }`}
+                    >
+                      <button
+                        type="button"
+                        onClick={() => {
+                          if (isSelected) {
+                            setAllergenInfo(allergenInfo.filter((item) => item !== preset));
+                          } else {
+                            setAllergenInfo([...allergenInfo, preset]);
+                          }
+                        }}
+                        className="flex items-center gap-1.5 text-left"
+                      >
+                        <span>⭐ {preset}</span>
+                        {isSelected && <CheckCircle2 className="w-3 h-3 text-amber-600 shrink-0" />}
+                      </button>
+                      <button
+                        type="button"
+                        onClick={(e) => handleDeleteCustomPreset(preset, e)}
+                        className="text-amber-500 hover:text-rose-600 ml-1 p-0.5 rounded"
+                        title="Delete custom preset"
+                      >
+                        <X className="w-3 h-3" />
+                      </button>
+                    </span>
+                  );
+                })}
+              </div>
+            </div>
           </div>
         </div>
 
