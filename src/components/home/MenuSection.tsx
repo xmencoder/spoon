@@ -566,27 +566,83 @@ export function MenuSection({ slug = "the-indulgent-spoon" }: MenuSectionProps) 
       ? activeMenuItems.filter((item) => item.isPopular)
       : activeMenuItems.slice(0, 6);
 
-  const getQty = (id: string) => quantities[id] || 1;
+  const getQty = (id: string) => (quantities[id] !== undefined ? quantities[id] : 1);
+
+  const {
+    addItem,
+    decrement,
+    increment,
+    items: cartItems,
+    getProductQuantity,
+  } = useCart();
 
   const handleIncrement = (id: string) => {
-    setQuantities((prev) => ({ ...prev, [id]: (prev[id] || 1) + 1 }));
+    const inCartCount = getProductQuantity(id);
+    if (inCartCount > 0) {
+      const cartItem = cartItems.find(
+        (ci) => ci.product.id === id || ci.id.startsWith(id)
+      );
+      if (cartItem) {
+        increment(cartItem.id);
+      } else {
+        const item = activeMenuItems.find((i) => i.id === id);
+        if (item) {
+          addItem(
+            {
+              id: item.id,
+              restaurant_id: "default",
+              name: item.name,
+              description: item.description,
+              price: item.price,
+              image_url: item.image,
+              available: true,
+              featured: true,
+              category_id: null,
+              sort_order: 0,
+            },
+            1
+          );
+        }
+      }
+    } else {
+      setQuantities((prev) => ({
+        ...prev,
+        [id]: (prev[id] !== undefined ? prev[id] : 1) + 1,
+      }));
+    }
   };
 
   const handleDecrement = (id: string) => {
-    setQuantities((prev) => ({
-      ...prev,
-      [id]: Math.max(1, (prev[id] || 1) - 1),
-    }));
+    const inCartCount = getProductQuantity(id);
+    if (inCartCount > 0) {
+      const cartItem = cartItems.find(
+        (ci) => ci.product.id === id || ci.id.startsWith(id)
+      );
+      if (cartItem) {
+        // If 1 in cart, decrement removes it from cart, automatically switching button back to "Add to Cart"
+        decrement(cartItem.id);
+        if (inCartCount <= 1) {
+          setQuantities((prev) => ({ ...prev, [id]: 1 }));
+        }
+      }
+    } else {
+      // Allow decreasing to 0
+      setQuantities((prev) => ({
+        ...prev,
+        [id]: Math.max(0, (prev[id] !== undefined ? prev[id] : 1) - 1),
+      }));
+    }
   };
 
   const toggleFavorite = (id: string) => {
     setFavorites((prev) => ({ ...prev, [id]: !prev[id] }));
   };
 
-  const { addItem, getProductQuantity } = useCart();
-
   const handleAddToCart = (item: MenuItem) => {
+    const inCartCount = getProductQuantity(item.id);
     const qty = getQty(item.id);
+    const qtyToAdd = inCartCount > 0 ? 1 : Math.max(1, qty);
+
     addItem(
       {
         id: item.id,
@@ -600,7 +656,7 @@ export function MenuSection({ slug = "the-indulgent-spoon" }: MenuSectionProps) 
         category_id: null,
         sort_order: 0,
       },
-      qty
+      qtyToAdd
     );
 
     setAddedItem(item.id);
@@ -923,7 +979,7 @@ export function MenuSection({ slug = "the-indulgent-spoon" }: MenuSectionProps) 
                         <Minus className="w-3 h-3" strokeWidth={2} />
                       </button>
                       <span className="w-4 text-center text-[11px] font-bold text-[#29251F]">
-                        {qty}
+                        {inCartCount > 0 ? inCartCount : qty}
                       </span>
                       <button
                         onClick={() => handleIncrement(item.id)}
@@ -1108,7 +1164,7 @@ export function MenuSection({ slug = "the-indulgent-spoon" }: MenuSectionProps) 
                         <Minus className="w-3.5 h-3.5" strokeWidth={2} />
                       </button>
                       <span className="w-6 text-center text-xs font-bold text-[#29251F]">
-                        {qty}
+                        {inCartCount > 0 ? inCartCount : qty}
                       </span>
                       <button
                         onClick={() => handleIncrement(item.id)}

@@ -127,7 +127,14 @@ export default function ProductDetailClient({
   badge: badgeProp,
   recommendedProducts = [],
 }: Props) {
-  const { addItem, totalItems, getProductQuantity } = useCart();
+  const {
+    addItem,
+    decrement,
+    increment,
+    items: cartItems,
+    totalItems,
+    getProductQuantity,
+  } = useCart();
   const [quantity, setQuantity] = useState(1);
   const [activeImageIndex, setActiveImageIndex] = useState(0);
   const [isFavorite, setIsFavorite] = useState(false);
@@ -261,8 +268,33 @@ export default function ProductDetailClient({
     setActiveImageIndex((prev) => (prev < gallery.length - 1 ? prev + 1 : 0));
   };
 
-  const handleIncrement = () => setQuantity((q) => q + 1);
-  const handleDecrement = () => setQuantity((q) => Math.max(1, q - 1));
+  const handleIncrement = () => {
+    const inCartQty = getProductQuantity(product.id);
+    if (inCartQty > 0) {
+      const cartItem = cartItems.find(
+        (ci) => ci.product.id === product.id || ci.id.startsWith(product.id)
+      );
+      if (cartItem) {
+        increment(cartItem.id);
+      }
+    }
+    setQuantity((q) => (q === 0 ? 1 : q + 1));
+  };
+
+  const handleDecrement = () => {
+    const inCartQty = getProductQuantity(product.id);
+    if (inCartQty > 0) {
+      const cartItem = cartItems.find(
+        (ci) => ci.product.id === product.id || ci.id.startsWith(product.id)
+      );
+      if (cartItem) {
+        decrement(cartItem.id);
+      }
+      setQuantity((q) => Math.max(0, q - 1));
+    } else {
+      setQuantity((q) => Math.max(0, q - 1));
+    }
+  };
 
   const handleAddToCart = () => {
     const selectedSizeLabel = selectedSizeObj?.label;
@@ -298,7 +330,9 @@ export default function ProductDetailClient({
       description: variantDesc,
     };
 
-    addItem(configuredProduct, quantity, {
+    const qtyToAdd = Math.max(1, quantity);
+
+    addItem(configuredProduct, qtyToAdd, {
       sizeLabel: selectedSizeLabel,
       addons: selectedAddonObjects.map((a) => ({
         id: a.id,
@@ -307,6 +341,10 @@ export default function ProductDetailClient({
       })),
       unitPrice,
     });
+
+    if (quantity === 0) {
+      setQuantity(1);
+    }
 
     setIsAdded(true);
     setTimeout(() => setIsAdded(false), 2000);
@@ -740,6 +778,9 @@ export default function ProductDetailClient({
                 );
               }
 
+              const inCartQty = getProductQuantity(product.id);
+              const displayQty = inCartQty > 0 ? inCartQty : quantity;
+
               return (
                 <div className="flex items-center gap-3 sm:gap-4 pt-1">
                   {/* Stepper */}
@@ -752,7 +793,7 @@ export default function ProductDetailClient({
                       <Minus className="w-4 h-4" />
                     </button>
                     <span className="w-9 text-center font-serif text-base font-bold text-[#29251F]">
-                      {quantity}
+                      {displayQty}
                     </span>
                     <button
                       onClick={handleIncrement}
@@ -769,7 +810,7 @@ export default function ProductDetailClient({
                     className={`flex-1 flex items-center justify-center gap-2.5 py-3.5 px-6 rounded-xl font-semibold text-sm sm:text-base text-white shadow-md transition-all duration-200 cursor-pointer active:scale-[0.98] ${
                       isAdded
                         ? "bg-[#4D7C47]"
-                        : getProductQuantity(product.id) > 0
+                        : inCartQty > 0
                         ? "bg-[#5D6B3F] hover:bg-[#4E5B33]"
                         : "bg-[#A34B3D] hover:bg-[#8F3F32]"
                     }`}
@@ -779,18 +820,18 @@ export default function ProductDetailClient({
                         <Check className="w-5 h-5 stroke-[2.5]" />
                         <span>Added to Cart!</span>
                       </>
-                    ) : getProductQuantity(product.id) > 0 ? (
+                    ) : inCartQty > 0 ? (
                       <>
                         <Check className="w-5 h-5 stroke-[2.5]" />
                         <span>
-                          In Cart ({getProductQuantity(product.id)}) • Add More (+₹{unitPrice * quantity})
+                          In Cart ({inCartQty}) • Add More (+₹{unitPrice * (quantity || 1)})
                         </span>
                       </>
                     ) : (
                       <>
                         <ShoppingCart className="w-5 h-5" />
                         <span>
-                          Add to Cart • ₹{unitPrice * quantity}
+                          Add to Cart • ₹{unitPrice * (quantity || 1)}
                         </span>
                       </>
                     )}
