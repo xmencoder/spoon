@@ -252,9 +252,9 @@ export function CartDrawer() {
                 </span>
               </div>
               <div className="flex justify-between">
-                <span>Packaging &amp; Care</span>
+                <span>Packing &amp; Handling (4%)</span>
                 <span className="font-semibold text-[#29251F]">
-                  {formatPrice(packagingFee)}
+                  +{formatPrice(packagingFee)}
                 </span>
               </div>
               {giftNoteFee > 0 && (

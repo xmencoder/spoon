@@ -386,8 +386,8 @@ export default function CheckoutPage() {
               </span>
             </div>
             <div className="flex justify-between text-[#696053]">
-              <span>Packaging &amp; Care</span>
-              <span>{formatPrice(packagingFee)}</span>
+              <span>Packing &amp; Handling (4%)</span>
+              <span>+{formatPrice(packagingFee)}</span>
             </div>
             {hasGiftNote && (
               <div className="flex justify-between text-[#C26B59] font-medium">

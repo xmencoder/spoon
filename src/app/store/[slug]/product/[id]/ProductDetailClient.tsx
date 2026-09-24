@@ -187,13 +187,18 @@ export default function ProductDetailClient({
     subtitle: product.description || baseDetail.subtitle,
     mainImage: gallery[0],
     galleryImages: gallery,
-    // Use DB sizes/addons if they have entries, otherwise keep fallback
+    // Use DB sizes if available
     ...(product.sizes && Array.isArray(product.sizes) && product.sizes.length > 0
       ? { sizes: product.sizes as BakeryProductDetail["sizes"] }
       : {}),
-    ...(product.addons && Array.isArray(product.addons) && product.addons.length > 0
-      ? { addons: product.addons as BakeryProductDetail["addons"] }
-      : {}),
+    // Only show custom add-ons on the main product page if configured in the admin page.
+    // If not configured (or empty), do not show add-ons and remove all space.
+    addons:
+      product.addons && Array.isArray(product.addons) && product.addons.length > 0
+        ? (product.addons as BakeryProductDetail["addons"])
+        : (product.addons !== undefined || product.restaurant_id)
+        ? []
+        : (baseDetail.addons || []),
     // Use DB tags if available
     ...(product.tags && product.tags.length > 0
       ? { tags: product.tags }

@@ -54,11 +54,7 @@ export const SPREAD_SIZES: ProductSizeOption[] = [
   { id: "size-240g", label: "240 gm", isDefault: true },
 ];
 
-export const SPREAD_ADDONS: ProductAddonOption[] = [
-  { id: "birthday", label: "Birthday Tag", price: 40, icon: "🎂" },
-  { id: "message-card", label: "Message Card", price: 20, icon: "💌" },
-  { id: "candle", label: "Celebration Candle", price: 40, icon: "🕯️" },
-];
+export const SPREAD_ADDONS: ProductAddonOption[] = [];
 
 // 4. Sourdough: Add-ons ONLY Wholewheat -> +100 rs
 export const SOURDOUGH_SIZES: ProductSizeOption[] = [

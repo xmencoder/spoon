@@ -285,6 +285,7 @@ export function unpackProductMetadata(product: any): Product {
     }
   }
 
+  p.addons = Array.isArray(p.addons) ? p.addons : [];
   p.total_ordered = Number(p.total_ordered || 0);
   p.order_limit = p.order_limit != null && p.order_limit !== "" ? Number(p.order_limit) : null;
 

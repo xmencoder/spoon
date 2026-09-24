@@ -372,6 +372,15 @@ export default function CartPage() {
                     </span>
                   </div>
 
+                  {packagingFee > 0 && (
+                    <div className="flex justify-between text-[#554D3F]">
+                      <span>Packing &amp; Handling (4%)</span>
+                      <span className="font-bold text-[#29251F]">
+                        +{formatPrice(packagingFee)}
+                      </span>
+                    </div>
+                  )}
+
                   {hasGiftNote && (
                     <div className="flex justify-between text-[#554D3F]">
                       <span>Gift Note</span>

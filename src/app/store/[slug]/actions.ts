@@ -175,7 +175,7 @@ export async function createOrder(
       msg += `*Delivery Fee:* ₹${deliveryCharge}\n`;
     }
     if (packagingCharge > 0) {
-      msg += `*Packaging & Care:* ₹${packagingCharge}\n`;
+      msg += `*Packing & Handling (4%):* ₹${packagingCharge}\n`;
     }
     if (data.hasGiftNote && data.giftNote) {
       msg += `*Gift Note (+₹40):* "${data.giftNote.trim()}"\n`;

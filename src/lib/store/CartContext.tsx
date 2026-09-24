@@ -198,7 +198,8 @@ const CartContext = createContext<CartContextValue | undefined>(undefined);
 
 export const DEFAULT_RESTAURANT_SLUG = "the-indulgent-spoon";
 export const DELIVERY_FEE = 0;
-export const PACKAGING_FEE = 40;
+export const PACKAGING_RATE = 0.04; // 4% packing and handling charge
+export const PACKAGING_FEE = 0; // Deprecated flat fee
 export const GIFT_NOTE_FEE = 40;
 
 export function CartProvider({
@@ -409,7 +410,7 @@ export function CartProvider({
     0
   );
   const deliveryFee = totalItems > 0 ? DELIVERY_FEE : 0;
-  const packagingFee = totalItems > 0 ? PACKAGING_FEE : 0;
+  const packagingFee = subtotal > 0 ? Math.round(subtotal * PACKAGING_RATE) : 0;
   const giftNoteFee = state.hasGiftNote ? GIFT_NOTE_FEE : 0;
   const total = subtotal + deliveryFee + packagingFee + giftNoteFee;
 

@@ -189,12 +189,7 @@ export default function AdminEditProductPage() {
 
         // Sizes & Add-ons
         setSizes(prod.sizes || [{ id: "size-350g", label: "350 gms", isDefault: true }]);
-        setAddons(
-          prod.addons || [
-            { id: "birthday", label: "Birthday Tag", price: 40, icon: "🎂" },
-            { id: "message-card", label: "Message Card", price: 20, icon: "💌" },
-          ]
-        );
+        setAddons(Array.isArray(prod.addons) ? prod.addons : []);
         setAllergenInfo(prod.allergen_info || ["Contains Wheat (Gluten), Dairy (Butter & Milk)"]);
         setStorageCare(prod.storage_care || ["Room Temperature: 3–4 days in airtight container"]);
 

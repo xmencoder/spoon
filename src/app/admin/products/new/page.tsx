@@ -94,11 +94,7 @@ export default function AdminNewProductPage() {
   ]);
 
   // Add-ons
-  const [addons, setAddons] = useState<ProductAddonOption[]>([
-    { id: "birthday", label: "Birthday Tag", price: 40, icon: "🎂" },
-    { id: "message-card", label: "Message Card", price: 20, icon: "💌" },
-    { id: "candle", label: "Celebration Candle", price: 40, icon: "🕯️" },
-  ]);
+  const [addons, setAddons] = useState<ProductAddonOption[]>([]);
 
   // Allergen Info & Presets
   const [allergenInfo, setAllergenInfo] = useState<string[]>([
