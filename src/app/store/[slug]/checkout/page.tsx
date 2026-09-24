@@ -317,14 +317,52 @@ export default function CheckoutPage() {
         return;
       }
 
-      // Clear cart and redirect to order confirmation
-      clearCart();
+      // Save complete receipt snapshot for the digital receipt page
+      const receiptData = {
+        orderId: result.orderId || Math.random().toString(36).substring(2, 8).toUpperCase(),
+        createdAt: new Date().toISOString(),
+        orderType,
+        customerName: formattedCustomerName,
+        customerPhone: phone.trim(),
+        customerEmail: email.trim() || null,
+        alternatePhone: alternatePhone.trim() || null,
+        deliveryAddress: orderType === "delivery" ? fullAddr : null,
+        addressType: orderType === "delivery" ? addressType : null,
+        distanceKm: orderType === "delivery" ? distanceKm : null,
+        items: items.map((i) => ({
+          id: i.id,
+          name: i.product.name,
+          image_url: i.product.image_url,
+          quantity: i.quantity,
+          unitPrice: i.unitPrice,
+          sizeLabel: i.sizeLabel,
+          addons: i.addons,
+        })),
+        subtotal,
+        deliveryCharge: effectiveDeliveryCharge,
+        packagingFee,
+        hasGiftNote,
+        giftNote,
+        giftNoteFee: hasGiftNote ? giftNoteFee : 0,
+        total,
+        whatsappUrl: result.whatsappUrl,
+        restaurantName: restaurant.name || "The Indulgent Spoon",
+        restaurantPhone: restaurant.whatsapp_number,
+      };
 
-      if (result.orderId) {
-        sessionStorage.setItem(`order-${slug}`, result.orderId);
+      try {
+        sessionStorage.setItem(`receipt-${slug}`, JSON.stringify(receiptData));
+        if (result.orderId) {
+          sessionStorage.setItem(`order-${slug}`, result.orderId);
+        }
+      } catch (e) {
+        console.error("Failed to store receipt in session:", e);
       }
 
-      window.open(result.whatsappUrl, "_blank");
+      // Clear cart
+      clearCart();
+
+      // Navigate to digital receipt page
       router.push(`/store/${slug}/order-success`);
     } catch (err: unknown) {
       console.error(err);
@@ -896,10 +934,10 @@ export default function CheckoutPage() {
         {/* How it works */}
         <div className="rounded-2xl bg-[#E8D5BC] border border-[#91885D]/30 p-4 text-xs text-[#29251F]/80 space-y-1.5">
           <p className="font-bold text-[#29251F] text-xs">How it works</p>
-          <p>1. Tap &ldquo;Place Order via WhatsApp&rdquo; below.</p>
-          <p>2. WhatsApp will open with your order pre-filled.</p>
-          <p>3. Send the message to notify the kitchen.</p>
-          <p>4. Wait for confirmation from The Indulgent Spoon.</p>
+          <p>1. Tap &ldquo;Place Order &amp; View Digital Receipt&rdquo; below.</p>
+          <p>2. View your detailed artisanal digital receipt &amp; breakdown.</p>
+          <p>3. Pay securely via UPI (QR / Apps) or confirm via WhatsApp.</p>
+          <p>4. Freshly handcrafted by The Indulgent Spoon.</p>
         </div>
       </form>
 
@@ -916,12 +954,12 @@ export default function CheckoutPage() {
             {submitting ? (
               <>
                 <Loader2 className="h-5 w-5 animate-spin" />
-                <span>Placing Order...</span>
+                <span>Generating Receipt...</span>
               </>
             ) : (
               <>
                 <CheckCircle2 className="h-5 w-5" />
-                <span>Place {orderType === "delivery" ? "Delivery" : "Takeaway"} Order via WhatsApp</span>
+                <span>Place {orderType === "delivery" ? "Delivery" : "Takeaway"} Order &amp; View Receipt</span>
               </>
             )}
           </button>
@@ -929,7 +967,7 @@ export default function CheckoutPage() {
             <p className="text-center text-[10px] text-[#696053] mt-2">
               {orderType === "delivery" && (!isDeliveryChecked || !isDeliveryAvailable)
                 ? "Please enter your address and click \"Check Delivery\" to proceed."
-                : "Your order will open in WhatsApp for confirmation."}
+                : "Generate your digital receipt to pay via UPI or confirm on WhatsApp."}
             </p>
           )}
         </div>
