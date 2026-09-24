@@ -2,6 +2,7 @@
 
 import { createClient } from "@/lib/supabase/server";
 import type { OrderType } from "@/types/database";
+import { calculateRoadDistanceAndCharge } from "@/lib/delivery-config";
 
 export interface CartItemPayload {
   productId: string;
@@ -16,7 +17,10 @@ export interface CheckoutFormData {
   orderType: OrderType;
   customerName: string;
   customerPhone: string;
+  customerEmail?: string;
+  alternatePhone?: string;
   deliveryAddress: string;
+  addressType?: "home" | "office" | "other";
   cartItems: CartItemPayload[];
   restaurantId: string;
   restaurantSlug: string;
@@ -89,14 +93,35 @@ export async function createOrder(
     });
 
     const itemsSubtotal = orderItems.reduce((sum, i) => sum + i.subtotal, 0);
-    const deliveryCharge =
-      data.orderType === "delivery" ? data.deliveryCharge : 0;
-    const packagingCharge = data.packagingCharge || 0;
+
+    // 2. Server-side validation of delivery charge (never trust browser value)
+    let calculatedDeliveryCharge = 0;
+    let calculatedDistanceKm: number | null = null;
+
+    if (data.orderType === "delivery") {
+      const address = data.deliveryAddress?.trim();
+      if (!address || address.length < 3) {
+        throw new Error("Please enter a valid delivery address.");
+      }
+
+      const distResult = await calculateRoadDistanceAndCharge(address);
+      if (!distResult.success || !distResult.available || distResult.deliveryCharge === null) {
+        throw new Error(distResult.error || "Delivery is unavailable for the specified address.");
+      }
+
+      calculatedDistanceKm = distResult.distanceKm;
+      calculatedDeliveryCharge = distResult.deliveryCharge;
+    } else {
+      calculatedDeliveryCharge = 0;
+      calculatedDistanceKm = null;
+    }
+
+    const packagingCharge = data.packagingCharge || Math.round(itemsSubtotal * 0.04);
     const giftNoteCharge = data.hasGiftNote ? 40 : 0;
     const total =
-      itemsSubtotal + deliveryCharge + packagingCharge + giftNoteCharge;
+      itemsSubtotal + calculatedDeliveryCharge + packagingCharge + giftNoteCharge;
 
-    // 2. Create order record
+    // 3. Create order record
     const { data: order, error: orderError } = await supabase
       .from("orders")
       .insert({
@@ -107,7 +132,7 @@ export async function createOrder(
           data.orderType === "delivery" ? data.deliveryAddress.trim() : null,
         order_type: data.orderType,
         subtotal: itemsSubtotal,
-        delivery_charge: deliveryCharge,
+        delivery_charge: calculatedDeliveryCharge,
         total,
         status: "pending",
       })
@@ -158,11 +183,18 @@ export async function createOrder(
     msg += `━━━━━━━━━━━━━━\n`;
     msg += `*Customer:* ${data.customerName}\n`;
     msg += `*Phone:* ${data.customerPhone}\n`;
+    if (data.alternatePhone) {
+      msg += `*Alt Phone:* ${data.alternatePhone}\n`;
+    }
+    if (data.customerEmail) {
+      msg += `*Email:* ${data.customerEmail}\n`;
+    }
     msg += `*Type:* ${
       data.orderType === "delivery" ? "🛵 Home Delivery" : "🛍️ Store Pickup"
     }\n`;
     if (data.orderType === "delivery" && data.deliveryAddress) {
-      msg += `*Address:* ${data.deliveryAddress}\n`;
+      const typeTag = data.addressType ? ` (${data.addressType.toUpperCase()})` : "";
+      msg += `*Address${typeTag}:* ${data.deliveryAddress}\n`;
     }
     msg += `━━━━━━━━━━━━━━\n`;
     msg += `*Items:*\n`;
@@ -171,8 +203,10 @@ export async function createOrder(
     }
     msg += `━━━━━━━━━━━━━━\n`;
     msg += `*Subtotal:* ₹${itemsSubtotal}\n`;
-    if (deliveryCharge > 0) {
-      msg += `*Delivery Fee:* ₹${deliveryCharge}\n`;
+    if (calculatedDeliveryCharge > 0) {
+      msg += `*Delivery Fee (${calculatedDistanceKm ? `${calculatedDistanceKm} km` : "Standard"}):* ₹${calculatedDeliveryCharge}\n`;
+    } else if (data.orderType === "takeaway") {
+      msg += `*Delivery:* Free (Store Pickup)\n`;
     }
     if (packagingCharge > 0) {
       msg += `*Packing & Handling (4%):* ₹${packagingCharge}\n`;
