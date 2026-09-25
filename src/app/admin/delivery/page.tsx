@@ -1,21 +1,23 @@
 "use client";
+
 import React, { useState, useEffect, useCallback, useMemo } from "react";
 import { useSearchParams } from "next/navigation";
 import { useAdmin } from "@/lib/admin/AdminContext";
 import { getAdminCategories } from "@/lib/admin/admin-service";
 import {
   getAdminDeliverySlots,
-  createAdminDeliverySlotsBulk,
-  updateAdminDeliverySlot,
-  deleteAdminDeliverySlot,
-  toggleDateClosure,
-  deleteSlotsForDate,
   getDeliverySlotTemplates,
-  createDeliverySlotTemplate,
-  deleteDeliverySlotTemplate,
-  formatTimeFriendly,
   formatSlotWindow,
 } from "@/lib/delivery-slots-service";
+import {
+  createDeliverySlotsBulkServerAction,
+  updateDeliverySlotServerAction,
+  deleteDeliverySlotServerAction,
+  toggleDateClosureServerAction,
+  deleteSlotsForDateServerAction,
+  saveDeliveryTemplateServerAction,
+  deleteDeliveryTemplateServerAction,
+} from "./actions";
 import type {
   Category,
   DeliverySlot,
@@ -24,7 +26,6 @@ import type {
 } from "@/types/database";
 import { Button } from "@/components/ui/button";
 import {
-  Calendar as CalendarIcon,
   Clock,
   Plus,
   Trash2,
@@ -39,16 +40,15 @@ import {
   Layers,
   X,
   Check,
-  Ban,
-  CalendarDays,
-  SlidersHorizontal,
   FolderTree,
+  Store,
+  Tag,
 } from "lucide-react";
 
 export default function AdminDeliveryPage() {
   const { restaurant } = useAdmin();
   const searchParams = useSearchParams();
-  const initialCategory = searchParams.get("category") || "all";
+  const initialCategoryParam = searchParams.get("category") || "all";
 
   // State
   const [categories, setCategories] = useState<Category[]>([]);
@@ -60,7 +60,7 @@ export default function AdminDeliveryPage() {
 
   // Filters & View Mode
   const [viewMode, setViewMode] = useState<"calendar" | "list">("calendar");
-  const [selectedCategoryFilter, setSelectedCategoryFilter] = useState<string>(initialCategory);
+  const [selectedCategoryFilter, setSelectedCategoryFilter] = useState<string>(initialCategoryParam);
   const [currentCalendarDate, setCurrentCalendarDate] = useState<Date>(new Date());
 
   // Modals
@@ -71,7 +71,9 @@ export default function AdminDeliveryPage() {
   const [editingSlot, setEditingSlot] = useState<DeliverySlot | null>(null);
 
   // Bulk Create Wizard State
-  const [bulkCategory, setBulkCategory] = useState<string>("");
+  const [bulkCategory, setBulkCategory] = useState<string>(
+    initialCategoryParam === "all" ? "" : initialCategoryParam
+  );
   const [bulkStartDate, setBulkStartDate] = useState<string>("");
   const [bulkEndDate, setBulkEndDate] = useState<string>("");
   const [bulkDaysOfWeek, setBulkDaysOfWeek] = useState<number[]>([1, 2, 3, 4, 5, 6, 0]); // All days
@@ -88,7 +90,9 @@ export default function AdminDeliveryPage() {
   const [newSlotStart, setNewSlotStart] = useState("10:00");
   const [newSlotEnd, setNewSlotEnd] = useState("13:00");
   const [newSlotCapacity, setNewSlotCapacity] = useState(10);
-  const [newSlotCategory, setNewSlotCategory] = useState("");
+  const [newSlotCategory, setNewSlotCategory] = useState<string>(
+    initialCategoryParam === "all" ? "" : initialCategoryParam
+  );
   const [closureReason, setClosureReason] = useState("");
   const [submittingDayAction, setSubmittingDayAction] = useState(false);
 
@@ -107,6 +111,16 @@ export default function AdminDeliveryPage() {
     setBulkEndDate(`${ny}-${nm}-${nd}`);
   }, []);
 
+  // Update category selection when URL query param changes
+  useEffect(() => {
+    const queryCat = searchParams.get("category");
+    if (queryCat) {
+      setSelectedCategoryFilter(queryCat);
+      setBulkCategory(queryCat);
+      setNewSlotCategory(queryCat);
+    }
+  }, [searchParams]);
+
   // Fetch initial data
   const fetchData = useCallback(async () => {
     if (!restaurant?.id) {
@@ -118,7 +132,6 @@ export default function AdminDeliveryPage() {
       setLoading(true);
       setErrorMsg(null);
 
-      // Fetch categories, templates, and slots
       const [catsData, templatesData, slotsData] = await Promise.all([
         getAdminCategories(restaurant.id),
         getDeliverySlotTemplates(restaurant.id),
@@ -146,7 +159,14 @@ export default function AdminDeliveryPage() {
     setTimeout(() => setSuccessMsg(null), 3500);
   };
 
-  // Bulk Create Action
+  // Category switch handler
+  const handleSelectCategory = (catId: string) => {
+    setSelectedCategoryFilter(catId);
+    setBulkCategory(catId === "all" ? "" : catId);
+    setNewSlotCategory(catId === "all" ? "" : catId);
+  };
+
+  // Bulk Create Action via Server Action
   const handleBulkCreate = async (e: React.FormEvent) => {
     e.preventDefault();
     if (!restaurant?.id) return;
@@ -168,20 +188,23 @@ export default function AdminDeliveryPage() {
       setSubmittingBulk(true);
       setErrorMsg(null);
 
-      // 1. Create slots
-      const result = await createAdminDeliverySlotsBulk({
+      // 1. Create slots via Server Action
+      const result = await createDeliverySlotsBulkServerAction({
         restaurantId: restaurant.id,
         categoryId: bulkCategory || null,
         startDate: bulkStartDate,
         endDate: bulkEndDate,
         daysOfWeek: bulkDaysOfWeek,
         slots: bulkTimeWindows,
-        overwrite: true,
       });
+
+      if (!result.success) {
+        throw new Error(result.error || "Failed to create slots.");
+      }
 
       // 2. Save as template if checked
       if (saveAsTemplate && newTemplateName.trim()) {
-        await createDeliverySlotTemplate(
+        await saveDeliveryTemplateServerAction(
           restaurant.id,
           newTemplateName.trim(),
           bulkTimeWindows,
@@ -189,7 +212,13 @@ export default function AdminDeliveryPage() {
         );
       }
 
-      notifySuccess(`Successfully generated ${result.count} delivery slots!`);
+      const categoryName = bulkCategory
+        ? categories.find((c) => c.id === bulkCategory)?.name || "selected category"
+        : "all categories (store-wide)";
+
+      notifySuccess(
+        `Generated ${result.count || 0} delivery slots for ${categoryName}!`
+      );
       setShowBulkModal(false);
       await fetchData();
     } catch (err: unknown) {
@@ -220,6 +249,7 @@ export default function AdminDeliveryPage() {
     }
     if (tpl.category_id) {
       setBulkCategory(tpl.category_id);
+      setSelectedCategoryFilter(tpl.category_id);
     }
     setShowTemplatesModal(false);
     setShowBulkModal(true);
@@ -247,19 +277,24 @@ export default function AdminDeliveryPage() {
     const isClosed = daySlots.some((s) => s.is_closed);
     const reason = daySlots.find((s) => s.closed_reason)?.closed_reason || "";
     setClosureReason(reason);
+    setNewSlotCategory(selectedCategoryFilter === "all" ? "" : selectedCategoryFilter);
     setShowDayModal(true);
   };
 
-  // Add single slot to specific date
+  // Add single slot to specific date via Server Action
   const handleAddSlotToDate = async (e: React.FormEvent) => {
     e.preventDefault();
     if (!restaurant?.id || !selectedDayDate) return;
 
     try {
       setSubmittingDayAction(true);
-      await createAdminDeliverySlotsBulk({
+      setErrorMsg(null);
+
+      const targetCategory = newSlotCategory || null;
+
+      const result = await createDeliverySlotsBulkServerAction({
         restaurantId: restaurant.id,
-        categoryId: newSlotCategory || null,
+        categoryId: targetCategory,
         startDate: selectedDayDate,
         endDate: selectedDayDate,
         daysOfWeek: [new Date(`${selectedDayDate}T00:00:00`).getDay()],
@@ -267,13 +302,16 @@ export default function AdminDeliveryPage() {
           {
             start_time: newSlotStart,
             end_time: newSlotEnd,
-            capacity: newSlotCapacity,
+            capacity: Number(newSlotCapacity) || 10,
           },
         ],
-        overwrite: true,
       });
 
-      notifySuccess(`Added ${formatSlotWindow(newSlotStart, newSlotEnd)} to ${selectedDayDate}`);
+      if (!result.success) {
+        throw new Error(result.error || "Failed to add slot.");
+      }
+
+      notifySuccess(`Added ${formatSlotWindow(newSlotStart, newSlotEnd)} on ${selectedDayDate}`);
       await fetchData();
     } catch (err: unknown) {
       console.error("Add single slot error:", err);
@@ -283,12 +321,22 @@ export default function AdminDeliveryPage() {
     }
   };
 
-  // Toggle Date Closure (Holiday / Closed)
+  // Toggle Date Closure via Server Action
   const handleToggleClosure = async (dateStr: string, currentClosed: boolean) => {
     if (!restaurant?.id) return;
     try {
       setSubmittingDayAction(true);
-      await toggleDateClosure(restaurant.id, dateStr, !currentClosed, closureReason);
+      const res = await toggleDateClosureServerAction(
+        restaurant.id,
+        dateStr,
+        !currentClosed,
+        closureReason
+      );
+
+      if (!res.success) {
+        throw new Error(res.error || "Failed to toggle date closure.");
+      }
+
       notifySuccess(
         !currentClosed
           ? `Date ${dateStr} marked as closed / holiday.`
@@ -303,14 +351,18 @@ export default function AdminDeliveryPage() {
     }
   };
 
-  // Delete all slots on date
+  // Delete all slots on date via Server Action
   const handleDeleteDateSlots = async (dateStr: string) => {
     if (!restaurant?.id) return;
     if (!confirm(`Are you sure you want to delete all delivery slots on ${dateStr}?`)) return;
 
     try {
       setSubmittingDayAction(true);
-      await deleteSlotsForDate(restaurant.id, dateStr);
+      const res = await deleteSlotsForDateServerAction(restaurant.id, dateStr);
+      if (!res.success) {
+        throw new Error(res.error || "Failed to delete slots.");
+      }
+
       notifySuccess(`Deleted all delivery slots on ${dateStr}`);
       setShowDayModal(false);
       await fetchData();
@@ -322,11 +374,14 @@ export default function AdminDeliveryPage() {
     }
   };
 
-  // Delete single slot
+  // Delete single slot via Server Action
   const handleDeleteSlot = async (slotId: string) => {
     if (!confirm("Are you sure you want to delete this delivery slot?")) return;
     try {
-      await deleteAdminDeliverySlot(slotId);
+      const res = await deleteDeliverySlotServerAction(slotId);
+      if (!res.success) {
+        throw new Error(res.error || "Failed to delete slot.");
+      }
       notifySuccess("Delivery slot deleted.");
       setSlots((prev) => prev.filter((s) => s.id !== slotId));
     } catch (err: unknown) {
@@ -335,20 +390,24 @@ export default function AdminDeliveryPage() {
     }
   };
 
-  // Save Edit Slot Modal
+  // Save Edit Slot Modal via Server Action
   const handleSaveSlotEdit = async (e: React.FormEvent) => {
     e.preventDefault();
     if (!editingSlot) return;
 
     try {
-      const updated = await updateAdminDeliverySlot(editingSlot.id, {
+      const res = await updateDeliverySlotServerAction(editingSlot.id, {
         capacity: editingSlot.capacity,
         is_active: editingSlot.is_active,
         is_closed: editingSlot.is_closed,
         closed_reason: editingSlot.closed_reason,
       });
 
-      setSlots((prev) => prev.map((s) => (s.id === updated.id ? updated : s)));
+      if (!res.success || !res.slot) {
+        throw new Error(res.error || "Failed to update slot.");
+      }
+
+      setSlots((prev) => prev.map((s) => (s.id === res.slot.id ? res.slot : s)));
       notifySuccess("Delivery slot updated successfully.");
       setEditingSlot(null);
     } catch (err: unknown) {
@@ -357,11 +416,14 @@ export default function AdminDeliveryPage() {
     }
   };
 
-  // Delete Template
+  // Delete Template via Server Action
   const handleDeleteTemplate = async (templateId: string) => {
     if (!confirm("Delete this delivery schedule template?")) return;
     try {
-      await deleteDeliverySlotTemplate(templateId);
+      const res = await deleteDeliveryTemplateServerAction(templateId);
+      if (!res.success) {
+        throw new Error(res.error || "Failed to delete template.");
+      }
       setTemplates((prev) => prev.filter((t) => t.id !== templateId));
       notifySuccess("Template removed.");
     } catch (err: unknown) {
@@ -370,11 +432,14 @@ export default function AdminDeliveryPage() {
     }
   };
 
-  // Filtered Slots
+  // Filtered Slots: When category is selected, show category slots + storewide slots
   const filteredSlots = useMemo(() => {
     return slots.filter((slot) => {
       if (selectedCategoryFilter !== "all") {
-        if (slot.category_id !== selectedCategoryFilter) return false;
+        // Show slots specifically for this category OR store-wide slots (null category_id)
+        if (slot.category_id && slot.category_id !== selectedCategoryFilter) {
+          return false;
+        }
       }
       return true;
     });
@@ -456,7 +521,7 @@ export default function AdminDeliveryPage() {
       });
     }
 
-    // Trailing month padding to make full 35 or 42 grid
+    // Trailing month padding
     const remaining = (7 - (daysArray.length % 7)) % 7;
     for (let i = 1; i <= remaining; i++) {
       const nextDate = new Date(year, month + 1, i);
@@ -487,11 +552,11 @@ export default function AdminDeliveryPage() {
           <h1 className="font-serif text-2xl sm:text-3xl font-bold text-spoon-dark flex items-center gap-2.5">
             <span>Delivery Schedule</span>
             <span className="text-xs font-sans font-bold px-2.5 py-0.5 rounded-full bg-spoon-sand text-spoon-caramel border border-spoon-border">
-              {slots.length} Active Slots
+              {slots.length} Total Slots
             </span>
           </h1>
           <p className="text-xs text-spoon-muted mt-0.5">
-            Configure delivery dates, hourly time slots, order capacity, and holiday closures.
+            Configure delivery dates, hourly time slots, order capacity, and holiday closures by category.
           </p>
         </div>
 
@@ -508,7 +573,10 @@ export default function AdminDeliveryPage() {
 
           <Button
             size="sm"
-            onClick={() => setShowBulkModal(true)}
+            onClick={() => {
+              setBulkCategory(selectedCategoryFilter === "all" ? "" : selectedCategoryFilter);
+              setShowBulkModal(true);
+            }}
             className="gap-1.5 text-xs font-bold bg-spoon-caramel hover:bg-spoon-caramel-dark text-white shadow-warm-sm"
           >
             <Sparkles className="h-3.5 w-3.5" />
@@ -532,12 +600,12 @@ export default function AdminDeliveryPage() {
         </div>
       )}
 
-      {/* ── CATEGORY SELECTOR CARDS / PILLS ── */}
-      <div className="space-y-2">
-        <div className="flex items-center justify-between">
+      {/* ── CATEGORY SELECTOR TABS BAR ── */}
+      <div className="space-y-2 bg-white p-4 rounded-3xl border border-spoon-border shadow-warm-sm">
+        <div className="flex flex-col sm:flex-row sm:items-center justify-between gap-2">
           <span className="text-xs font-bold uppercase tracking-wider text-spoon-muted flex items-center gap-1.5">
             <FolderTree className="h-3.5 w-3.5 text-spoon-caramel" />
-            <span>Select Category to Manage Delivery Slots:</span>
+            <span>Category Schedule Filter:</span>
           </span>
           <Button
             size="sm"
@@ -545,29 +613,30 @@ export default function AdminDeliveryPage() {
               setBulkCategory(selectedCategoryFilter === "all" ? "" : selectedCategoryFilter);
               setShowBulkModal(true);
             }}
-            className="gap-1.5 text-xs font-bold bg-spoon-caramel hover:bg-spoon-caramel-dark text-white rounded-xl"
+            className="gap-1.5 text-xs font-bold bg-spoon-caramel hover:bg-spoon-caramel-dark text-white rounded-xl self-start sm:self-auto"
           >
             <Plus className="h-3.5 w-3.5" />
             <span>
               {selectedCategoryFilter === "all"
                 ? "Add Slots (All Categories)"
-                : `Add Slots for "${categories.find((c) => c.id === selectedCategoryFilter)?.name || "Selected"}"`}
+                : `+ Add Slots for "${categories.find((c) => c.id === selectedCategoryFilter)?.name || "Selected"}"`}
             </span>
           </Button>
         </div>
 
-        <div className="flex items-center gap-2 overflow-x-auto pb-1 scrollbar-thin">
+        <div className="flex items-center gap-2 overflow-x-auto pb-1 scrollbar-thin pt-1">
+          {/* Store-wide / All Categories Button */}
           <button
             type="button"
-            onClick={() => setSelectedCategoryFilter("all")}
+            onClick={() => handleSelectCategory("all")}
             className={`shrink-0 flex items-center gap-2 px-3.5 py-2 rounded-2xl border text-xs font-bold transition-all cursor-pointer select-none ${
               selectedCategoryFilter === "all"
                 ? "bg-spoon-caramel text-white border-spoon-caramel shadow-warm-sm scale-[1.02]"
-                : "bg-white text-spoon-dark border-spoon-border hover:bg-spoon-sand/40"
+                : "bg-spoon-cream/40 text-spoon-dark border-spoon-border hover:bg-spoon-sand/50"
             }`}
           >
-            <Layers className="h-3.5 w-3.5" />
-            <span>All / Store-wide</span>
+            <Store className="h-3.5 w-3.5" />
+            <span>All Categories (Store-wide)</span>
             <span
               className={`text-[10px] px-2 py-0.5 rounded-full font-bold ${
                 selectedCategoryFilter === "all"
@@ -579,6 +648,7 @@ export default function AdminDeliveryPage() {
             </span>
           </button>
 
+          {/* Individual Category Buttons */}
           {categories.map((cat) => {
             const isSelected = selectedCategoryFilter === cat.id;
             const catSlotCount = slots.filter((s) => s.category_id === cat.id).length;
@@ -587,13 +657,14 @@ export default function AdminDeliveryPage() {
               <button
                 key={cat.id}
                 type="button"
-                onClick={() => setSelectedCategoryFilter(cat.id)}
+                onClick={() => handleSelectCategory(cat.id)}
                 className={`shrink-0 flex items-center gap-2 px-3.5 py-2 rounded-2xl border text-xs font-bold transition-all cursor-pointer select-none ${
                   isSelected
                     ? "bg-spoon-caramel text-white border-spoon-caramel shadow-warm-sm scale-[1.02]"
-                    : "bg-white text-spoon-dark border-spoon-border hover:bg-spoon-sand/40"
+                    : "bg-spoon-cream/40 text-spoon-dark border-spoon-border hover:bg-spoon-sand/50"
                 }`}
               >
+                <Tag className="h-3 w-3 opacity-70" />
                 <span>{cat.name}</span>
                 <span
                   className={`text-[10px] px-2 py-0.5 rounded-full font-bold ${
@@ -614,11 +685,14 @@ export default function AdminDeliveryPage() {
       <div className="flex flex-col sm:flex-row sm:items-center justify-between gap-3 bg-white p-4 rounded-3xl border border-spoon-border shadow-warm-sm">
         {/* Active Scope Indicator */}
         <div className="flex items-center gap-2">
-          <span className="text-xs text-spoon-muted">Active Scope:</span>
+          <span className="text-xs text-spoon-muted">Showing:</span>
           <span className="text-xs font-bold text-spoon-dark px-2.5 py-1 rounded-xl bg-spoon-sand/60 border border-spoon-border">
             {selectedCategoryFilter === "all"
               ? "All Categories (Store-wide)"
               : `Category: ${categories.find((c) => c.id === selectedCategoryFilter)?.name || ""}`}
+          </span>
+          <span className="text-[11px] text-spoon-muted">
+            ({filteredSlots.length} slots available)
           </span>
         </div>
 
@@ -819,7 +893,7 @@ export default function AdminDeliveryPage() {
         <div className="rounded-3xl border border-spoon-border bg-white shadow-warm-sm overflow-hidden">
           {filteredSlots.length === 0 ? (
             <div className="py-16 text-center text-spoon-muted text-xs">
-              No delivery slots configured. Click &ldquo;Quick Add Bulk Schedule&rdquo; to generate slots.
+              No delivery slots found for this category. Click &ldquo;Quick Add Bulk Schedule&rdquo; to generate slots.
             </div>
           ) : (
             <div className="overflow-x-auto">
@@ -828,7 +902,7 @@ export default function AdminDeliveryPage() {
                   <tr>
                     <th className="px-6 py-4">Delivery Date</th>
                     <th className="px-6 py-4">Time Window</th>
-                    <th className="px-6 py-4">Category</th>
+                    <th className="px-6 py-4">Category Scope</th>
                     <th className="px-6 py-4">Capacity &amp; Bookings</th>
                     <th className="px-6 py-4">Status</th>
                     <th className="px-6 py-4 text-right">Actions</th>
@@ -837,9 +911,8 @@ export default function AdminDeliveryPage() {
                 <tbody className="divide-y divide-spoon-border/60">
                   {filteredSlots.map((slot) => {
                     const isFull = slot.current_order_count >= slot.capacity;
-                    const catName =
-                      categories.find((c) => c.id === slot.category_id)?.name ||
-                      "Store-wide (All)";
+                    const catObj = categories.find((c) => c.id === slot.category_id);
+                    const catName = catObj?.name || "Store-wide (All Products)";
 
                     return (
                       <tr key={slot.id} className="hover:bg-spoon-sand/15 transition-colors">
@@ -856,8 +929,16 @@ export default function AdminDeliveryPage() {
                           {formatSlotWindow(slot.start_time, slot.end_time)}
                         </td>
 
-                        <td className="px-6 py-4 font-medium text-spoon-muted">
-                          {catName}
+                        <td className="px-6 py-4">
+                          <span
+                            className={`inline-flex items-center px-2 py-0.5 rounded-md text-[10.5px] font-bold ${
+                              slot.category_id
+                                ? "bg-amber-100/70 text-amber-900 border border-amber-300/60"
+                                : "bg-spoon-sand text-spoon-dark border border-spoon-border"
+                            }`}
+                          >
+                            {catName}
+                          </span>
                         </td>
 
                         <td className="px-6 py-4">
@@ -906,14 +987,14 @@ export default function AdminDeliveryPage() {
                           <div className="flex items-center justify-end gap-2">
                             <button
                               onClick={() => setEditingSlot(slot)}
-                              className="p-1.5 rounded-lg bg-spoon-sand/70 text-spoon-dark hover:bg-spoon-sand transition-colors"
+                              className="p-1.5 rounded-lg bg-spoon-sand/70 text-spoon-dark hover:bg-spoon-sand transition-colors cursor-pointer"
                               title="Edit capacity"
                             >
                               <Edit2 className="h-3.5 w-3.5" />
                             </button>
                             <button
                               onClick={() => handleDeleteSlot(slot.id)}
-                              className="p-1.5 rounded-lg bg-rose-50 text-rose-700 hover:bg-rose-100 transition-colors"
+                              className="p-1.5 rounded-lg bg-rose-50 text-rose-700 hover:bg-rose-100 transition-colors cursor-pointer"
                               title="Delete slot"
                             >
                               <Trash2 className="h-3.5 w-3.5" />
@@ -960,7 +1041,7 @@ export default function AdminDeliveryPage() {
               {/* Step 1: Category Scope */}
               <div>
                 <label className="text-[10px] font-bold uppercase tracking-wider text-spoon-muted block mb-1.5">
-                  1. Target Category
+                  1. Target Category *
                 </label>
                 <select
                   value={bulkCategory}
@@ -1015,7 +1096,7 @@ export default function AdminDeliveryPage() {
                     <button
                       type="button"
                       onClick={() => setDaysPreset("all")}
-                      className="text-spoon-caramel hover:underline"
+                      className="text-spoon-caramel hover:underline cursor-pointer"
                     >
                       All Days
                     </button>
@@ -1023,7 +1104,7 @@ export default function AdminDeliveryPage() {
                     <button
                       type="button"
                       onClick={() => setDaysPreset("weekdays")}
-                      className="text-spoon-caramel hover:underline"
+                      className="text-spoon-caramel hover:underline cursor-pointer"
                     >
                       Weekdays
                     </button>
@@ -1031,7 +1112,7 @@ export default function AdminDeliveryPage() {
                     <button
                       type="button"
                       onClick={() => setDaysPreset("weekends")}
-                      className="text-spoon-caramel hover:underline"
+                      className="text-spoon-caramel hover:underline cursor-pointer"
                     >
                       Weekends
                     </button>
@@ -1157,7 +1238,7 @@ export default function AdminDeliveryPage() {
                         <button
                           type="button"
                           onClick={() => removeTimeWindowRow(idx)}
-                          className="p-1.5 rounded-lg text-rose-600 hover:bg-rose-50 transition-colors"
+                          className="p-1.5 rounded-lg text-rose-600 hover:bg-rose-50 transition-colors cursor-pointer"
                           title="Remove time window"
                         >
                           <Trash2 className="h-4 w-4" />
@@ -1187,7 +1268,7 @@ export default function AdminDeliveryPage() {
                     type="text"
                     value={newTemplateName}
                     onChange={(e) => setNewTemplateName(e.target.value)}
-                    placeholder="e.g. Standard Weekday Slots, Weekend Rush"
+                    placeholder="e.g. Standard Weekday Slots, Sourdough Schedule"
                     className="w-full h-9 rounded-xl border border-spoon-border bg-white px-3 text-xs text-spoon-dark"
                   />
                 )}
@@ -1198,14 +1279,14 @@ export default function AdminDeliveryPage() {
                 <button
                   type="button"
                   onClick={() => setShowBulkModal(false)}
-                  className="rounded-xl border border-spoon-border px-4 py-2 text-xs font-bold text-spoon-dark hover:bg-spoon-sand transition-colors"
+                  className="rounded-xl border border-spoon-border px-4 py-2 text-xs font-bold text-spoon-dark hover:bg-spoon-sand transition-colors cursor-pointer"
                 >
                   Cancel
                 </button>
                 <button
                   type="submit"
                   disabled={submittingBulk}
-                  className="flex items-center gap-2 rounded-xl bg-spoon-caramel hover:bg-spoon-caramel-dark text-white px-5 py-2 text-xs font-bold shadow-warm-sm transition-colors disabled:opacity-50"
+                  className="flex items-center gap-2 rounded-xl bg-spoon-caramel hover:bg-spoon-caramel-dark text-white px-5 py-2 text-xs font-bold shadow-warm-sm transition-colors disabled:opacity-50 cursor-pointer"
                 >
                   {submittingBulk ? (
                     <>
@@ -1245,7 +1326,7 @@ export default function AdminDeliveryPage() {
               </div>
               <button
                 onClick={() => setShowDayModal(false)}
-                className="flex h-8 w-8 items-center justify-center rounded-full bg-spoon-sand text-spoon-dark hover:bg-spoon-border transition-colors"
+                className="flex h-8 w-8 items-center justify-center rounded-full bg-spoon-sand text-spoon-dark hover:bg-spoon-border transition-colors cursor-pointer"
               >
                 <X className="h-4 w-4" />
               </button>
@@ -1267,37 +1348,47 @@ export default function AdminDeliveryPage() {
                 </div>
               ) : (
                 <div className="space-y-2 max-h-48 overflow-y-auto pr-1">
-                  {slotsByDateMap[selectedDayDate].map((slot) => (
-                    <div
-                      key={slot.id}
-                      className="flex items-center justify-between p-3 rounded-2xl border border-spoon-border bg-spoon-cream/30 text-xs"
-                    >
-                      <div>
-                        <span className="font-bold text-spoon-dark block">
-                          {formatSlotWindow(slot.start_time, slot.end_time)}
-                        </span>
-                        <span className="text-[11px] text-spoon-muted">
-                          Bookings: {slot.current_order_count} / {slot.capacity} orders
-                        </span>
+                  {slotsByDateMap[selectedDayDate].map((slot) => {
+                    const catObj = categories.find((c) => c.id === slot.category_id);
+                    const catTag = catObj ? catObj.name : "Store-wide";
+
+                    return (
+                      <div
+                        key={slot.id}
+                        className="flex items-center justify-between p-3 rounded-2xl border border-spoon-border bg-spoon-cream/30 text-xs"
+                      >
+                        <div>
+                          <div className="flex items-center gap-2">
+                            <span className="font-bold text-spoon-dark block">
+                              {formatSlotWindow(slot.start_time, slot.end_time)}
+                            </span>
+                            <span className="text-[10px] font-bold px-1.5 py-0.2 rounded bg-spoon-sand text-spoon-muted">
+                              {catTag}
+                            </span>
+                          </div>
+                          <span className="text-[11px] text-spoon-muted">
+                            Bookings: {slot.current_order_count} / {slot.capacity} orders
+                          </span>
+                        </div>
+                        <div className="flex items-center gap-1.5">
+                          <button
+                            onClick={() => setEditingSlot(slot)}
+                            className="p-1.5 rounded-lg bg-white border border-spoon-border text-spoon-dark hover:bg-spoon-sand transition-colors cursor-pointer"
+                            title="Edit capacity"
+                          >
+                            <Edit2 className="h-3.5 w-3.5" />
+                          </button>
+                          <button
+                            onClick={() => handleDeleteSlot(slot.id)}
+                            className="p-1.5 rounded-lg bg-rose-50 text-rose-700 hover:bg-rose-100 transition-colors cursor-pointer"
+                            title="Delete slot"
+                          >
+                            <Trash2 className="h-3.5 w-3.5" />
+                          </button>
+                        </div>
                       </div>
-                      <div className="flex items-center gap-1.5">
-                        <button
-                          onClick={() => setEditingSlot(slot)}
-                          className="p-1.5 rounded-lg bg-white border border-spoon-border text-spoon-dark hover:bg-spoon-sand transition-colors"
-                          title="Edit capacity"
-                        >
-                          <Edit2 className="h-3.5 w-3.5" />
-                        </button>
-                        <button
-                          onClick={() => handleDeleteSlot(slot.id)}
-                          className="p-1.5 rounded-lg bg-rose-50 text-rose-700 hover:bg-rose-100 transition-colors"
-                          title="Delete slot"
-                        >
-                          <Trash2 className="h-3.5 w-3.5" />
-                        </button>
-                      </div>
-                    </div>
-                  ))}
+                    );
+                  })}
                 </div>
               )}
             </div>
@@ -1311,6 +1402,25 @@ export default function AdminDeliveryPage() {
                 <Plus className="h-3.5 w-3.5 text-spoon-caramel" />
                 <span>Add Slot to This Day</span>
               </h5>
+
+              {/* Category Scope Selection */}
+              <div>
+                <span className="text-[9px] text-spoon-muted font-bold block mb-1">
+                  Category Scope
+                </span>
+                <select
+                  value={newSlotCategory}
+                  onChange={(e) => setNewSlotCategory(e.target.value)}
+                  className="w-full h-8 rounded-xl border border-spoon-border bg-white px-2.5 text-xs font-bold text-spoon-dark focus:outline-none"
+                >
+                  <option value="">Store-wide (All Categories)</option>
+                  {categories.map((c) => (
+                    <option key={c.id} value={c.id}>
+                      Category: {c.name}
+                    </option>
+                  ))}
+                </select>
+              </div>
 
               <div className="grid grid-cols-3 gap-2 text-xs">
                 <div>
@@ -1349,7 +1459,7 @@ export default function AdminDeliveryPage() {
               <button
                 type="submit"
                 disabled={submittingDayAction}
-                className="w-full py-2 rounded-xl bg-spoon-caramel text-white text-xs font-bold hover:bg-spoon-caramel-dark transition-colors"
+                className="w-full py-2 rounded-xl bg-spoon-caramel text-white text-xs font-bold hover:bg-spoon-caramel-dark transition-colors cursor-pointer"
               >
                 + Add Slot
               </button>
@@ -1375,7 +1485,7 @@ export default function AdminDeliveryPage() {
                     )
                   }
                   disabled={submittingDayAction}
-                  className={`px-3 py-1.5 rounded-xl text-xs font-bold transition-colors ${
+                  className={`px-3 py-1.5 rounded-xl text-xs font-bold transition-colors cursor-pointer ${
                     (slotsByDateMap[selectedDayDate] || []).some((s) => s.is_closed)
                       ? "bg-emerald-100 text-emerald-800 hover:bg-emerald-200"
                       : "bg-rose-100 text-rose-800 hover:bg-rose-200"
@@ -1394,7 +1504,7 @@ export default function AdminDeliveryPage() {
                     type="button"
                     onClick={() => handleDeleteDateSlots(selectedDayDate)}
                     disabled={submittingDayAction}
-                    className="text-xs text-rose-700 hover:underline font-semibold"
+                    className="text-xs text-rose-700 hover:underline font-semibold cursor-pointer"
                   >
                     Delete all slots on this date
                   </button>
@@ -1418,7 +1528,7 @@ export default function AdminDeliveryPage() {
               </div>
               <button
                 onClick={() => setShowTemplatesModal(false)}
-                className="flex h-8 w-8 items-center justify-center rounded-full bg-spoon-sand text-spoon-dark hover:bg-spoon-border transition-colors"
+                className="flex h-8 w-8 items-center justify-center rounded-full bg-spoon-sand text-spoon-dark hover:bg-spoon-border transition-colors cursor-pointer"
               >
                 <X className="h-4 w-4" />
               </button>
@@ -1441,14 +1551,14 @@ export default function AdminDeliveryPage() {
                         <button
                           type="button"
                           onClick={() => applyTemplateToBulkForm(tpl)}
-                          className="px-3 py-1 rounded-xl bg-spoon-caramel text-white text-xs font-bold hover:bg-spoon-caramel-dark transition-colors"
+                          className="px-3 py-1 rounded-xl bg-spoon-caramel text-white text-xs font-bold hover:bg-spoon-caramel-dark transition-colors cursor-pointer"
                         >
                           Apply
                         </button>
                         <button
                           type="button"
                           onClick={() => handleDeleteTemplate(tpl.id)}
-                          className="p-1 rounded-lg text-rose-700 hover:bg-rose-50"
+                          className="p-1 rounded-lg text-rose-700 hover:bg-rose-50 cursor-pointer"
                         >
                           <Trash2 className="h-3.5 w-3.5" />
                         </button>
@@ -1488,7 +1598,7 @@ export default function AdminDeliveryPage() {
               </div>
               <button
                 onClick={() => setEditingSlot(null)}
-                className="flex h-8 w-8 items-center justify-center rounded-full bg-spoon-sand text-spoon-dark hover:bg-spoon-border transition-colors"
+                className="flex h-8 w-8 items-center justify-center rounded-full bg-spoon-sand text-spoon-dark hover:bg-spoon-border transition-colors cursor-pointer"
               >
                 <X className="h-4 w-4" />
               </button>
@@ -1553,13 +1663,13 @@ export default function AdminDeliveryPage() {
                 <button
                   type="button"
                   onClick={() => setEditingSlot(null)}
-                  className="px-4 py-2 rounded-xl border border-spoon-border text-xs font-bold text-spoon-dark hover:bg-spoon-sand"
+                  className="px-4 py-2 rounded-xl border border-spoon-border text-xs font-bold text-spoon-dark hover:bg-spoon-sand cursor-pointer"
                 >
                   Cancel
                 </button>
                 <button
                   type="submit"
-                  className="px-4 py-2 rounded-xl bg-spoon-caramel text-white text-xs font-bold hover:bg-spoon-caramel-dark"
+                  className="px-4 py-2 rounded-xl bg-spoon-caramel text-white text-xs font-bold hover:bg-spoon-caramel-dark cursor-pointer"
                 >
                   Save Changes
                 </button>
