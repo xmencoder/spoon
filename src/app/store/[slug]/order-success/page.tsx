@@ -28,6 +28,7 @@ import {
   Sparkles,
   Gift,
   ShieldCheck,
+  Calendar,
 } from "lucide-react";
 
 interface ReceiptItem {
@@ -50,6 +51,8 @@ interface ReceiptData {
   alternatePhone?: string | null;
   deliveryAddress?: string | null;
   addressType?: "home" | "office" | "other" | null;
+  deliveryDate?: string | null;
+  deliveryTimeSlot?: string | null;
   distanceKm?: number | null;
   items: ReceiptItem[];
   subtotal: number;
@@ -266,6 +269,35 @@ export default function OrderSuccessReceiptPage() {
                   </span>
                 )}
               </div>
+
+              {receipt.orderType === "delivery" && (receipt.deliveryDate || receipt.deliveryTimeSlot) && (
+                <div className="rounded-xl bg-[#FAF6EF] border border-[#91885D]/20 p-3 flex flex-wrap items-center justify-between gap-2 text-xs">
+                  {receipt.deliveryDate && (
+                    <div className="flex items-center gap-1.5">
+                      <Calendar className="w-3.5 h-3.5 text-[#C26B59]" />
+                      <span className="text-[11px] text-[#696053]">Delivery Date:</span>
+                      <span className="font-bold text-[#29251F]">
+                        {new Date(receipt.deliveryDate + "T00:00:00").toLocaleDateString("en-IN", {
+                          weekday: "short",
+                          month: "short",
+                          day: "numeric",
+                          year: "numeric",
+                        })}
+                      </span>
+                    </div>
+                  )}
+
+                  {receipt.deliveryTimeSlot && (
+                    <div className="flex items-center gap-1.5">
+                      <Clock className="w-3.5 h-3.5 text-[#C26B59]" />
+                      <span className="text-[11px] text-[#696053]">Time Slot:</span>
+                      <span className="font-bold text-[#A34B3D]">
+                        {receipt.deliveryTimeSlot}
+                      </span>
+                    </div>
+                  )}
+                </div>
+              )}
 
               <div className="grid grid-cols-1 sm:grid-cols-2 gap-3 text-xs">
                 <div>

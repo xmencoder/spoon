@@ -91,7 +91,45 @@ export interface Order {
   delivery_charge: number;
   total: number;
   status: OrderStatus;
+  delivery_slot_id?: string | null;
+  delivery_date?: string | null;
+  delivery_time_slot?: string | null;
+  delivery_start_time?: string | null;
+  delivery_end_time?: string | null;
   created_at?: string;
+}
+
+export interface DeliverySlot {
+  id: string;
+  restaurant_id: string;
+  category_id: string | null;
+  date: string; // YYYY-MM-DD
+  start_time: string; // HH:mm format (e.g., "10:00")
+  end_time: string; // HH:mm format (e.g., "13:00")
+  capacity: number;
+  current_order_count: number;
+  is_active: boolean;
+  is_closed: boolean;
+  closed_reason?: string | null;
+  created_at?: string;
+  updated_at?: string;
+  category?: Category | null;
+}
+
+export interface SlotTimeWindow {
+  start_time: string;
+  end_time: string;
+  capacity: number;
+}
+
+export interface DeliverySlotTemplate {
+  id: string;
+  restaurant_id: string;
+  name: string;
+  category_id?: string | null;
+  slots: SlotTimeWindow[];
+  created_at?: string;
+  updated_at?: string;
 }
 
 export interface OrderItem {

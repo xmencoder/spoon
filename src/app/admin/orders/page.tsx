@@ -302,14 +302,34 @@ export default function AdminOrdersPage() {
 
                       {/* Fulfillment */}
                       <td className="px-6 py-4">
-                        <span className="inline-flex items-center gap-1 rounded-lg bg-spoon-sand/80 border border-spoon-border/70 px-2.5 py-1 text-[11px] font-semibold text-spoon-dark capitalize">
-                          {order.order_type === "delivery" ? (
-                            <Truck className="h-3 w-3 text-spoon-caramel" />
-                          ) : (
-                            <ShoppingBag className="h-3 w-3 text-spoon-caramel" />
+                        <div className="space-y-1">
+                          <span className="inline-flex items-center gap-1 rounded-lg bg-spoon-sand/80 border border-spoon-border/70 px-2.5 py-1 text-[11px] font-semibold text-spoon-dark capitalize">
+                            {order.order_type === "delivery" ? (
+                              <Truck className="h-3 w-3 text-spoon-caramel" />
+                            ) : (
+                              <ShoppingBag className="h-3 w-3 text-spoon-caramel" />
+                            )}
+                            <span>{order.order_type}</span>
+                          </span>
+
+                          {order.order_type === "delivery" && (order.delivery_date || order.delivery_time_slot) && (
+                            <div className="text-[10px] font-semibold text-spoon-dark bg-spoon-sand/40 rounded-md px-2 py-0.5 border border-spoon-border/60 max-w-[160px]">
+                              {order.delivery_date && (
+                                <span className="block truncate">
+                                  📅 {new Date(order.delivery_date + "T00:00:00").toLocaleDateString("en-IN", {
+                                    month: "short",
+                                    day: "numeric",
+                                  })}
+                                </span>
+                              )}
+                              {order.delivery_time_slot && (
+                                <span className="block truncate text-spoon-caramel font-bold">
+                                  ⏰ {order.delivery_time_slot}
+                                </span>
+                              )}
+                            </div>
                           )}
-                          <span>{order.order_type}</span>
-                        </span>
+                        </div>
                       </td>
 
                       {/* Total */}
@@ -427,6 +447,29 @@ export default function AdminOrdersPage() {
                   {selectedOrder.order_type}
                 </span>
               </div>
+
+              {selectedOrder.order_type === "delivery" && selectedOrder.delivery_date && (
+                <div className="flex justify-between items-center pt-1 border-t border-spoon-border/60">
+                  <span className="text-spoon-muted font-semibold">Delivery Date:</span>
+                  <span className="font-bold text-spoon-dark">
+                    {new Date(selectedOrder.delivery_date + "T00:00:00").toLocaleDateString("en-IN", {
+                      weekday: "short",
+                      month: "short",
+                      day: "numeric",
+                      year: "numeric",
+                    })}
+                  </span>
+                </div>
+              )}
+
+              {selectedOrder.order_type === "delivery" && selectedOrder.delivery_time_slot && (
+                <div className="flex justify-between items-center">
+                  <span className="text-spoon-muted font-semibold">Time Window:</span>
+                  <span className="font-bold text-spoon-caramel">
+                    ⏰ {selectedOrder.delivery_time_slot}
+                  </span>
+                </div>
+              )}
             </div>
 
             {/* Order Items */}

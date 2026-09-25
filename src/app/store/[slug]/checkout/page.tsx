@@ -28,8 +28,16 @@ import {
   X,
   Search,
   Check,
+  Calendar,
+  Clock,
 } from "lucide-react";
 import { createClient } from "@/lib/supabase/client";
+import {
+  getCustomerDeliverySlots,
+  formatTimeFriendly,
+  formatSlotWindow,
+} from "@/lib/delivery-slots-service";
+import type { DeliverySlot } from "@/types/database";
 
 interface AddressSuggestion {
   title: string;
@@ -75,6 +83,13 @@ export default function CheckoutPage() {
   const [city, setCity] = useState("Gurugram");
   const [addressType, setAddressType] = useState<"home" | "office" | "other">("home");
 
+  // Delivery Date & Time Slot State
+  const [availableDates, setAvailableDates] = useState<string[]>([]);
+  const [slotsByDate, setSlotsByDate] = useState<Record<string, DeliverySlot[]>>({});
+  const [selectedDate, setSelectedDate] = useState<string>("");
+  const [selectedSlot, setSelectedSlot] = useState<DeliverySlot | null>(null);
+  const [loadingSlots, setLoadingSlots] = useState(false);
+
   // Autocomplete Suggestions State
   const [suggestions, setSuggestions] = useState<AddressSuggestion[]>([]);
   const [isSearchingSuggestions, setIsSearchingSuggestions] = useState(false);
@@ -108,6 +123,46 @@ export default function CheckoutPage() {
     }
     fetchRestaurant();
   }, [slug]);
+
+  // Load available delivery slots for cart categories
+  useEffect(() => {
+    async function fetchSlots() {
+      if (!restaurant?.id) return;
+      try {
+        setLoadingSlots(true);
+        const categoryIds = items.map((i) => i.product.category_id).filter(Boolean);
+        const slotData = await getCustomerDeliverySlots(restaurant.id, categoryIds);
+        setAvailableDates(slotData.dates);
+        setSlotsByDate(slotData.slotsByDate);
+
+        if (slotData.dates.length > 0) {
+          const firstDate = slotData.dates[0];
+          setSelectedDate(firstDate);
+          const firstDaySlots = slotData.slotsByDate[firstDate] || [];
+          if (firstDaySlots.length > 0) {
+            setSelectedSlot(firstDaySlots[0]);
+          }
+        }
+      } catch (err) {
+        console.error("Error loading delivery slots:", err);
+      } finally {
+        setLoadingSlots(false);
+      }
+    }
+
+    fetchSlots();
+  }, [restaurant?.id, items]);
+
+  // When selected date changes, auto-select first available slot of that date
+  const handleDateSelect = (dateStr: string) => {
+    setSelectedDate(dateStr);
+    const daySlots = slotsByDate[dateStr] || [];
+    if (daySlots.length > 0) {
+      setSelectedSlot(daySlots[0]);
+    } else {
+      setSelectedSlot(null);
+    }
+  };
 
   // Click outside to dismiss address suggestions dropdown
   useEffect(() => {
@@ -277,8 +332,9 @@ export default function CheckoutPage() {
       pincode.trim().length >= 5 &&
       isDeliveryChecked &&
       isDeliveryAvailable);
+  const isSlotValid = orderType === "takeaway" || (Boolean(selectedDate) && Boolean(selectedSlot));
 
-  const canCheckout = !isClosed && !isBelowMinimum && totalItems > 0 && isContactValid && isAddressValid;
+  const canCheckout = !isClosed && !isBelowMinimum && totalItems > 0 && isContactValid && isAddressValid && isSlotValid;
 
   const router = useRouter();
 
@@ -292,6 +348,10 @@ export default function CheckoutPage() {
     const fullAddr = getFullAddress();
     const formattedCustomerName = `${salutation} ${name.trim()}`;
 
+    const formattedSlotWindow = selectedSlot
+      ? formatSlotWindow(selectedSlot.start_time, selectedSlot.end_time)
+      : undefined;
+
     try {
       const result = await createOrder({
         orderType,
@@ -301,6 +361,11 @@ export default function CheckoutPage() {
         alternatePhone: alternatePhone.trim() || undefined,
         deliveryAddress: orderType === "delivery" ? fullAddr : "",
         addressType: orderType === "delivery" ? addressType : undefined,
+        deliverySlotId: orderType === "delivery" && selectedSlot ? selectedSlot.id : undefined,
+        deliveryDate: orderType === "delivery" ? selectedDate : undefined,
+        deliveryTimeSlot: orderType === "delivery" ? formattedSlotWindow : undefined,
+        deliveryStartTime: orderType === "delivery" && selectedSlot ? selectedSlot.start_time : undefined,
+        deliveryEndTime: orderType === "delivery" && selectedSlot ? selectedSlot.end_time : undefined,
         cartItems: items.map((i) => ({
           productId: i.product.id,
           productName: i.product.name,
@@ -335,6 +400,8 @@ export default function CheckoutPage() {
         alternatePhone: alternatePhone.trim() || null,
         deliveryAddress: orderType === "delivery" ? fullAddr : null,
         addressType: orderType === "delivery" ? addressType : null,
+        deliveryDate: orderType === "delivery" ? selectedDate : null,
+        deliveryTimeSlot: orderType === "delivery" ? formattedSlotWindow : null,
         distanceKm: orderType === "delivery" ? distanceKm : null,
         items: items.map((i) => ({
           id: i.id,
@@ -857,6 +924,168 @@ export default function CheckoutPage() {
           </div>
         )}
 
+        {/* ── 3. DELIVERY DATE & TIME SLOT (DELIVERY ONLY) ── */}
+        {orderType === "delivery" && (
+          <div className="rounded-3xl border border-[#91885D]/30 bg-[#F5EBDD] shadow-warm-sm p-5 space-y-4">
+            <div className="flex items-center justify-between">
+              <h2 className="font-serif font-bold text-base text-[#29251F] flex items-center gap-2">
+                <Calendar className="h-4 w-4 text-[#C26B59]" />
+                <span>Delivery Date &amp; Time Slot</span>
+              </h2>
+              {loadingSlots && (
+                <div className="flex items-center gap-1.5 text-[11px] text-[#696053]">
+                  <Loader2 className="h-3 w-3 animate-spin text-[#C26B59]" />
+                  <span>Checking slots...</span>
+                </div>
+              )}
+            </div>
+
+            {availableDates.length === 0 && !loadingSlots ? (
+              <div className="rounded-2xl border border-amber-200 bg-amber-50 p-4 text-xs text-amber-900">
+                No delivery slots available for the selected dates. Please contact us directly via WhatsApp.
+              </div>
+            ) : (
+              <div className="space-y-4">
+                {/* Step A: Select Date */}
+                <div>
+                  <label className="text-[10px] font-bold uppercase tracking-wider text-[#696053] block mb-2">
+                    1. Select Delivery Date *
+                  </label>
+
+                  <div className="flex items-center gap-2 overflow-x-auto pb-2 scrollbar-thin">
+                    {availableDates.map((dateStr) => {
+                      const d = new Date(dateStr + "T00:00:00");
+                      const today = new Date();
+                      today.setHours(0, 0, 0, 0);
+                      const tomorrow = new Date(today);
+                      tomorrow.setDate(tomorrow.getDate() + 1);
+
+                      const isToday = d.toDateString() === today.toDateString();
+                      const isTomorrow = d.toDateString() === tomorrow.toDateString();
+
+                      const dayName = isToday
+                        ? "Today"
+                        : isTomorrow
+                        ? "Tomorrow"
+                        : d.toLocaleDateString("en-IN", { weekday: "short" });
+
+                      const dayNum = d.getDate();
+                      const monthName = d.toLocaleDateString("en-IN", { month: "short" });
+                      const isSelected = selectedDate === dateStr;
+
+                      return (
+                        <button
+                          key={dateStr}
+                          type="button"
+                          onClick={() => handleDateSelect(dateStr)}
+                          className={`shrink-0 flex flex-col items-center justify-center min-w-[76px] py-2.5 px-3 rounded-2xl border text-center transition-all cursor-pointer select-none ${
+                            isSelected
+                              ? "bg-[#C26B59] text-white border-[#C26B59] shadow-warm-sm scale-[1.03]"
+                              : "bg-[#FAF6EF] text-[#29251F] border-[#91885D]/35 hover:border-[#C26B59] hover:bg-white"
+                          }`}
+                        >
+                          <span
+                            className={`text-[10px] font-bold uppercase tracking-wider ${
+                              isSelected ? "text-white/90" : "text-[#696053]"
+                            }`}
+                          >
+                            {dayName}
+                          </span>
+                          <span className="font-serif text-lg font-bold leading-tight my-0.5">
+                            {dayNum}
+                          </span>
+                          <span
+                            className={`text-[10px] font-semibold ${
+                              isSelected ? "text-white/80" : "text-[#7A6B5A]"
+                            }`}
+                          >
+                            {monthName}
+                          </span>
+                        </button>
+                      );
+                    })}
+                  </div>
+                </div>
+
+                {/* Step B: Select Time Window */}
+                {selectedDate && (
+                  <div>
+                    <label className="text-[10px] font-bold uppercase tracking-wider text-[#696053] block mb-2">
+                      2. Select Time Window *
+                    </label>
+
+                    {(!slotsByDate[selectedDate] || slotsByDate[selectedDate].length === 0) ? (
+                      <div className="rounded-2xl border border-[#91885D]/20 bg-[#FAF6EF] p-4 text-xs text-[#696053] text-center">
+                        No time slots available on this date. Please pick another date.
+                      </div>
+                    ) : (
+                      <div className="grid grid-cols-1 sm:grid-cols-2 gap-2.5">
+                        {slotsByDate[selectedDate].map((slot) => {
+                          const isSelected = selectedSlot?.id === slot.id;
+                          const formattedWindow = formatSlotWindow(
+                            slot.start_time,
+                            slot.end_time
+                          );
+                          const remainingSpots = Math.max(0, slot.capacity - slot.current_order_count);
+
+                          return (
+                            <button
+                              key={slot.id}
+                              type="button"
+                              onClick={() => setSelectedSlot(slot)}
+                              className={`flex items-center justify-between p-3 rounded-2xl border text-left transition-all cursor-pointer select-none ${
+                                isSelected
+                                  ? "bg-[#FAF6EF] border-[#C26B59] ring-2 ring-[#C26B59]/30 shadow-xs"
+                                  : "bg-[#FAF6EF] border-[#91885D]/35 hover:border-[#C26B59]/60 hover:bg-white"
+                              }`}
+                            >
+                              <div className="flex items-center gap-2.5">
+                                <div
+                                  className={`flex h-7 w-7 items-center justify-center rounded-xl transition-colors ${
+                                    isSelected
+                                      ? "bg-[#C26B59] text-white"
+                                      : "bg-[#91885D]/15 text-[#696053]"
+                                  }`}
+                                >
+                                  <Clock className="h-3.5 w-3.5" />
+                                </div>
+                                <div>
+                                  <span className="font-bold text-xs text-[#29251F] block">
+                                    {formattedWindow}
+                                  </span>
+                                  {remainingSpots <= 3 && remainingSpots > 0 ? (
+                                    <span className="text-[10px] font-bold text-amber-700 block">
+                                      ⚡ Only {remainingSpots} left
+                                    </span>
+                                  ) : (
+                                    <span className="text-[10px] text-[#4D7C47] font-semibold block">
+                                      ✓ Available
+                                    </span>
+                                  )}
+                                </div>
+                              </div>
+
+                              <div
+                                className={`flex h-5 w-5 items-center justify-center rounded-full border transition-colors ${
+                                  isSelected
+                                    ? "border-[#C26B59] bg-[#C26B59] text-white"
+                                    : "border-[#91885D]/40 bg-white"
+                                }`}
+                              >
+                                {isSelected && <Check className="h-3 w-3 stroke-[3]" />}
+                              </div>
+                            </button>
+                          );
+                        })}
+                      </div>
+                    )}
+                  </div>
+                )}
+              </div>
+            )}
+          </div>
+        )}
+
         {/* ── 4. ORDER SUMMARY ── */}
         <div className="rounded-3xl border border-[#91885D]/30 bg-[#F5EBDD] shadow-warm-sm p-5 space-y-3">
           <h2 className="font-serif font-bold text-base text-[#29251F]">
@@ -907,6 +1136,25 @@ export default function CheckoutPage() {
           </div>
 
           <div className="border-t border-[#91885D]/25 pt-3 space-y-1.5 text-xs">
+            {orderType === "delivery" && selectedDate && selectedSlot && (
+              <div className="flex justify-between items-center text-[#29251F] bg-[#FAF6EF] border border-[#91885D]/20 rounded-xl p-2.5 mb-2 font-medium">
+                <div className="flex items-center gap-1.5 text-xs">
+                  <Calendar className="h-3.5 w-3.5 text-[#C26B59]" />
+                  <span>
+                    {new Date(selectedDate + "T00:00:00").toLocaleDateString("en-IN", {
+                      weekday: "short",
+                      month: "short",
+                      day: "numeric",
+                    })}
+                  </span>
+                </div>
+                <div className="flex items-center gap-1.5 text-xs font-bold text-[#A34B3D]">
+                  <Clock className="h-3.5 w-3.5" />
+                  <span>{formatSlotWindow(selectedSlot.start_time, selectedSlot.end_time)}</span>
+                </div>
+              </div>
+            )}
+
             <div className="flex justify-between text-[#696053]">
               <span>Subtotal ({totalItems} items)</span>
               <span>{formatPrice(subtotal)}</span>

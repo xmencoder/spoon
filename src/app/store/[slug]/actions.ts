@@ -29,6 +29,11 @@ export interface CheckoutFormData {
   packagingCharge?: number;
   giftNote?: string;
   hasGiftNote?: boolean;
+  deliverySlotId?: string;
+  deliveryDate?: string;
+  deliveryTimeSlot?: string;
+  deliveryStartTime?: string;
+  deliveryEndTime?: string;
 }
 
 export interface CreateOrderResult {
@@ -65,6 +70,36 @@ export async function createOrder(
         if (p.order_limit && prospective > p.order_limit) {
           throw new Error(`Product "${ci.productName}" exceeds its order limit of ${p.order_limit}`);
         }
+      }
+    }
+
+    // 1.5. If delivery slot is selected, check capacity
+    if (data.orderType === "delivery" && data.deliverySlotId && !data.deliverySlotId.startsWith("fallback-")) {
+      const { data: slotData, error: slotErr } = await supabase
+        .from("delivery_slots")
+        .select("id, capacity, current_order_count, is_active, is_closed")
+        .eq("id", data.deliverySlotId)
+        .maybeSingle();
+
+      if (!slotErr && slotData) {
+        if (slotData.is_closed) {
+          throw new Error("The selected delivery slot is currently closed for bookings.");
+        }
+        if (!slotData.is_active) {
+          throw new Error("The selected delivery slot is no longer active.");
+        }
+        if (slotData.current_order_count >= slotData.capacity) {
+          throw new Error("The selected delivery slot has reached full capacity. Please choose another time slot.");
+        }
+
+        // Increment current_order_count
+        await supabase
+          .from("delivery_slots")
+          .update({
+            current_order_count: slotData.current_order_count + 1,
+            updated_at: new Date().toISOString(),
+          })
+          .eq("id", data.deliverySlotId);
       }
     }
 
@@ -121,27 +156,38 @@ export async function createOrder(
     const total =
       itemsSubtotal + calculatedDeliveryCharge + packagingCharge + giftNoteCharge;
 
-    // 3. Create order record
+    // 3. Create order record with delivery slot details
+    const orderPayload: any = {
+      restaurant_id: data.restaurantId,
+      customer_name: data.customerName.trim(),
+      customer_phone: data.customerPhone.trim(),
+      delivery_address:
+        data.orderType === "delivery" ? data.deliveryAddress.trim() : null,
+      order_type: data.orderType,
+      subtotal: itemsSubtotal,
+      delivery_charge: calculatedDeliveryCharge,
+      total,
+      status: "pending",
+    };
+
+    if (data.orderType === "delivery" && data.deliveryDate) {
+      orderPayload.delivery_date = data.deliveryDate;
+      orderPayload.delivery_time_slot = data.deliveryTimeSlot || null;
+      orderPayload.delivery_start_time = data.deliveryStartTime || null;
+      orderPayload.delivery_end_time = data.deliveryEndTime || null;
+      if (data.deliverySlotId && !data.deliverySlotId.startsWith("fallback-")) {
+        orderPayload.delivery_slot_id = data.deliverySlotId;
+      }
+    }
+
     const { data: order, error: orderError } = await supabase
       .from("orders")
-      .insert({
-        restaurant_id: data.restaurantId,
-        customer_name: data.customerName.trim(),
-        customer_phone: data.customerPhone.trim(),
-        delivery_address:
-          data.orderType === "delivery" ? data.deliveryAddress.trim() : null,
-        order_type: data.orderType,
-        subtotal: itemsSubtotal,
-        delivery_charge: calculatedDeliveryCharge,
-        total,
-        status: "pending",
-      })
+      .insert(orderPayload)
       .select()
       .single();
 
     if (orderError || !order) {
       console.error("Order creation error:", orderError);
-      // Even if database save has issues, we can still generate the WhatsApp link so the customer is never blocked
     }
 
     const orderId = order?.id || `ORD-${Date.now().toString().slice(-6)}`;
@@ -192,10 +238,29 @@ export async function createOrder(
     msg += `*Type:* ${
       data.orderType === "delivery" ? "🛵 Home Delivery" : "🛍️ Store Pickup"
     }\n`;
-    if (data.orderType === "delivery" && data.deliveryAddress) {
-      const typeTag = data.addressType ? ` (${data.addressType.toUpperCase()})` : "";
-      msg += `*Address${typeTag}:* ${data.deliveryAddress}\n`;
+
+    if (data.orderType === "delivery") {
+      if (data.deliveryDate) {
+        const dObj = new Date(data.deliveryDate + "T00:00:00");
+        const formattedDeliveryDate = isNaN(dObj.getTime())
+          ? data.deliveryDate
+          : dObj.toLocaleDateString("en-IN", {
+              weekday: "short",
+              month: "short",
+              day: "numeric",
+              year: "numeric",
+            });
+        msg += `*Delivery Date:* ${formattedDeliveryDate}\n`;
+      }
+      if (data.deliveryTimeSlot) {
+        msg += `*Time Slot:* ⏰ ${data.deliveryTimeSlot}\n`;
+      }
+      if (data.deliveryAddress) {
+        const typeTag = data.addressType ? ` (${data.addressType.toUpperCase()})` : "";
+        msg += `*Address${typeTag}:* ${data.deliveryAddress}\n`;
+      }
     }
+
     msg += `━━━━━━━━━━━━━━\n`;
     msg += `*Items:*\n`;
     for (const item of orderItems) {
