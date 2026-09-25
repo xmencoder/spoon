@@ -210,7 +210,14 @@ export default function CheckoutPage() {
       const res = await fetch("/api/delivery-distance", {
         method: "POST",
         headers: { "Content-Type": "application/json" },
-        body: JSON.stringify({ address: fullAddr }),
+        body: JSON.stringify({
+          address: fullAddr,
+          flatBuilding: flatBuilding.trim(),
+          areaStreet: areaStreet.trim(),
+          landmark: landmark.trim(),
+          pincode: pincode.trim(),
+          city: city.trim(),
+        }),
       });
 
       const data = await res.json();
