@@ -17,6 +17,9 @@ import {
   deleteSlotsForDateServerAction,
   saveDeliveryTemplateServerAction,
   deleteDeliveryTemplateServerAction,
+  bulkDeleteSlotsByIdsServerAction,
+  bulkDeleteSlotsByFilterServerAction,
+  bulkUpdateSlotStatusServerAction,
 } from "./actions";
 import type {
   Category,
@@ -43,6 +46,11 @@ import {
   FolderTree,
   Store,
   Tag,
+  CheckSquare,
+  Square,
+  AlertTriangle,
+  Calendar,
+  History,
 } from "lucide-react";
 
 export default function AdminDeliveryPage() {
@@ -63,10 +71,15 @@ export default function AdminDeliveryPage() {
   const [selectedCategoryFilter, setSelectedCategoryFilter] = useState<string>(initialCategoryParam);
   const [currentCalendarDate, setCurrentCalendarDate] = useState<Date>(new Date());
 
+  // Multi-Select in List View
+  const [selectedSlotIds, setSelectedSlotIds] = useState<string[]>([]);
+  const [submittingBatchAction, setSubmittingBatchAction] = useState(false);
+
   // Modals
   const [showBulkModal, setShowBulkModal] = useState(false);
   const [showTemplatesModal, setShowTemplatesModal] = useState(false);
   const [showDayModal, setShowDayModal] = useState(false);
+  const [showBulkDeleteModal, setShowBulkDeleteModal] = useState(false);
   const [selectedDayDate, setSelectedDayDate] = useState<string>("");
   const [editingSlot, setEditingSlot] = useState<DeliverySlot | null>(null);
 
@@ -86,6 +99,15 @@ export default function AdminDeliveryPage() {
   const [newTemplateName, setNewTemplateName] = useState("");
   const [submittingBulk, setSubmittingBulk] = useState(false);
 
+  // Advanced Bulk Delete State
+  const [bulkDeleteScope, setBulkDeleteScope] = useState<"category" | "date_range" | "past" | "storewide" | "all">("category");
+  const [bulkDeleteCategory, setBulkDeleteCategory] = useState<string>(
+    initialCategoryParam === "all" ? "" : initialCategoryParam
+  );
+  const [bulkDeleteStartDate, setBulkDeleteStartDate] = useState<string>("");
+  const [bulkDeleteEndDate, setBulkDeleteEndDate] = useState<string>("");
+  const [submittingBulkDelete, setSubmittingBulkDelete] = useState(false);
+
   // Single Day Slot Form
   const [newSlotStart, setNewSlotStart] = useState("10:00");
   const [newSlotEnd, setNewSlotEnd] = useState("13:00");
@@ -102,13 +124,17 @@ export default function AdminDeliveryPage() {
     const y = today.getFullYear();
     const m = String(today.getMonth() + 1).padStart(2, "0");
     const d = String(today.getDate()).padStart(2, "0");
-    setBulkStartDate(`${y}-${m}-${d}`);
+    const todayFormatted = `${y}-${m}-${d}`;
+    setBulkStartDate(todayFormatted);
+    setBulkDeleteStartDate(todayFormatted);
 
     const next30 = new Date(today.getTime() + 30 * 24 * 60 * 60 * 1000);
     const ny = next30.getFullYear();
     const nm = String(next30.getMonth() + 1).padStart(2, "0");
     const nd = String(next30.getDate()).padStart(2, "0");
-    setBulkEndDate(`${ny}-${nm}-${nd}`);
+    const next30Formatted = `${ny}-${nm}-${nd}`;
+    setBulkEndDate(next30Formatted);
+    setBulkDeleteEndDate(next30Formatted);
   }, []);
 
   // Update category selection when URL query param changes
@@ -117,6 +143,7 @@ export default function AdminDeliveryPage() {
     if (queryCat) {
       setSelectedCategoryFilter(queryCat);
       setBulkCategory(queryCat);
+      setBulkDeleteCategory(queryCat);
       setNewSlotCategory(queryCat);
     }
   }, [searchParams]);
@@ -141,6 +168,7 @@ export default function AdminDeliveryPage() {
       setCategories(catsData);
       setTemplates(templatesData);
       setSlots(slotsData);
+      setSelectedSlotIds([]);
     } catch (err: unknown) {
       console.error("Fetch delivery data error:", err);
       setErrorMsg(err instanceof Error ? err.message : "Failed to load schedule data");
@@ -163,7 +191,9 @@ export default function AdminDeliveryPage() {
   const handleSelectCategory = (catId: string) => {
     setSelectedCategoryFilter(catId);
     setBulkCategory(catId === "all" ? "" : catId);
+    setBulkDeleteCategory(catId === "all" ? "" : catId);
     setNewSlotCategory(catId === "all" ? "" : catId);
+    setSelectedSlotIds([]);
   };
 
   // Bulk Create Action via Server Action
@@ -188,7 +218,6 @@ export default function AdminDeliveryPage() {
       setSubmittingBulk(true);
       setErrorMsg(null);
 
-      // 1. Create slots via Server Action
       const result = await createDeliverySlotsBulkServerAction({
         restaurantId: restaurant.id,
         categoryId: bulkCategory || null,
@@ -202,7 +231,6 @@ export default function AdminDeliveryPage() {
         throw new Error(result.error || "Failed to create slots.");
       }
 
-      // 2. Save as template if checked
       if (saveAsTemplate && newTemplateName.trim()) {
         await saveDeliveryTemplateServerAction(
           restaurant.id,
@@ -216,9 +244,7 @@ export default function AdminDeliveryPage() {
         ? categories.find((c) => c.id === bulkCategory)?.name || "selected category"
         : "all categories (store-wide)";
 
-      notifySuccess(
-        `Generated ${result.count || 0} delivery slots for ${categoryName}!`
-      );
+      notifySuccess(`Generated ${result.count || 0} delivery slots for ${categoryName}!`);
       setShowBulkModal(false);
       await fetchData();
     } catch (err: unknown) {
@@ -226,6 +252,103 @@ export default function AdminDeliveryPage() {
       setErrorMsg(err instanceof Error ? err.message : "Failed to generate schedule.");
     } finally {
       setSubmittingBulk(false);
+    }
+  };
+
+  // Advanced Bulk Delete Action
+  const handleBulkDeleteSubmit = async (e: React.FormEvent) => {
+    e.preventDefault();
+    if (!restaurant?.id) return;
+
+    const confirmText =
+      bulkDeleteScope === "all"
+        ? "Are you sure you want to delete ALL delivery slots across the entire store?"
+        : bulkDeleteScope === "category"
+        ? `Are you sure you want to delete all slots for category "${
+            categories.find((c) => c.id === bulkDeleteCategory)?.name || "selected"
+          }"?`
+        : bulkDeleteScope === "past"
+        ? "Delete all expired slots prior to today?"
+        : bulkDeleteScope === "storewide"
+        ? "Delete all store-wide (general) delivery slots?"
+        : `Delete all slots between ${bulkDeleteStartDate} and ${bulkDeleteEndDate}?`;
+
+    if (!confirm(confirmText)) return;
+
+    try {
+      setSubmittingBulkDelete(true);
+      setErrorMsg(null);
+
+      const res = await bulkDeleteSlotsByFilterServerAction({
+        restaurantId: restaurant.id,
+        categoryId: bulkDeleteCategory || null,
+        startDate: bulkDeleteStartDate,
+        endDate: bulkDeleteEndDate,
+        scope:
+          bulkDeleteScope === "category"
+            ? "category"
+            : bulkDeleteScope === "past"
+            ? "past"
+            : bulkDeleteScope === "storewide"
+            ? "storewide"
+            : "all",
+      });
+
+      if (!res.success) {
+        throw new Error(res.error || "Failed to bulk delete slots.");
+      }
+
+      notifySuccess("Bulk delete completed successfully!");
+      setShowBulkDeleteModal(false);
+      await fetchData();
+    } catch (err: unknown) {
+      console.error("Bulk delete error:", err);
+      setErrorMsg(err instanceof Error ? err.message : "Failed to delete slots.");
+    } finally {
+      setSubmittingBulkDelete(false);
+    }
+  };
+
+  // Multi-Select: Delete Selected Slots
+  const handleDeleteSelectedSlots = async () => {
+    if (selectedSlotIds.length === 0) return;
+    if (!confirm(`Delete ${selectedSlotIds.length} selected delivery slot(s)?`)) return;
+
+    try {
+      setSubmittingBatchAction(true);
+      const res = await bulkDeleteSlotsByIdsServerAction(selectedSlotIds);
+      if (!res.success) throw new Error(res.error || "Failed to delete slots");
+
+      notifySuccess(`Deleted ${selectedSlotIds.length} slot(s).`);
+      setSelectedSlotIds([]);
+      await fetchData();
+    } catch (err: unknown) {
+      console.error("Batch delete error:", err);
+      setErrorMsg(err instanceof Error ? err.message : "Failed to delete slots");
+    } finally {
+      setSubmittingBatchAction(false);
+    }
+  };
+
+  // Multi-Select: Close / Open Selected Slots
+  const handleToggleSelectedSlotsStatus = async (isClosed: boolean) => {
+    if (selectedSlotIds.length === 0) return;
+
+    try {
+      setSubmittingBatchAction(true);
+      const res = await bulkUpdateSlotStatusServerAction(selectedSlotIds, {
+        is_closed: isClosed,
+      });
+      if (!res.success) throw new Error(res.error || "Failed to update slots");
+
+      notifySuccess(`Marked ${selectedSlotIds.length} slot(s) as ${isClosed ? "Closed" : "Open"}.`);
+      setSelectedSlotIds([]);
+      await fetchData();
+    } catch (err: unknown) {
+      console.error("Batch status update error:", err);
+      setErrorMsg(err instanceof Error ? err.message : "Failed to update slots");
+    } finally {
+      setSubmittingBatchAction(false);
     }
   };
 
@@ -384,6 +507,7 @@ export default function AdminDeliveryPage() {
       }
       notifySuccess("Delivery slot deleted.");
       setSlots((prev) => prev.filter((s) => s.id !== slotId));
+      setSelectedSlotIds((prev) => prev.filter((id) => id !== slotId));
     } catch (err: unknown) {
       console.error("Delete slot error:", err);
       setErrorMsg("Failed to delete slot.");
@@ -436,7 +560,6 @@ export default function AdminDeliveryPage() {
   const filteredSlots = useMemo(() => {
     return slots.filter((slot) => {
       if (selectedCategoryFilter !== "all") {
-        // Show slots specifically for this category OR store-wide slots (null category_id)
         if (slot.category_id && slot.category_id !== selectedCategoryFilter) {
           return false;
         }
@@ -454,6 +577,21 @@ export default function AdminDeliveryPage() {
     }
     return map;
   }, [filteredSlots]);
+
+  // Multi-select helpers
+  const toggleSelectSlot = (slotId: string) => {
+    setSelectedSlotIds((prev) =>
+      prev.includes(slotId) ? prev.filter((id) => id !== slotId) : [...prev, slotId]
+    );
+  };
+
+  const toggleSelectAllFiltered = () => {
+    if (selectedSlotIds.length === filteredSlots.length && filteredSlots.length > 0) {
+      setSelectedSlotIds([]);
+    } else {
+      setSelectedSlotIds(filteredSlots.map((s) => s.id));
+    }
+  };
 
   // Calendar Grid Calculation
   const calendarDays = useMemo(() => {
@@ -544,6 +682,8 @@ export default function AdminDeliveryPage() {
     return daysArray;
   }, [currentCalendarDate, slotsByDateMap]);
 
+  const activeCategoryObj = categories.find((c) => c.id === selectedCategoryFilter);
+
   return (
     <div className="max-w-6xl space-y-6">
       {/* ── HEADER & TOP ACTIONS ── */}
@@ -569,6 +709,19 @@ export default function AdminDeliveryPage() {
           >
             <Layers className="h-3.5 w-3.5 text-spoon-caramel" />
             <span>Templates ({templates.length})</span>
+          </Button>
+
+          <Button
+            variant="outline"
+            size="sm"
+            onClick={() => {
+              setBulkDeleteCategory(selectedCategoryFilter === "all" ? "" : selectedCategoryFilter);
+              setShowBulkDeleteModal(true);
+            }}
+            className="gap-1.5 text-xs font-semibold text-rose-700 border-rose-200 hover:bg-rose-50 hover:text-rose-800"
+          >
+            <Trash2 className="h-3.5 w-3.5" />
+            <span>Bulk Delete Slots</span>
           </Button>
 
           <Button
@@ -601,27 +754,46 @@ export default function AdminDeliveryPage() {
       )}
 
       {/* ── CATEGORY SELECTOR TABS BAR ── */}
-      <div className="space-y-2 bg-white p-4 rounded-3xl border border-spoon-border shadow-warm-sm">
+      <div className="space-y-3 bg-white p-4 rounded-3xl border border-spoon-border shadow-warm-sm">
         <div className="flex flex-col sm:flex-row sm:items-center justify-between gap-2">
           <span className="text-xs font-bold uppercase tracking-wider text-spoon-muted flex items-center gap-1.5">
             <FolderTree className="h-3.5 w-3.5 text-spoon-caramel" />
             <span>Category Schedule Filter:</span>
           </span>
-          <Button
-            size="sm"
-            onClick={() => {
-              setBulkCategory(selectedCategoryFilter === "all" ? "" : selectedCategoryFilter);
-              setShowBulkModal(true);
-            }}
-            className="gap-1.5 text-xs font-bold bg-spoon-caramel hover:bg-spoon-caramel-dark text-white rounded-xl self-start sm:self-auto"
-          >
-            <Plus className="h-3.5 w-3.5" />
-            <span>
-              {selectedCategoryFilter === "all"
-                ? "Add Slots (All Categories)"
-                : `+ Add Slots for "${categories.find((c) => c.id === selectedCategoryFilter)?.name || "Selected"}"`}
-            </span>
-          </Button>
+
+          <div className="flex items-center gap-2">
+            {/* Quick Delete Category Slots Button */}
+            {selectedCategoryFilter !== "all" && (
+              <button
+                type="button"
+                onClick={() => {
+                  setBulkDeleteCategory(selectedCategoryFilter);
+                  setBulkDeleteScope("category");
+                  setShowBulkDeleteModal(true);
+                }}
+                className="inline-flex items-center gap-1 px-3 py-1.5 rounded-xl border border-rose-200 bg-rose-50 hover:bg-rose-100 text-rose-700 text-xs font-bold transition-colors cursor-pointer"
+              >
+                <Trash2 className="h-3 w-3" />
+                <span>Delete All &ldquo;{activeCategoryObj?.name}&rdquo; Slots</span>
+              </button>
+            )}
+
+            <Button
+              size="sm"
+              onClick={() => {
+                setBulkCategory(selectedCategoryFilter === "all" ? "" : selectedCategoryFilter);
+                setShowBulkModal(true);
+              }}
+              className="gap-1.5 text-xs font-bold bg-spoon-caramel hover:bg-spoon-caramel-dark text-white rounded-xl self-start sm:self-auto"
+            >
+              <Plus className="h-3.5 w-3.5" />
+              <span>
+                {selectedCategoryFilter === "all"
+                  ? "Add Slots (All Categories)"
+                  : `+ Add Slots for "${activeCategoryObj?.name || "Selected"}"`}
+              </span>
+            </Button>
+          </div>
         </div>
 
         <div className="flex items-center gap-2 overflow-x-auto pb-1 scrollbar-thin pt-1">
@@ -689,10 +861,10 @@ export default function AdminDeliveryPage() {
           <span className="text-xs font-bold text-spoon-dark px-2.5 py-1 rounded-xl bg-spoon-sand/60 border border-spoon-border">
             {selectedCategoryFilter === "all"
               ? "All Categories (Store-wide)"
-              : `Category: ${categories.find((c) => c.id === selectedCategoryFilter)?.name || ""}`}
+              : `Category: ${activeCategoryObj?.name || ""}`}
           </span>
           <span className="text-[11px] text-spoon-muted">
-            ({filteredSlots.length} slots available)
+            ({filteredSlots.length} slots matching)
           </span>
         </div>
 
@@ -769,6 +941,54 @@ export default function AdminDeliveryPage() {
           </div>
         </div>
       </div>
+
+      {/* ── FLOATING BATCH ACTIONS BAR (WHEN ITEMS SELECTED IN LIST VIEW) ── */}
+      {selectedSlotIds.length > 0 && viewMode === "list" && (
+        <div className="sticky top-20 z-40 flex items-center justify-between p-3.5 bg-[#29251F] text-white rounded-2xl shadow-warm-xl border border-spoon-border animate-in fade-in slide-in-from-top-2">
+          <div className="flex items-center gap-2 text-xs font-bold">
+            <span className="flex h-6 w-6 items-center justify-center rounded-full bg-spoon-caramel text-white text-xs">
+              {selectedSlotIds.length}
+            </span>
+            <span>slots selected</span>
+          </div>
+
+          <div className="flex items-center gap-2">
+            <button
+              type="button"
+              disabled={submittingBatchAction}
+              onClick={() => handleToggleSelectedSlotsStatus(false)}
+              className="px-3 py-1.5 rounded-xl bg-emerald-700 hover:bg-emerald-600 text-white text-xs font-bold transition-colors cursor-pointer disabled:opacity-50"
+            >
+              Mark Active
+            </button>
+            <button
+              type="button"
+              disabled={submittingBatchAction}
+              onClick={() => handleToggleSelectedSlotsStatus(true)}
+              className="px-3 py-1.5 rounded-xl bg-amber-700 hover:bg-amber-600 text-white text-xs font-bold transition-colors cursor-pointer disabled:opacity-50"
+            >
+              Mark Closed
+            </button>
+            <button
+              type="button"
+              disabled={submittingBatchAction}
+              onClick={handleDeleteSelectedSlots}
+              className="flex items-center gap-1.5 px-3 py-1.5 rounded-xl bg-rose-600 hover:bg-rose-500 text-white text-xs font-bold transition-colors cursor-pointer disabled:opacity-50"
+            >
+              <Trash2 className="h-3.5 w-3.5" />
+              <span>Delete Selected</span>
+            </button>
+            <button
+              type="button"
+              onClick={() => setSelectedSlotIds([])}
+              className="p-1.5 rounded-lg text-white/70 hover:text-white"
+              title="Deselect All"
+            >
+              <X className="h-4 w-4" />
+            </button>
+          </div>
+        </div>
+      )}
 
       {/* ── MAIN CONTENT ── */}
       {loading ? (
@@ -900,6 +1120,19 @@ export default function AdminDeliveryPage() {
               <table className="w-full text-left text-xs text-spoon-dark">
                 <thead className="border-b border-spoon-border bg-spoon-cream/40 font-bold uppercase tracking-wider text-spoon-muted text-[10px]">
                   <tr>
+                    <th className="px-4 py-4 w-10 text-center">
+                      <button
+                        type="button"
+                        onClick={toggleSelectAllFiltered}
+                        className="p-1 text-spoon-dark hover:text-spoon-caramel"
+                      >
+                        {selectedSlotIds.length === filteredSlots.length && filteredSlots.length > 0 ? (
+                          <CheckSquare className="h-4 w-4 text-spoon-caramel" />
+                        ) : (
+                          <Square className="h-4 w-4 text-spoon-muted" />
+                        )}
+                      </button>
+                    </th>
                     <th className="px-6 py-4">Delivery Date</th>
                     <th className="px-6 py-4">Time Window</th>
                     <th className="px-6 py-4">Category Scope</th>
@@ -913,9 +1146,29 @@ export default function AdminDeliveryPage() {
                     const isFull = slot.current_order_count >= slot.capacity;
                     const catObj = categories.find((c) => c.id === slot.category_id);
                     const catName = catObj?.name || "Store-wide (All Products)";
+                    const isSelected = selectedSlotIds.includes(slot.id);
 
                     return (
-                      <tr key={slot.id} className="hover:bg-spoon-sand/15 transition-colors">
+                      <tr
+                        key={slot.id}
+                        className={`transition-colors ${
+                          isSelected ? "bg-spoon-sand/40" : "hover:bg-spoon-sand/15"
+                        }`}
+                      >
+                        <td className="px-4 py-4 text-center">
+                          <button
+                            type="button"
+                            onClick={() => toggleSelectSlot(slot.id)}
+                            className="p-1"
+                          >
+                            {isSelected ? (
+                              <CheckSquare className="h-4 w-4 text-spoon-caramel" />
+                            ) : (
+                              <Square className="h-4 w-4 text-spoon-muted" />
+                            )}
+                          </button>
+                        </td>
+
                         <td className="px-6 py-4 font-bold text-spoon-dark whitespace-nowrap">
                           {new Date(`${slot.date}T00:00:00`).toLocaleDateString("en-IN", {
                             weekday: "short",
@@ -1008,6 +1261,184 @@ export default function AdminDeliveryPage() {
               </table>
             </div>
           )}
+        </div>
+      )}
+
+      {/* ════════════════════ ADVANCED BULK DELETE MODAL ════════════════════ */}
+      {showBulkDeleteModal && (
+        <div className="fixed inset-0 z-50 flex items-center justify-center bg-black/40 backdrop-blur-xs p-4 overflow-y-auto">
+          <div className="w-full max-w-lg rounded-3xl border border-rose-200 bg-white p-6 shadow-warm-xl space-y-5 my-8">
+            <div className="flex items-center justify-between pb-3 border-b border-spoon-border/60">
+              <div className="flex items-center gap-2.5">
+                <div className="flex h-9 w-9 items-center justify-center rounded-xl bg-rose-100 text-rose-700">
+                  <Trash2 className="h-5 w-5" />
+                </div>
+                <div>
+                  <h3 className="font-serif text-lg font-bold text-rose-900">
+                    Bulk Delete Delivery Slots
+                  </h3>
+                  <p className="text-xs text-spoon-muted">
+                    Clear slots by category, date range, or past expired dates.
+                  </p>
+                </div>
+              </div>
+              <button
+                onClick={() => setShowBulkDeleteModal(false)}
+                className="flex h-8 w-8 items-center justify-center rounded-full bg-spoon-sand text-spoon-dark hover:bg-spoon-border transition-colors cursor-pointer"
+              >
+                <X className="h-4 w-4" />
+              </button>
+            </div>
+
+            <form onSubmit={handleBulkDeleteSubmit} className="space-y-4 text-xs">
+              {/* Select Scope Option */}
+              <div className="space-y-2">
+                <label className="text-[10px] font-bold uppercase tracking-wider text-spoon-muted block">
+                  Select What to Delete:
+                </label>
+
+                {[
+                  {
+                    id: "category",
+                    label: "Delete All Slots in Specific Category",
+                    sub: "Removes all scheduled slots for the selected category",
+                    icon: Tag,
+                  },
+                  {
+                    id: "date_range",
+                    label: "Delete by Date Range",
+                    sub: "Removes all slots within a custom start and end date",
+                    icon: Calendar,
+                  },
+                  {
+                    id: "past",
+                    label: "Delete Past / Expired Slots",
+                    sub: "Removes old slots prior to today to keep database clean",
+                    icon: History,
+                  },
+                  {
+                    id: "storewide",
+                    label: "Delete All Store-wide Slots",
+                    sub: "Removes generic store-wide slots (keeps category-specific slots)",
+                    icon: Store,
+                  },
+                  {
+                    id: "all",
+                    label: "Delete ALL Delivery Slots (Everything)",
+                    sub: "Wipes all delivery slots across all categories and dates",
+                    icon: AlertTriangle,
+                  },
+                ].map((opt) => {
+                  const Icon = opt.icon;
+                  const isSelected = bulkDeleteScope === opt.id;
+                  return (
+                    <label
+                      key={opt.id}
+                      onClick={() => setBulkDeleteScope(opt.id as any)}
+                      className={`flex items-start gap-3 p-3 rounded-2xl border cursor-pointer transition-all ${
+                        isSelected
+                          ? "border-rose-300 bg-rose-50/60 shadow-xs"
+                          : "border-spoon-border hover:bg-spoon-sand/30"
+                      }`}
+                    >
+                      <input
+                        type="radio"
+                        name="bulkDeleteScope"
+                        checked={isSelected}
+                        onChange={() => setBulkDeleteScope(opt.id as any)}
+                        className="mt-1 h-4 w-4 text-rose-600 focus:ring-rose-500 cursor-pointer"
+                      />
+                      <div>
+                        <span className="font-bold text-spoon-dark flex items-center gap-1.5">
+                          <Icon className="h-3.5 w-3.5 text-rose-700" />
+                          <span>{opt.label}</span>
+                        </span>
+                        <span className="text-[11px] text-spoon-muted block mt-0.5">
+                          {opt.sub}
+                        </span>
+                      </div>
+                    </label>
+                  );
+                })}
+              </div>
+
+              {/* Category selector if scope === category */}
+              {bulkDeleteScope === "category" && (
+                <div>
+                  <label className="text-[10px] font-bold uppercase tracking-wider text-spoon-muted block mb-1">
+                    Select Target Category
+                  </label>
+                  <select
+                    value={bulkDeleteCategory}
+                    onChange={(e) => setBulkDeleteCategory(e.target.value)}
+                    required
+                    className="w-full h-10 rounded-2xl border border-spoon-border bg-spoon-cream/40 px-3.5 text-xs font-bold text-spoon-dark focus:outline-none"
+                  >
+                    <option value="">-- Choose Category --</option>
+                    {categories.map((cat) => (
+                      <option key={cat.id} value={cat.id}>
+                        {cat.name} ({slots.filter((s) => s.category_id === cat.id).length} slots)
+                      </option>
+                    ))}
+                  </select>
+                </div>
+              )}
+
+              {/* Date range if scope === date_range */}
+              {bulkDeleteScope === "date_range" && (
+                <div className="grid grid-cols-2 gap-3">
+                  <div>
+                    <span className="text-[10px] text-spoon-muted block mb-1">Start Date</span>
+                    <input
+                      type="date"
+                      value={bulkDeleteStartDate}
+                      onChange={(e) => setBulkDeleteStartDate(e.target.value)}
+                      required
+                      className="w-full h-10 rounded-2xl border border-spoon-border bg-spoon-cream/40 px-3.5 text-xs font-bold"
+                    />
+                  </div>
+                  <div>
+                    <span className="text-[10px] text-spoon-muted block mb-1">End Date</span>
+                    <input
+                      type="date"
+                      value={bulkDeleteEndDate}
+                      onChange={(e) => setBulkDeleteEndDate(e.target.value)}
+                      required
+                      className="w-full h-10 rounded-2xl border border-spoon-border bg-spoon-cream/40 px-3.5 text-xs font-bold"
+                    />
+                  </div>
+                </div>
+              )}
+
+              {/* Modal Actions */}
+              <div className="flex items-center justify-end gap-3 pt-3 border-t border-spoon-border/60">
+                <button
+                  type="button"
+                  onClick={() => setShowBulkDeleteModal(false)}
+                  className="rounded-xl border border-spoon-border px-4 py-2 text-xs font-bold text-spoon-dark hover:bg-spoon-sand transition-colors cursor-pointer"
+                >
+                  Cancel
+                </button>
+                <button
+                  type="submit"
+                  disabled={submittingBulkDelete}
+                  className="flex items-center gap-2 rounded-xl bg-rose-600 hover:bg-rose-700 text-white px-5 py-2 text-xs font-bold shadow-warm-sm transition-colors disabled:opacity-50 cursor-pointer"
+                >
+                  {submittingBulkDelete ? (
+                    <>
+                      <Loader2 className="h-4 w-4 animate-spin" />
+                      <span>Deleting Slots...</span>
+                    </>
+                  ) : (
+                    <>
+                      <Trash2 className="h-4 w-4" />
+                      <span>Confirm &amp; Delete Slots</span>
+                    </>
+                  )}
+                </button>
+              </div>
+            </form>
+          </div>
         </div>
       )}
 

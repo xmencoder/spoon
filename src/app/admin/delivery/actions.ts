@@ -356,3 +356,140 @@ export async function deleteDeliveryTemplateServerAction(templateId: string) {
     };
   }
 }
+
+/**
+ * Server Action to delete multiple delivery slots by IDs
+ */
+export async function bulkDeleteSlotsByIdsServerAction(slotIds: string[]) {
+  try {
+    if (!slotIds || slotIds.length === 0) {
+      return { success: true, count: 0 };
+    }
+
+    const supabase = await createClient();
+    const { error } = await supabase
+      .from("delivery_slots")
+      .delete()
+      .in("id", slotIds);
+
+    if (error) {
+      return { success: false, error: error.message };
+    }
+
+    return { success: true, count: slotIds.length };
+  } catch (err: unknown) {
+    return {
+      success: false,
+      error: err instanceof Error ? err.message : "Failed to delete selected slots",
+    };
+  }
+}
+
+export interface BulkDeleteFilterOptions {
+  restaurantId?: string | null;
+  categoryId?: string | null; // "all", "storewide", or category UUID
+  startDate?: string;
+  endDate?: string;
+  scope?: "category" | "storewide" | "past" | "all";
+}
+
+/**
+ * Server Action to delete slots by filters (Category, Date Range, Past Slots, etc.)
+ */
+export async function bulkDeleteSlotsByFilterServerAction(
+  options: BulkDeleteFilterOptions
+) {
+  try {
+    const supabase = await createClient();
+
+    let targetRestId = options.restaurantId;
+    if (!targetRestId) {
+      const { data: defaultRest } = await supabase
+        .from("restaurants")
+        .select("id")
+        .order("created_at", { ascending: true })
+        .limit(1)
+        .maybeSingle();
+      targetRestId = defaultRest?.id;
+    }
+
+    let query = supabase.from("delivery_slots").delete();
+
+    if (targetRestId) {
+      query = query.eq("restaurant_id", targetRestId);
+    }
+
+    if (options.scope === "past") {
+      const now = new Date();
+      const y = now.getFullYear();
+      const m = String(now.getMonth() + 1).padStart(2, "0");
+      const d = String(now.getDate()).padStart(2, "0");
+      const todayStr = `${y}-${m}-${d}`;
+      query = query.lt("date", todayStr);
+    } else {
+      if (options.startDate) {
+        query = query.gte("date", options.startDate);
+      }
+      if (options.endDate) {
+        query = query.lte("date", options.endDate);
+      }
+
+      if (options.scope === "storewide") {
+        query = query.is("category_id", null);
+      } else if (options.scope === "category" && options.categoryId) {
+        query = query.eq("category_id", options.categoryId);
+      }
+    }
+
+    const { error } = await query;
+    if (error) {
+      return { success: false, error: error.message };
+    }
+
+    return { success: true };
+  } catch (err: unknown) {
+    return {
+      success: false,
+      error: err instanceof Error ? err.message : "Failed to bulk delete slots",
+    };
+  }
+}
+
+/**
+ * Server Action to batch update status of multiple slots (Active / Inactive / Closed)
+ */
+export async function bulkUpdateSlotStatusServerAction(
+  slotIds: string[],
+  updates: { is_active?: boolean; is_closed?: boolean }
+) {
+  try {
+    if (!slotIds || slotIds.length === 0) {
+      return { success: true, count: 0 };
+    }
+
+    const supabase = await createClient();
+    const payload: any = {
+      updated_at: new Date().toISOString(),
+    };
+
+    if (updates.is_active !== undefined) payload.is_active = updates.is_active;
+    if (updates.is_closed !== undefined) payload.is_closed = updates.is_closed;
+
+    const { error } = await supabase
+      .from("delivery_slots")
+      .update(payload)
+      .in("id", slotIds);
+
+    if (error) {
+      return { success: false, error: error.message };
+    }
+
+    return { success: true, count: slotIds.length };
+  } catch (err: unknown) {
+    return {
+      success: false,
+      error: err instanceof Error ? err.message : "Failed to update selected slots",
+    };
+  }
+}
+
