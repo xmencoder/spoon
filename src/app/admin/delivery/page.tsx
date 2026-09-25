@@ -1,6 +1,6 @@
 "use client";
-
 import React, { useState, useEffect, useCallback, useMemo } from "react";
+import { useSearchParams } from "next/navigation";
 import { useAdmin } from "@/lib/admin/AdminContext";
 import { getAdminCategories } from "@/lib/admin/admin-service";
 import {
@@ -47,6 +47,8 @@ import {
 
 export default function AdminDeliveryPage() {
   const { restaurant } = useAdmin();
+  const searchParams = useSearchParams();
+  const initialCategory = searchParams.get("category") || "all";
 
   // State
   const [categories, setCategories] = useState<Category[]>([]);
@@ -58,7 +60,7 @@ export default function AdminDeliveryPage() {
 
   // Filters & View Mode
   const [viewMode, setViewMode] = useState<"calendar" | "list">("calendar");
-  const [selectedCategoryFilter, setSelectedCategoryFilter] = useState<string>("all");
+  const [selectedCategoryFilter, setSelectedCategoryFilter] = useState<string>(initialCategory);
   const [currentCalendarDate, setCurrentCalendarDate] = useState<Date>(new Date());
 
   // Modals
@@ -530,24 +532,94 @@ export default function AdminDeliveryPage() {
         </div>
       )}
 
+      {/* ── CATEGORY SELECTOR CARDS / PILLS ── */}
+      <div className="space-y-2">
+        <div className="flex items-center justify-between">
+          <span className="text-xs font-bold uppercase tracking-wider text-spoon-muted flex items-center gap-1.5">
+            <FolderTree className="h-3.5 w-3.5 text-spoon-caramel" />
+            <span>Select Category to Manage Delivery Slots:</span>
+          </span>
+          <Button
+            size="sm"
+            onClick={() => {
+              setBulkCategory(selectedCategoryFilter === "all" ? "" : selectedCategoryFilter);
+              setShowBulkModal(true);
+            }}
+            className="gap-1.5 text-xs font-bold bg-spoon-caramel hover:bg-spoon-caramel-dark text-white rounded-xl"
+          >
+            <Plus className="h-3.5 w-3.5" />
+            <span>
+              {selectedCategoryFilter === "all"
+                ? "Add Slots (All Categories)"
+                : `Add Slots for "${categories.find((c) => c.id === selectedCategoryFilter)?.name || "Selected"}"`}
+            </span>
+          </Button>
+        </div>
+
+        <div className="flex items-center gap-2 overflow-x-auto pb-1 scrollbar-thin">
+          <button
+            type="button"
+            onClick={() => setSelectedCategoryFilter("all")}
+            className={`shrink-0 flex items-center gap-2 px-3.5 py-2 rounded-2xl border text-xs font-bold transition-all cursor-pointer select-none ${
+              selectedCategoryFilter === "all"
+                ? "bg-spoon-caramel text-white border-spoon-caramel shadow-warm-sm scale-[1.02]"
+                : "bg-white text-spoon-dark border-spoon-border hover:bg-spoon-sand/40"
+            }`}
+          >
+            <Layers className="h-3.5 w-3.5" />
+            <span>All / Store-wide</span>
+            <span
+              className={`text-[10px] px-2 py-0.5 rounded-full font-bold ${
+                selectedCategoryFilter === "all"
+                  ? "bg-white/20 text-white"
+                  : "bg-spoon-sand text-spoon-dark"
+              }`}
+            >
+              {slots.length}
+            </span>
+          </button>
+
+          {categories.map((cat) => {
+            const isSelected = selectedCategoryFilter === cat.id;
+            const catSlotCount = slots.filter((s) => s.category_id === cat.id).length;
+
+            return (
+              <button
+                key={cat.id}
+                type="button"
+                onClick={() => setSelectedCategoryFilter(cat.id)}
+                className={`shrink-0 flex items-center gap-2 px-3.5 py-2 rounded-2xl border text-xs font-bold transition-all cursor-pointer select-none ${
+                  isSelected
+                    ? "bg-spoon-caramel text-white border-spoon-caramel shadow-warm-sm scale-[1.02]"
+                    : "bg-white text-spoon-dark border-spoon-border hover:bg-spoon-sand/40"
+                }`}
+              >
+                <span>{cat.name}</span>
+                <span
+                  className={`text-[10px] px-2 py-0.5 rounded-full font-bold ${
+                    isSelected
+                      ? "bg-white/20 text-white"
+                      : "bg-spoon-sand text-spoon-dark"
+                  }`}
+                >
+                  {catSlotCount}
+                </span>
+              </button>
+            );
+          })}
+        </div>
+      </div>
+
       {/* ── FILTER & VIEW BAR ── */}
       <div className="flex flex-col sm:flex-row sm:items-center justify-between gap-3 bg-white p-4 rounded-3xl border border-spoon-border shadow-warm-sm">
-        {/* Category Selector */}
+        {/* Active Scope Indicator */}
         <div className="flex items-center gap-2">
-          <FolderTree className="h-4 w-4 text-spoon-caramel shrink-0" />
-          <span className="text-xs font-bold text-spoon-dark shrink-0">Category:</span>
-          <select
-            value={selectedCategoryFilter}
-            onChange={(e) => setSelectedCategoryFilter(e.target.value)}
-            className="rounded-xl border border-spoon-border bg-spoon-cream/40 px-3 py-1.5 text-xs font-bold text-spoon-dark focus:outline-none focus:ring-2 focus:ring-spoon-caramel/30 transition cursor-pointer"
-          >
-            <option value="all">All Categories (Store-wide)</option>
-            {categories.map((cat) => (
-              <option key={cat.id} value={cat.id}>
-                {cat.name}
-              </option>
-            ))}
-          </select>
+          <span className="text-xs text-spoon-muted">Active Scope:</span>
+          <span className="text-xs font-bold text-spoon-dark px-2.5 py-1 rounded-xl bg-spoon-sand/60 border border-spoon-border">
+            {selectedCategoryFilter === "all"
+              ? "All Categories (Store-wide)"
+              : `Category: ${categories.find((c) => c.id === selectedCategoryFilter)?.name || ""}`}
+          </span>
         </div>
 
         {/* View Switcher & Month Navigation */}

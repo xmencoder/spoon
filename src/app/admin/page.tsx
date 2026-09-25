@@ -21,6 +21,7 @@ import {
   CheckCircle2,
   Power,
   RefreshCw,
+  CalendarClock,
 } from "lucide-react";
 import { formatPrice } from "@/lib/utils";
 
@@ -113,6 +114,16 @@ export default function AdminDashboardPage() {
             >
               <Plus className="h-4 w-4" />
               <span>Add Category</span>
+            </Button>
+          </Link>
+          <Link href="/admin/delivery">
+            <Button
+              size="sm"
+              variant="outline"
+              className="gap-1.5 font-bold text-xs uppercase tracking-wider text-spoon-caramel border-spoon-caramel/40 hover:bg-spoon-caramel/10"
+            >
+              <CalendarClock className="h-4 w-4" />
+              <span>Delivery Slots</span>
             </Button>
           </Link>
           <Link href="/" target="_blank">

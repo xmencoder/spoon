@@ -12,6 +12,7 @@ import {
   updateCategoryServerAction,
   deleteCategoryServerAction,
 } from "./actions";
+import Link from "next/link";
 import { uploadCategoryImage } from "@/lib/supabase/storage";
 import { createClient } from "@/lib/supabase/client";
 import type { Category } from "@/types/database";
@@ -32,6 +33,7 @@ import {
   AlertTriangle,
   Upload,
   ImageIcon,
+  CalendarClock,
 } from "lucide-react";
 
 interface CategoryWithCount extends Category {
@@ -642,6 +644,14 @@ export default function AdminCategoriesPage() {
                   {/* Right: Actions */}
                   {!isEditing && (
                     <div className="flex items-center gap-1.5 shrink-0">
+                      <Link
+                        href={`/admin/delivery?category=${cat.id}`}
+                        className="inline-flex items-center gap-1 rounded-xl px-2.5 py-1.5 text-xs font-semibold text-spoon-caramel bg-spoon-sand/60 hover:bg-spoon-sand border border-spoon-border/80 transition-colors"
+                        title={`Manage Delivery Slots for "${cat.name}"`}
+                      >
+                        <CalendarClock className="h-3.5 w-3.5" />
+                        <span className="hidden sm:inline">Delivery Slots</span>
+                      </Link>
                       <button
                         type="button"
                         onClick={() => startEdit(cat)}
