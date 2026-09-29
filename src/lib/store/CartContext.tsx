@@ -204,6 +204,35 @@ export const PACKAGING_RATE = 0.04; // 4% packing and handling charge
 export const PACKAGING_FEE = 0; // Deprecated flat fee
 export const GIFT_NOTE_FEE = 40;
 
+function parseStoredCart(stored: string | null): CartItem[] {
+  if (!stored) return [];
+  try {
+    const raw = JSON.parse(stored);
+    if (!Array.isArray(raw)) return [];
+    return raw.map((item: any) => {
+      const unitPrice =
+        item.unitPrice !== undefined
+          ? item.unitPrice
+          : item.product?.price || 0;
+      const itemId =
+        item.id ||
+        `${item.product?.id || "p"}-${item.sizeLabel || "default"}-${
+          item.addons ? item.addons.map((a: any) => a.id).join("-") : ""
+        }`;
+      return {
+        id: itemId,
+        product: item.product,
+        quantity: item.quantity || 1,
+        sizeLabel: item.sizeLabel,
+        addons: item.addons,
+        unitPrice,
+      };
+    });
+  } catch {
+    return [];
+  }
+}
+
 export function CartProvider({
   children,
   restaurantSlug = DEFAULT_RESTAURANT_SLUG,
@@ -213,6 +242,7 @@ export function CartProvider({
 }) {
   const storageKey = `spoon_cart_${restaurantSlug}`;
   const giftNoteStorageKey = `spoon_gift_note_${restaurantSlug}`;
+  const isHydratedRef = React.useRef(false);
 
   const [state, dispatch] = useReducer(cartReducer, {
     items: [],
@@ -224,65 +254,58 @@ export function CartProvider({
   const [isDrawerOpen, setIsDrawerOpen] = useState(false);
   const [lastAddedItem, setLastAddedItem] = useState<CartItem | null>(null);
 
-  // Hydrate from localStorage on mount
+  // Hydrate from localStorage on mount and listen to cross-component sync
   useEffect(() => {
-    try {
-      const stored = localStorage.getItem(storageKey);
-      const storedGift = localStorage.getItem(giftNoteStorageKey);
-      let parsedItems: CartItem[] = [];
-      let parsedGift = { has: false, note: "" };
+    const hydrateCart = () => {
+      try {
+        const stored = localStorage.getItem(storageKey);
+        const storedGift = localStorage.getItem(giftNoteStorageKey);
+        const parsedItems = parseStoredCart(stored);
+        let parsedGift = { has: false, note: "" };
 
-      if (stored) {
-        const raw = JSON.parse(stored);
-        if (Array.isArray(raw)) {
-          // Normalize legacy items if needed
-          parsedItems = raw.map((item: any) => {
-            const unitPrice =
-              item.unitPrice !== undefined
-                ? item.unitPrice
-                : item.product?.price || 0;
-            const itemId =
-              item.id ||
-              `${item.product?.id || "p"}-${item.sizeLabel || "default"}-${
-                item.addons ? item.addons.map((a: any) => a.id).join("-") : ""
-              }`;
-            return {
-              id: itemId,
-              product: item.product,
-              quantity: item.quantity || 1,
-              sizeLabel: item.sizeLabel,
-              addons: item.addons,
-              unitPrice,
-            };
-          });
+        if (storedGift) {
+          try {
+            parsedGift = JSON.parse(storedGift);
+          } catch {}
         }
-      }
 
-      if (storedGift) {
-        parsedGift = JSON.parse(storedGift);
+        dispatch({
+          type: "HYDRATE",
+          items: parsedItems,
+          hasGiftNote: Boolean(parsedGift?.has),
+          giftNote: parsedGift?.note || "",
+        });
+      } catch {
+        // ignore parse errors
+      } finally {
+        isHydratedRef.current = true;
       }
+    };
 
-      dispatch({
-        type: "HYDRATE",
-        items: parsedItems,
-        hasGiftNote: parsedGift.has,
-        giftNote: parsedGift.note,
-      });
-    } catch {
-      // ignore parse errors
-    }
+    hydrateCart();
+
+    const handleStorage = (e: StorageEvent | Event) => {
+      if ("key" in e && e.key && e.key !== storageKey && e.key !== giftNoteStorageKey) {
+        return;
+      }
+      hydrateCart();
+    };
+
+    window.addEventListener("storage", handleStorage);
+    return () => {
+      window.removeEventListener("storage", handleStorage);
+    };
   }, [storageKey, giftNoteStorageKey]);
 
-  // Persist to localStorage on changes
+  // Persist to localStorage only after initial hydration is done
   useEffect(() => {
+    if (!isHydratedRef.current) return;
     try {
       localStorage.setItem(storageKey, JSON.stringify(state.items));
       localStorage.setItem(
         giftNoteStorageKey,
         JSON.stringify({ has: state.hasGiftNote, note: state.giftNote })
       );
-      // Dispatch storage event for other components listening
-      window.dispatchEvent(new Event("storage"));
     } catch {
       // ignore storage errors
     }

@@ -357,6 +357,8 @@ export function MenuSection({ slug = "the-indulgent-spoon" }: MenuSectionProps) 
   // ── LIVE DATA FROM SUPABASE (with fallback to hardcoded) ──
   const [liveCategories, setLiveCategories] = useState<CategoryCard[]>([]);
   const [liveMenuItems, setLiveMenuItems] = useState<MenuItem[]>([]);
+  const [liveDbProducts, setLiveDbProducts] = useState<Product[]>([]);
+  const [restaurantId, setRestaurantId] = useState<string>("");
   const [dbLoaded, setDbLoaded] = useState(false);
 
   // Fetch live products & categories from Supabase
@@ -503,6 +505,8 @@ export function MenuSection({ slug = "the-indulgent-spoon" }: MenuSectionProps) 
           });
 
           if (!cancelled) {
+            setRestaurantId(restaurant.id);
+            setLiveDbProducts(dbProducts);
             setLiveCategories(categoryCards);
             setLiveMenuItems(menuItems);
             setDbLoaded(true);
@@ -580,28 +584,14 @@ export function MenuSection({ slug = "the-indulgent-spoon" }: MenuSectionProps) 
     const inCartCount = getProductQuantity(id);
     if (inCartCount > 0) {
       const cartItem = cartItems.find(
-        (ci) => ci.product.id === id || ci.id.startsWith(id)
+        (ci) => ci.product.id === id || ci.id === id || ci.id.startsWith(id)
       );
       if (cartItem) {
         increment(cartItem.id);
       } else {
         const item = activeMenuItems.find((i) => i.id === id);
         if (item) {
-          addItem(
-            {
-              id: item.id,
-              restaurant_id: "default",
-              name: item.name,
-              description: item.description,
-              price: item.price,
-              image_url: item.image,
-              available: true,
-              featured: true,
-              category_id: null,
-              sort_order: 0,
-            },
-            1
-          );
+          handleAddToCart(item);
         }
       }
     } else {
@@ -616,7 +606,7 @@ export function MenuSection({ slug = "the-indulgent-spoon" }: MenuSectionProps) 
     const inCartCount = getProductQuantity(id);
     if (inCartCount > 0) {
       const cartItem = cartItems.find(
-        (ci) => ci.product.id === id || ci.id.startsWith(id)
+        (ci) => ci.product.id === id || ci.id === id || ci.id.startsWith(id)
       );
       if (cartItem) {
         // If 1 in cart, decrement removes it from cart, automatically switching button back to "Add to Cart"
@@ -643,23 +633,32 @@ export function MenuSection({ slug = "the-indulgent-spoon" }: MenuSectionProps) 
     const qty = getQty(item.id);
     const qtyToAdd = inCartCount > 0 ? 1 : Math.max(1, qty);
 
-    addItem(
-      {
-        id: item.id,
-        restaurant_id: "default",
-        name: item.name,
-        description: item.description,
-        price: item.price,
-        image_url: item.image,
-        available: true,
-        featured: true,
-        category_id: null,
-        sort_order: 0,
-      },
-      qtyToAdd,
-      undefined,
-      e
+    const matchingDbProduct = liveDbProducts.find(
+      (p) => p.id === item.id || p.name.trim().toLowerCase() === item.name.trim().toLowerCase()
     );
+
+    const productPayload: Product = matchingDbProduct
+      ? {
+          ...matchingDbProduct,
+          price: Number(item.price || matchingDbProduct.price),
+        }
+      : {
+          id: item.id,
+          restaurant_id: restaurantId || "the-indulgent-spoon",
+          name: item.name,
+          description: item.description,
+          price: item.price,
+          image_url: item.image,
+          available: true,
+          featured: item.isPopular ?? true,
+          category_id:
+            item.category !== "popular" && item.category !== "other"
+              ? item.category
+              : null,
+          sort_order: 0,
+        };
+
+    addItem(productPayload, qtyToAdd, undefined, e);
 
     setAddedItem(item.id);
     setTimeout(() => {
