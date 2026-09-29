@@ -8,7 +8,8 @@ export async function GET(req: NextRequest) {
     const { searchParams } = new URL(req.url);
     const restaurantId = searchParams.get("restaurant_id");
     const categoryIdsParam = searchParams.get("category_ids"); // comma separated
-    const daysAhead = parseInt(searchParams.get("days") || "30", 10);
+    const daysAhead = Math.min(parseInt(searchParams.get("days") || "5", 10), 5);
+    const bakingPeriodMinutes = parseInt(searchParams.get("baking_period_minutes") || "60", 10);
 
     if (!restaurantId) {
       return NextResponse.json(
@@ -55,8 +56,8 @@ export async function GET(req: NextRequest) {
     const dateMap: Record<string, DeliverySlot[]> = {};
 
     for (const slot of allSlots) {
-      // 1. Cutoff filter
-      if (isSlotInPastOrCutoff(slot.date, slot.start_time, 60)) {
+      // 1. Cutoff filter (uses baking period lead time)
+      if (isSlotInPastOrCutoff(slot.date, slot.start_time, bakingPeriodMinutes)) {
         continue;
       }
 
@@ -84,11 +85,17 @@ export async function GET(req: NextRequest) {
       }
     }
 
-    const dates = Object.keys(dateMap).sort();
+    const allDates = Object.keys(dateMap).sort();
+    // Limit to first `daysAhead` dates (max 5)
+    const dates = allDates.slice(0, daysAhead);
+    const slotsByDate: Record<string, typeof dateMap[string]> = {};
+    for (const d of dates) {
+      slotsByDate[d] = dateMap[d];
+    }
 
     return NextResponse.json({
       dates,
-      slotsByDate: dateMap,
+      slotsByDate,
     });
   } catch (err: unknown) {
     console.error("delivery-slots API error:", err);

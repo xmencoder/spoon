@@ -270,12 +270,14 @@ export default function OrderSuccessReceiptPage() {
                 )}
               </div>
 
-              {receipt.orderType === "delivery" && (receipt.deliveryDate || receipt.deliveryTimeSlot) && (
+              {(receipt.deliveryDate || receipt.deliveryTimeSlot) && (
                 <div className="rounded-xl bg-[#FAF6EF] border border-[#91885D]/20 p-3 flex flex-wrap items-center justify-between gap-2 text-xs">
                   {receipt.deliveryDate && (
                     <div className="flex items-center gap-1.5">
                       <Calendar className="w-3.5 h-3.5 text-[#C26B59]" />
-                      <span className="text-[11px] text-[#696053]">Delivery Date:</span>
+                      <span className="text-[11px] text-[#696053]">
+                        {receipt.orderType === "delivery" ? "Delivery Date:" : "Pickup Date:"}
+                      </span>
                       <span className="font-bold text-[#29251F]">
                         {new Date(receipt.deliveryDate + "T00:00:00").toLocaleDateString("en-IN", {
                           weekday: "short",
@@ -290,7 +292,9 @@ export default function OrderSuccessReceiptPage() {
                   {receipt.deliveryTimeSlot && (
                     <div className="flex items-center gap-1.5">
                       <Clock className="w-3.5 h-3.5 text-[#C26B59]" />
-                      <span className="text-[11px] text-[#696053]">Time Slot:</span>
+                      <span className="text-[11px] text-[#696053]">
+                        {receipt.orderType === "delivery" ? "Delivery Slot:" : "Pickup Slot:"}
+                      </span>
                       <span className="font-bold text-[#A34B3D]">
                         {receipt.deliveryTimeSlot}
                       </span>

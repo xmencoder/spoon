@@ -98,6 +98,7 @@ export default function AdminDeliveryPage() {
   const [saveAsTemplate, setSaveAsTemplate] = useState(false);
   const [newTemplateName, setNewTemplateName] = useState("");
   const [submittingBulk, setSubmittingBulk] = useState(false);
+  const [bulkErrorMsg, setBulkErrorMsg] = useState<string | null>(null);
 
   // Advanced Bulk Delete State
   const [bulkDeleteScope, setBulkDeleteScope] = useState<"category" | "date_range" | "past" | "storewide" | "all">("category");
@@ -199,27 +200,32 @@ export default function AdminDeliveryPage() {
   // Bulk Create Action via Server Action
   const handleBulkCreate = async (e: React.FormEvent) => {
     e.preventDefault();
-    if (!restaurant?.id) return;
+    setBulkErrorMsg(null);
 
     if (!bulkStartDate || !bulkEndDate) {
-      setErrorMsg("Please select both start and end dates.");
+      setBulkErrorMsg("Please select both start and end dates.");
+      return;
+    }
+    if (bulkStartDate > bulkEndDate) {
+      setBulkErrorMsg("Start Date cannot be after End Date.");
       return;
     }
     if (bulkDaysOfWeek.length === 0) {
-      setErrorMsg("Please select at least one day of the week.");
+      setBulkErrorMsg("Please select at least one day of the week.");
       return;
     }
     if (bulkTimeWindows.length === 0) {
-      setErrorMsg("Please add at least one time window.");
+      setBulkErrorMsg("Please add at least one time window.");
       return;
     }
 
     try {
       setSubmittingBulk(true);
       setErrorMsg(null);
+      setBulkErrorMsg(null);
 
       const result = await createDeliverySlotsBulkServerAction({
-        restaurantId: restaurant.id,
+        restaurantId: restaurant?.id || null,
         categoryId: bulkCategory || null,
         startDate: bulkStartDate,
         endDate: bulkEndDate,
@@ -233,7 +239,7 @@ export default function AdminDeliveryPage() {
 
       if (saveAsTemplate && newTemplateName.trim()) {
         await saveDeliveryTemplateServerAction(
-          restaurant.id,
+          restaurant?.id || null,
           newTemplateName.trim(),
           bulkTimeWindows,
           bulkCategory || null
@@ -249,7 +255,9 @@ export default function AdminDeliveryPage() {
       await fetchData();
     } catch (err: unknown) {
       console.error("Bulk create error:", err);
-      setErrorMsg(err instanceof Error ? err.message : "Failed to generate schedule.");
+      const msg = err instanceof Error ? err.message : "Failed to generate schedule.";
+      setBulkErrorMsg(msg);
+      setErrorMsg(msg);
     } finally {
       setSubmittingBulk(false);
     }
@@ -258,7 +266,6 @@ export default function AdminDeliveryPage() {
   // Advanced Bulk Delete Action
   const handleBulkDeleteSubmit = async (e: React.FormEvent) => {
     e.preventDefault();
-    if (!restaurant?.id) return;
 
     const confirmText =
       bulkDeleteScope === "all"
@@ -280,7 +287,7 @@ export default function AdminDeliveryPage() {
       setErrorMsg(null);
 
       const res = await bulkDeleteSlotsByFilterServerAction({
-        restaurantId: restaurant.id,
+        restaurantId: restaurant?.id || null,
         categoryId: bulkDeleteCategory || null,
         startDate: bulkDeleteStartDate,
         endDate: bulkDeleteEndDate,
@@ -407,7 +414,7 @@ export default function AdminDeliveryPage() {
   // Add single slot to specific date via Server Action
   const handleAddSlotToDate = async (e: React.FormEvent) => {
     e.preventDefault();
-    if (!restaurant?.id || !selectedDayDate) return;
+    if (!selectedDayDate) return;
 
     try {
       setSubmittingDayAction(true);
@@ -416,7 +423,7 @@ export default function AdminDeliveryPage() {
       const targetCategory = newSlotCategory || null;
 
       const result = await createDeliverySlotsBulkServerAction({
-        restaurantId: restaurant.id,
+        restaurantId: restaurant?.id || null,
         categoryId: targetCategory,
         startDate: selectedDayDate,
         endDate: selectedDayDate,
@@ -446,11 +453,10 @@ export default function AdminDeliveryPage() {
 
   // Toggle Date Closure via Server Action
   const handleToggleClosure = async (dateStr: string, currentClosed: boolean) => {
-    if (!restaurant?.id) return;
     try {
       setSubmittingDayAction(true);
       const res = await toggleDateClosureServerAction(
-        restaurant.id,
+        restaurant?.id || null,
         dateStr,
         !currentClosed,
         closureReason
@@ -476,12 +482,11 @@ export default function AdminDeliveryPage() {
 
   // Delete all slots on date via Server Action
   const handleDeleteDateSlots = async (dateStr: string) => {
-    if (!restaurant?.id) return;
     if (!confirm(`Are you sure you want to delete all delivery slots on ${dateStr}?`)) return;
 
     try {
       setSubmittingDayAction(true);
-      const res = await deleteSlotsForDateServerAction(restaurant.id, dateStr);
+      const res = await deleteSlotsForDateServerAction(restaurant?.id || null, dateStr);
       if (!res.success) {
         throw new Error(res.error || "Failed to delete slots.");
       }
@@ -1469,6 +1474,13 @@ export default function AdminDeliveryPage() {
             </div>
 
             <form onSubmit={handleBulkCreate} className="space-y-4 text-xs">
+              {bulkErrorMsg && (
+                <div className="flex items-center gap-2 p-3 rounded-2xl bg-rose-50 border border-rose-200 text-rose-800 text-xs font-semibold">
+                  <AlertCircle className="h-4 w-4 shrink-0 text-rose-600" />
+                  <span>{bulkErrorMsg}</span>
+                </div>
+              )}
+
               {/* Step 1: Category Scope */}
               <div>
                 <label className="text-[10px] font-bold uppercase tracking-wider text-spoon-muted block mb-1.5">

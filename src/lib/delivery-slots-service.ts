@@ -78,11 +78,13 @@ export function isSlotInPastOrCutoff(
 /**
  * Customer query: Fetch available delivery dates and valid slots for a cart
  * Handles multi-category cart intersection and store-wide slots
+ * Only returns the next 5 days of available dates.
  */
 export async function getCustomerDeliverySlots(
   restaurantId: string,
   categoryIds: (string | null | undefined)[],
-  daysAhead: number = 30
+  daysAhead: number = 5,
+  bakingPeriodMinutes: number = 60
 ): Promise<{
   dates: string[];
   slotsByDate: Record<string, DeliverySlot[]>;
@@ -114,8 +116,8 @@ export async function getCustomerDeliverySlots(
     .order("start_time", { ascending: true });
 
   if (error || !rawSlots || rawSlots.length === 0) {
-    // If no slots configured in DB, generate standard fallback virtual slots for next 14 days
-    return generateFallbackCustomerSlots(daysAhead);
+    // If no slots configured in DB, generate standard fallback virtual slots for next 5 days
+    return generateFallbackCustomerSlots(daysAhead, bakingPeriodMinutes);
   }
 
   const allSlots = rawSlots as DeliverySlot[];
@@ -125,8 +127,8 @@ export async function getCustomerDeliverySlots(
   const dateMap: Record<string, DeliverySlot[]> = {};
 
   for (const slot of allSlots) {
-    // 1. Filter out past slots / cutoff
-    if (isSlotInPastOrCutoff(slot.date, slot.start_time, 60)) {
+    // 1. Filter out past slots / cutoff (respects baking period lead time)
+    if (isSlotInPastOrCutoff(slot.date, slot.start_time, bakingPeriodMinutes)) {
       continue;
     }
 
@@ -160,19 +162,27 @@ export async function getCustomerDeliverySlots(
   // If after category filtering some dates have no slots, check if store-wide fallback needed
   const availableDates = Object.keys(dateMap).sort();
   if (availableDates.length === 0) {
-    return generateFallbackCustomerSlots(daysAhead);
+    return generateFallbackCustomerSlots(daysAhead, bakingPeriodMinutes);
+  }
+
+  // Limit to next `daysAhead` dates (already bounded by the query but apply here too)
+  const limitedDates = availableDates.slice(0, daysAhead);
+  const limitedSlotsByDate: Record<string, DeliverySlot[]> = {};
+  for (const d of limitedDates) {
+    limitedSlotsByDate[d] = dateMap[d];
   }
 
   return {
-    dates: availableDates,
-    slotsByDate: dateMap,
+    dates: limitedDates,
+    slotsByDate: limitedSlotsByDate,
   };
 }
 
 /**
  * Generate standard fallback slots (e.g. 11am-2pm, 2pm-6pm, 6pm-9pm) if none in DB yet
+ * Limited to `daysAhead` days (default 5).
  */
-function generateFallbackCustomerSlots(daysAhead: number = 14): {
+function generateFallbackCustomerSlots(daysAhead: number = 5, leadTimeMinutes: number = 60): {
   dates: string[];
   slotsByDate: Record<string, DeliverySlot[]>;
 } {
@@ -196,7 +206,7 @@ function generateFallbackCustomerSlots(daysAhead: number = 14): {
 
     const validSlots: DeliverySlot[] = [];
     for (const win of standardWindows) {
-      if (!isSlotInPastOrCutoff(dateStr, win.start, 60)) {
+      if (!isSlotInPastOrCutoff(dateStr, win.start, leadTimeMinutes)) {
         validSlots.push({
           id: `fallback-${dateStr}-${win.start}`,
           restaurant_id: "",

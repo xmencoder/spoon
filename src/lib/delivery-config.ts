@@ -11,29 +11,30 @@ export const BAKERY_LOCATION = {
 };
 
 export const DELIVERY_CONFIG = {
-  BASE_DELIVERY_FARE: 60,
+  BASE_DELIVERY_FARE: 50,
   BASE_DISTANCE_KM: 1,
-  PER_KM_RATE: 26.25,
+  PER_KM_RATE: 10,
   MAX_DELIVERY_DISTANCE_KM: 15,
-  ROUND_TO: 5,
+  ROUND_TO: 1,
 };
 
 /**
  * Calculate delivery charge based on road distance in kilometers.
  *
  * Formula:
- * - If distance <= 1 km: ₹60
- * - If distance > 1 km: 60 + ((distanceKm - 1) * 26.25)
- * - Rounded UP to the nearest ₹5
+ * Delivery Fee = ₹50 + max(0, Distance − 1) × ₹10
+ *
+ * Examples:
+ * - If distance <= 1 km: ₹50
+ * - If distance = 3 km: ₹50 + (3 - 1) * 10 = ₹70
+ * - If distance = 3.5 km: ₹50 + (3.5 - 1) * 10 = ₹75
  */
 export function calculateDeliveryCharge(distanceKm: number): number {
-  if (distanceKm <= DELIVERY_CONFIG.BASE_DISTANCE_KM) {
-    return DELIVERY_CONFIG.BASE_DELIVERY_FARE;
-  }
+  const extraDistance = Math.max(0, distanceKm - DELIVERY_CONFIG.BASE_DISTANCE_KM);
   const charge =
     DELIVERY_CONFIG.BASE_DELIVERY_FARE +
-    (distanceKm - DELIVERY_CONFIG.BASE_DISTANCE_KM) * DELIVERY_CONFIG.PER_KM_RATE;
-  return Math.ceil(charge / DELIVERY_CONFIG.ROUND_TO) * DELIVERY_CONFIG.ROUND_TO;
+    extraDistance * DELIVERY_CONFIG.PER_KM_RATE;
+  return Math.round(charge);
 }
 
 export interface StructuredAddress {

@@ -48,10 +48,50 @@ export async function createDeliverySlotsBulkServerAction(
       slots,
     } = options;
 
+    if (!startDate || !endDate) {
+      return { success: false, error: "Please provide valid start and end dates." };
+    }
+
+    if (!daysOfWeek || daysOfWeek.length === 0) {
+      return { success: false, error: "Please select at least one day of the week." };
+    }
+
+    if (!slots || slots.length === 0) {
+      return { success: false, error: "Please provide at least one time window." };
+    }
+
+    // Clean, normalize and deduplicate time windows
+    const uniqueSlotsMap = new Map<string, { start_time: string; end_time: string; capacity: number }>();
+    for (const s of slots) {
+      if (!s.start_time || !s.end_time) continue;
+      const cleanStart = s.start_time.trim().slice(0, 5); // "HH:MM"
+      const cleanEnd = s.end_time.trim().slice(0, 5);     // "HH:MM"
+      if (!cleanStart || !cleanEnd) continue;
+      
+      const key = `${cleanStart}-${cleanEnd}`;
+      const cap = Number(s.capacity) > 0 ? Number(s.capacity) : 10;
+      
+      // If already present, keep the higher capacity or overwrite cleanly
+      uniqueSlotsMap.set(key, {
+        start_time: cleanStart,
+        end_time: cleanEnd,
+        capacity: cap,
+      });
+    }
+
+    const cleanSlots = Array.from(uniqueSlotsMap.values());
+    if (cleanSlots.length === 0) {
+      return { success: false, error: "Please provide valid time windows with start and end times." };
+    }
+
     const start = new Date(`${startDate}T00:00:00`);
     const end = new Date(`${endDate}T00:00:00`);
-    const datesToCreate: string[] = [];
 
+    if (start > end) {
+      return { success: false, error: "Start date cannot be after end date." };
+    }
+
+    const datesToCreate: string[] = [];
     const curr = new Date(start);
     while (curr <= end) {
       const dayOfWeek = curr.getDay(); // 0 = Sun, 1 = Mon ...
@@ -64,12 +104,38 @@ export async function createDeliverySlotsBulkServerAction(
       curr.setDate(curr.getDate() + 1);
     }
 
-    if (datesToCreate.length === 0 || slots.length === 0) {
-      return { success: true, count: 0 };
+    if (datesToCreate.length === 0) {
+      return {
+        success: false,
+        error: "No matching days found in the selected date range for the chosen days of the week.",
+      };
     }
 
     const cleanCategoryId = categoryId && categoryId.trim() !== "" ? categoryId.trim() : null;
 
+    // Delete any existing overlapping slots in batch for these exact time windows
+    for (const slot of cleanSlots) {
+      let delQuery = supabase
+        .from("delivery_slots")
+        .delete()
+        .eq("restaurant_id", targetRestId)
+        .in("date", datesToCreate)
+        .eq("start_time", slot.start_time)
+        .eq("end_time", slot.end_time);
+
+      if (cleanCategoryId) {
+        delQuery = delQuery.eq("category_id", cleanCategoryId);
+      } else {
+        delQuery = delQuery.is("category_id", null);
+      }
+
+      const { error: delErr } = await delQuery;
+      if (delErr) {
+        console.warn("Pre-creation cleanup warning:", delErr);
+      }
+    }
+
+    // Prepare deduplicated insert rows
     const rows: Array<{
       restaurant_id: string;
       category_id: string | null;
@@ -82,38 +148,17 @@ export async function createDeliverySlotsBulkServerAction(
     }> = [];
 
     for (const dateStr of datesToCreate) {
-      for (const slot of slots) {
+      for (const slot of cleanSlots) {
         rows.push({
           restaurant_id: targetRestId,
           category_id: cleanCategoryId,
           date: dateStr,
           start_time: slot.start_time,
           end_time: slot.end_time,
-          capacity: Number(slot.capacity) || 10,
+          capacity: slot.capacity,
           is_active: true,
           is_closed: false,
         });
-      }
-    }
-
-    // Delete any existing overlapping slots for these exact parameters to prevent duplicates cleanly
-    for (const dateStr of datesToCreate) {
-      for (const slot of slots) {
-        let delQuery = supabase
-          .from("delivery_slots")
-          .delete()
-          .eq("restaurant_id", targetRestId)
-          .eq("date", dateStr)
-          .eq("start_time", slot.start_time)
-          .eq("end_time", slot.end_time);
-
-        if (cleanCategoryId) {
-          delQuery = delQuery.eq("category_id", cleanCategoryId);
-        } else {
-          delQuery = delQuery.is("category_id", null);
-        }
-
-        await delQuery;
       }
     }
 

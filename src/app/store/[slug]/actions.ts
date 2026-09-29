@@ -39,6 +39,8 @@ export interface CheckoutFormData {
 export interface CreateOrderResult {
   success: boolean;
   orderId?: string;
+  orderNumber?: string;
+  trackingToken?: string;
   whatsappUrl?: string;
   error?: string;
 }
@@ -73,8 +75,8 @@ export async function createOrder(
       }
     }
 
-    // 1.5. If delivery slot is selected, check capacity
-    if (data.orderType === "delivery" && data.deliverySlotId && !data.deliverySlotId.startsWith("fallback-")) {
+    // 1.5. If delivery/pickup slot is selected, check capacity
+    if (data.deliverySlotId && !data.deliverySlotId.startsWith("fallback-")) {
       const { data: slotData, error: slotErr } = await supabase
         .from("delivery_slots")
         .select("id, capacity, current_order_count, is_active, is_closed")
@@ -156,21 +158,37 @@ export async function createOrder(
     const total =
       itemsSubtotal + calculatedDeliveryCharge + packagingCharge + giftNoteCharge;
 
+    // Generate readable order number and secure tracking token
+    const randomSuffix = Math.floor(1000 + Math.random() * 9000);
+    const generatedOrderNumber = `${randomSuffix}`;
+    const generatedTrackingToken = Array.from(crypto.getRandomValues(new Uint8Array(16)))
+      .map((b) => b.toString(16).padStart(2, "0"))
+      .join("");
+
     // 3. Create order record with delivery slot details
     const orderPayload: any = {
       restaurant_id: data.restaurantId,
+      order_number: generatedOrderNumber,
+      tracking_token: generatedTrackingToken,
       customer_name: data.customerName.trim(),
       customer_phone: data.customerPhone.trim(),
+      customer_email: data.customerEmail?.trim() || null,
+      alternate_phone: data.alternatePhone?.trim() || null,
       delivery_address:
         data.orderType === "delivery" ? data.deliveryAddress.trim() : null,
+      pickup_location:
+        data.orderType === "takeaway" ? "The Indulgent Spoon, DLF Phase 4, Gurugram" : null,
       order_type: data.orderType,
       subtotal: itemsSubtotal,
       delivery_charge: calculatedDeliveryCharge,
       total,
-      status: "pending",
+      payment_method: "UPI",
+      payment_status: "unpaid",
+      status: "payment_verification_pending",
     };
 
-    if (data.orderType === "delivery" && data.deliveryDate) {
+    // Store delivery/pickup slot data for both order types
+    if (data.deliveryDate) {
       orderPayload.delivery_date = data.deliveryDate;
       orderPayload.delivery_time_slot = data.deliveryTimeSlot || null;
       orderPayload.delivery_start_time = data.deliveryStartTime || null;
@@ -188,44 +206,52 @@ export async function createOrder(
 
     if (orderError || !order) {
       console.error("Order creation error:", orderError);
+      throw new Error(orderError?.message || "Failed to initialize order.");
     }
 
-    const orderId = order?.id || `ORD-${Date.now().toString().slice(-6)}`;
-    const shortId = orderId.slice(0, 8).toUpperCase();
+    const orderId = order.id;
+    const orderNumber = order.order_number || generatedOrderNumber;
+    const trackingToken = order.tracking_token || generatedTrackingToken;
 
-    // 3. Try to insert order items if order was saved
-    if (order?.id) {
-      await supabase.from("order_items").insert(
-        orderItems.map((item) => ({
-          order_id: order.id,
-          product_id: item.productId,
-          product_name: item.productName,
-          quantity: item.quantity,
-          unit_price: item.unitPrice,
-          subtotal: item.subtotal,
-        }))
-      );
+    // 4. Insert order items
+    await supabase.from("order_items").insert(
+      orderItems.map((item) => ({
+        order_id: order.id,
+        product_id: item.productId,
+        product_name: item.productName,
+        quantity: item.quantity,
+        unit_price: item.unitPrice,
+        subtotal: item.subtotal,
+      }))
+    );
 
-      // Increment total_ordered for each ordered product
-      for (const item of data.cartItems) {
-        if (item.productId) {
-          const { data: prod } = await supabase
-            .from("products")
-            .select("total_ordered")
-            .eq("id", item.productId)
-            .single();
+    // Initial status history
+    await supabase.from("order_status_history").insert({
+      order_id: order.id,
+      status: "payment_verification_pending",
+      changed_by: "customer",
+      notes: "Order created, waiting for UPI payment submission",
+    });
 
-          const currentCount = prod?.total_ordered || 0;
-          await supabase
-            .from("products")
-            .update({ total_ordered: currentCount + item.quantity })
-            .eq("id", item.productId);
-        }
+    // Increment total_ordered for each ordered product
+    for (const item of data.cartItems) {
+      if (item.productId) {
+        const { data: prod } = await supabase
+          .from("products")
+          .select("total_ordered")
+          .eq("id", item.productId)
+          .single();
+
+        const currentCount = prod?.total_ordered || 0;
+        await supabase
+          .from("products")
+          .update({ total_ordered: currentCount + item.quantity })
+          .eq("id", item.productId);
       }
     }
 
-    // 4. Build WhatsApp message
-    let msg = `🍰 *New Bakery Order #${shortId}*\n`;
+    // 5. Build WhatsApp URL
+    let msg = `🍰 *New Bakery Order #${orderNumber}*\n`;
     msg += `━━━━━━━━━━━━━━\n`;
     msg += `*Customer:* ${data.customerName}\n`;
     msg += `*Phone:* ${data.customerPhone}\n`;
@@ -261,6 +287,25 @@ export async function createOrder(
       }
     }
 
+    if (data.orderType === "takeaway") {
+      if (data.deliveryDate) {
+        const dObj = new Date(data.deliveryDate + "T00:00:00");
+        const formattedPickupDate = isNaN(dObj.getTime())
+          ? data.deliveryDate
+          : dObj.toLocaleDateString("en-IN", {
+              weekday: "short",
+              month: "short",
+              day: "numeric",
+              year: "numeric",
+            });
+        msg += `*Pickup Date:* ${formattedPickupDate}\n`;
+      }
+      if (data.deliveryTimeSlot) {
+        msg += `*Pickup Slot:* ⏰ ${data.deliveryTimeSlot}\n`;
+      }
+      msg += `*Pickup Location:* The Indulgent Spoon, DLF Phase 4, Gurugram\n`;
+    }
+
     msg += `━━━━━━━━━━━━━━\n`;
     msg += `*Items:*\n`;
     for (const item of orderItems) {
@@ -280,24 +325,37 @@ export async function createOrder(
       msg += `*Gift Note (+₹40):* "${data.giftNote.trim()}"\n`;
     }
     msg += `*Total Amount:* ₹${total}\n`;
+    msg += `*Payment:* UPI (Pending Verification)\n`;
     msg += `━━━━━━━━━━━━━━\n`;
-    msg += `_Please confirm my order and share payment details._`;
+    msg += `_Please confirm my order and verify payment._`;
 
-    // 5. Build WhatsApp URL
     const cleanNumber = data.whatsappNumber.replace(/\D/g, "");
     const encodedMsg = encodeURIComponent(msg);
     const whatsappUrl = `https://wa.me/${cleanNumber}?text=${encodedMsg}`;
 
     return {
       success: true,
-      orderId: order?.id || orderId,
+      orderId: order.id,
+      orderNumber,
+      trackingToken,
       whatsappUrl,
     };
   } catch (err: unknown) {
     console.error("createOrder unexpected error:", err);
     return {
       success: false,
-      error: "Failed to process order. Please try again.",
+      error: err instanceof Error ? err.message : "Failed to process order. Please try again.",
     };
   }
 }
+
+/**
+ * Server Action for customer clicking "I PAID" on payment page
+ */
+export async function submitPaymentConfirmation(payload: {
+  orderId: string;
+}) {
+  const { submitCustomerPaymentAction } = await import("@/lib/order-approval-service");
+  return submitCustomerPaymentAction({ orderId: payload.orderId });
+}
+

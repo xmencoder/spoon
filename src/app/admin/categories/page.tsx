@@ -34,7 +34,19 @@ import {
   Upload,
   ImageIcon,
   CalendarClock,
+  Timer,
 } from "lucide-react";
+
+/** Format a baking period in hours to a human-friendly string */
+function formatBakingPeriod(hours: number | null | undefined): string {
+  if (hours == null || hours <= 0) return "";
+  if (hours < 1) return `${Math.round(hours * 60)} min`;
+  if (hours === 1) return "1 hr";
+  if (hours < 24) return `${hours} hrs`;
+  const days = hours / 24;
+  if (Number.isInteger(days)) return `${days} day${days !== 1 ? "s" : ""}`;
+  return `${hours} hrs`;
+}
 
 interface CategoryWithCount extends Category {
   productCount: number;
@@ -52,6 +64,7 @@ export default function AdminCategoriesPage() {
   const [newCatName, setNewCatName] = useState("");
   const [newCatImageFile, setNewCatImageFile] = useState<File | null>(null);
   const [newCatImagePreview, setNewCatImagePreview] = useState<string | null>(null);
+  const [newCatBakingHours, setNewCatBakingHours] = useState<string>("");
   const [creating, setCreating] = useState(false);
   const fileInputRef = useRef<HTMLInputElement>(null);
 
@@ -60,6 +73,7 @@ export default function AdminCategoriesPage() {
   const [editingName, setEditingName] = useState("");
   const [editingImageFile, setEditingImageFile] = useState<File | null>(null);
   const [editingImagePreview, setEditingImagePreview] = useState<string | null>(null);
+  const [editingBakingHours, setEditingBakingHours] = useState<string>("");
   const [savingEdit, setSavingEdit] = useState(false);
   const editFileInputRef = useRef<HTMLInputElement>(null);
 
@@ -175,7 +189,8 @@ export default function AdminCategoriesPage() {
         }
       }
 
-      const res = await createCategoryServerAction(restId, categoryName, uploadedUrl);
+      const bakingVal = newCatBakingHours.trim() !== "" ? parseFloat(newCatBakingHours) : null;
+      const res = await createCategoryServerAction(restId, categoryName, uploadedUrl, bakingVal && !isNaN(bakingVal) ? bakingVal : null);
       if (!res.success) {
         throw new Error(res.error || "Failed to create category");
       }
@@ -183,6 +198,7 @@ export default function AdminCategoriesPage() {
       setNewCatName("");
       setNewCatImageFile(null);
       setNewCatImagePreview(null);
+      setNewCatBakingHours("");
       if (fileInputRef.current) fileInputRef.current.value = "";
 
       setSuccessMsg(`Category "${categoryName}" created successfully!`);
@@ -236,6 +252,9 @@ export default function AdminCategoriesPage() {
     setEditingName(cat.name);
     setEditingImageFile(null);
     setEditingImagePreview(cat.image_url || null);
+    setEditingBakingHours(
+      cat.baking_period_hours != null ? String(cat.baking_period_hours) : ""
+    );
   };
 
   const cancelEdit = () => {
@@ -243,6 +262,7 @@ export default function AdminCategoriesPage() {
     setEditingName("");
     setEditingImageFile(null);
     setEditingImagePreview(null);
+    setEditingBakingHours("");
   };
 
   // Save Inline Edit
@@ -272,7 +292,13 @@ export default function AdminCategoriesPage() {
         }
       }
 
-      const res = await updateCategoryServerAction(cat.id, editingName.trim(), uploadedUrl);
+      const bakingVal = editingBakingHours.trim() !== "" ? parseFloat(editingBakingHours) : null;
+      const res = await updateCategoryServerAction(
+        cat.id,
+        editingName.trim(),
+        uploadedUrl,
+        bakingVal && !isNaN(bakingVal) ? bakingVal : null
+      );
       if (!res.success) {
         throw new Error(res.error || "Failed to update category");
       }
@@ -445,6 +471,38 @@ export default function AdminCategoriesPage() {
             </Button>
           </div>
         </div>
+
+        {/* Baking Period Row */}
+        <div className="flex flex-col sm:flex-row sm:items-center gap-3 pt-1 border-t border-spoon-border/50">
+          <div className="flex items-center gap-2 sm:w-56 shrink-0">
+            <Timer className="h-4 w-4 text-spoon-caramel shrink-0" />
+            <div>
+              <span className="text-xs font-bold text-spoon-dark block">Baking Period</span>
+              <span className="text-[10px] text-spoon-muted">
+                Lead time before earliest delivery slot
+              </span>
+            </div>
+          </div>
+          <div className="flex items-center gap-2 flex-1">
+            <Input
+              type="number"
+              min="0"
+              step="0.5"
+              value={newCatBakingHours}
+              onChange={(e) => setNewCatBakingHours(e.target.value)}
+              placeholder="e.g. 2 (hrs) or 48 (2 days)"
+              disabled={creating}
+              className="h-9 text-xs bg-white border-spoon-border focus:border-spoon-caramel max-w-[220px]"
+            />
+            <span className="text-xs text-spoon-muted shrink-0">hours</span>
+            {newCatBakingHours && parseFloat(newCatBakingHours) > 0 && (
+              <span className="inline-flex items-center gap-1 text-[11px] font-semibold text-spoon-caramel bg-amber-50 border border-amber-200 px-2.5 py-1 rounded-full">
+                <Timer className="h-3 w-3" />
+                {formatBakingPeriod(parseFloat(newCatBakingHours))} baking period
+              </span>
+            )}
+          </div>
+        </div>
       </form>
 
       {/* Messages */}
@@ -601,29 +659,53 @@ export default function AdminCategoriesPage() {
                           <span>Photo</span>
                         </button>
 
-                        <button
-                          type="button"
-                          onClick={() => saveEdit(cat)}
-                          disabled={savingEdit}
-                          className="p-2 rounded-lg bg-emerald-600 text-white hover:bg-emerald-700 transition-colors cursor-pointer"
-                          title="Save"
-                        >
-                          {savingEdit ? (
-                            <Loader2 className="h-4 w-4 animate-spin" />
-                          ) : (
-                            <Check className="h-4 w-4" />
-                          )}
-                        </button>
-                        <button
-                          type="button"
-                          onClick={cancelEdit}
-                          disabled={savingEdit}
-                          className="p-2 rounded-lg border border-spoon-border bg-white text-spoon-muted hover:text-spoon-dark transition-colors cursor-pointer"
-                          title="Cancel"
-                        >
-                          <X className="h-4 w-4" />
-                        </button>
-                      </div>
+                          <button
+                            type="button"
+                            onClick={() => saveEdit(cat)}
+                            disabled={savingEdit}
+                            className="p-2 rounded-lg bg-emerald-600 text-white hover:bg-emerald-700 transition-colors cursor-pointer"
+                            title="Save"
+                          >
+                            {savingEdit ? (
+                              <Loader2 className="h-4 w-4 animate-spin" />
+                            ) : (
+                              <Check className="h-4 w-4" />
+                            )}
+                          </button>
+                          <button
+                            type="button"
+                            onClick={cancelEdit}
+                            disabled={savingEdit}
+                            className="p-2 rounded-lg border border-spoon-border bg-white text-spoon-muted hover:text-spoon-dark transition-colors cursor-pointer"
+                            title="Cancel"
+                          >
+                            <X className="h-4 w-4" />
+                          </button>
+
+                          {/* Baking Period inline field - full row below */}
+                          <div className="w-full flex items-center gap-2 pt-1 border-t border-spoon-border/40 mt-1">
+                            <Timer className="h-3.5 w-3.5 text-spoon-caramel shrink-0" />
+                            <span className="text-[10px] font-semibold text-spoon-dark">Baking Period:</span>
+                            <Input
+                              type="number"
+                              min="0"
+                              step="0.5"
+                              value={editingBakingHours}
+                              onChange={(e) => setEditingBakingHours(e.target.value)}
+                              placeholder="hrs (e.g. 2 or 48)"
+                              disabled={savingEdit}
+                              title="Baking period in hours (e.g. 2 = 2 hrs, 48 = 2 days)"
+                              className="h-8 text-xs w-28 border-spoon-border focus:border-spoon-caramel"
+                            />
+                            <span className="text-[10px] text-spoon-muted">hours</span>
+                            {editingBakingHours && parseFloat(editingBakingHours) > 0 && (
+                              <span className="inline-flex items-center gap-1 text-[10px] font-semibold text-amber-800 bg-amber-50 border border-amber-200 px-2 py-0.5 rounded-full">
+                                <Timer className="h-3 w-3" />
+                                {formatBakingPeriod(parseFloat(editingBakingHours))}
+                              </span>
+                            )}
+                          </div>
+                        </div>
                     ) : (
                       <div className="min-w-0">
                         <div className="flex items-center gap-2">
@@ -634,9 +716,17 @@ export default function AdminCategoriesPage() {
                             #{cat.sort_order}
                           </span>
                         </div>
-                        <span className="text-[11px] text-spoon-muted block">
-                          {cat.productCount} {cat.productCount === 1 ? "menu item" : "menu items"}
-                        </span>
+                        <div className="flex items-center gap-2 flex-wrap mt-0.5">
+                          <span className="text-[11px] text-spoon-muted">
+                            {cat.productCount} {cat.productCount === 1 ? "menu item" : "menu items"}
+                          </span>
+                          {cat.baking_period_hours != null && cat.baking_period_hours > 0 && (
+                            <span className="inline-flex items-center gap-1 text-[10px] font-semibold text-amber-800 bg-amber-50 border border-amber-200 px-2 py-0.5 rounded-full">
+                              <Timer className="h-3 w-3" />
+                              {formatBakingPeriod(cat.baking_period_hours)} baking
+                            </span>
+                          )}
+                        </div>
                       </div>
                     )}
                   </div>

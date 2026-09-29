@@ -8,7 +8,8 @@ import { createClient } from "@/lib/supabase/server";
 export async function createCategoryServerAction(
   restaurantId: string | undefined | null,
   name: string,
-  imageUrl?: string | null
+  imageUrl?: string | null,
+  bakingPeriodHours?: number | null
 ) {
   try {
     const supabase = await createClient();
@@ -52,6 +53,12 @@ export async function createCategoryServerAction(
       payload.image_url = imageUrl;
     }
 
+    if (bakingPeriodHours !== undefined && bakingPeriodHours !== null) {
+      payload.baking_period_hours = bakingPeriodHours;
+    } else {
+      payload.baking_period_hours = null;
+    }
+
     let { data, error } = await supabase
       .from("categories")
       .insert(payload)
@@ -90,7 +97,8 @@ export async function createCategoryServerAction(
 export async function updateCategoryServerAction(
   categoryId: string,
   name: string,
-  imageUrl?: string | null
+  imageUrl?: string | null,
+  bakingPeriodHours?: number | null
 ) {
   try {
     const supabase = await createClient();
@@ -98,6 +106,10 @@ export async function updateCategoryServerAction(
     if (imageUrl !== undefined) {
       payload.image_url = imageUrl;
     }
+    // Always persist baking_period_hours (null clears it)
+    payload.baking_period_hours = (bakingPeriodHours !== undefined && bakingPeriodHours !== null && !isNaN(bakingPeriodHours))
+      ? bakingPeriodHours
+      : null;
 
     let { data, error } = await supabase
       .from("categories")
