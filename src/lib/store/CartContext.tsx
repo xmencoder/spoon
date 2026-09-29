@@ -9,6 +9,7 @@ import React, {
   useState,
 } from "react";
 import type { Product } from "@/types/database";
+import { flyToCart } from "@/lib/fly-to-cart";
 
 export interface CartAddon {
   id: string;
@@ -177,7 +178,8 @@ interface CartContextValue {
       sizeLabel?: string;
       addons?: CartAddon[];
       unitPrice?: number;
-    }
+    },
+    sourceEventOrElement?: React.MouseEvent | MouseEvent | HTMLElement | null
   ) => void;
   removeItem: (itemId: string) => void;
   increment: (itemId: string) => void;
@@ -294,7 +296,8 @@ export function CartProvider({
         sizeLabel?: string;
         addons?: CartAddon[];
         unitPrice?: number;
-      }
+      },
+      sourceEventOrElement?: React.MouseEvent | MouseEvent | HTMLElement | null
     ) => {
       const unitPrice =
         options?.unitPrice !== undefined ? options.unitPrice : product.price;
@@ -323,7 +326,20 @@ export function CartProvider({
       });
 
       setLastAddedItem(itemSnapshot);
-      setIsDrawerOpen(true);
+
+      // Trigger smooth fly-to-cart animation instead of opening side drawer
+      flyToCart({
+        imageUrl: product.image_url,
+        productId: product.id,
+        sourceElement:
+          typeof HTMLElement !== "undefined" && sourceEventOrElement instanceof HTMLElement
+            ? sourceEventOrElement
+            : undefined,
+        sourceEvent:
+          sourceEventOrElement && typeof sourceEventOrElement === "object" && "currentTarget" in sourceEventOrElement
+            ? sourceEventOrElement
+            : undefined,
+      });
     },
     []
   );

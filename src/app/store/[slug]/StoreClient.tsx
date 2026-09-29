@@ -174,7 +174,7 @@ export default function StoreClient({
                 key={product.id}
                 product={product}
                 slug={slug}
-                onAdd={() => addItem(product)}
+                onAdd={(e) => addItem(product, 1, undefined, e)}
                 quantity={getQuantity(product.id)}
                 onIncrement={() => increment(product.id)}
                 onDecrement={() => decrement(product.id)}
@@ -224,7 +224,7 @@ export default function StoreClient({
                 product={product}
                 slug={slug}
                 categoryName={getCategoryName(product.category_id)}
-                onAdd={() => addItem(product)}
+                onAdd={(e) => addItem(product, 1, undefined, e)}
                 quantity={getQuantity(product.id)}
                 onIncrement={() => increment(product.id)}
                 onDecrement={() => decrement(product.id)}
@@ -269,14 +269,18 @@ function FeaturedCard({
 }: {
   product: Product;
   slug: string;
-  onAdd: () => void;
+  onAdd: (e?: React.MouseEvent) => void;
   quantity: number;
   onIncrement: () => void;
   onDecrement: () => void;
 }) {
   return (
     <div className="relative rounded-2xl overflow-hidden border border-[#91885D]/30 bg-[#F5EBDD] shadow-warm-sm group hover:border-[#91885D]/60 transition-all">
-      <Link href={`/store/${slug}/product/${product.id}`} className="block relative h-40 bg-[#E8D5BC] cursor-pointer">
+      <Link
+        href={`/store/${slug}/product/${product.id}`}
+        data-product-img={product.id}
+        className="block relative h-40 bg-[#E8D5BC] cursor-pointer"
+      >
         {product.image_url ? (
           <Image
             src={product.image_url}
@@ -344,7 +348,7 @@ function ProductCard({
   product: Product;
   slug: string;
   categoryName: string;
-  onAdd: () => void;
+  onAdd: (e?: React.MouseEvent) => void;
   quantity: number;
   onIncrement: () => void;
   onDecrement: () => void;
@@ -366,6 +370,7 @@ function ProductCard({
       {/* Image */}
       <Link
         href={`/store/${slug}/product/${product.id}`}
+        data-product-img={product.id}
         className="relative h-24 w-24 shrink-0 rounded-xl overflow-hidden bg-[#E8D5BC] border border-[#91885D]/25 block cursor-pointer"
       >
         {product.image_url ? (

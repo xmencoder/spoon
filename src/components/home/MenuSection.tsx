@@ -638,7 +638,7 @@ export function MenuSection({ slug = "the-indulgent-spoon" }: MenuSectionProps) 
     setFavorites((prev) => ({ ...prev, [id]: !prev[id] }));
   };
 
-  const handleAddToCart = (item: MenuItem) => {
+  const handleAddToCart = (item: MenuItem, e?: React.MouseEvent) => {
     const inCartCount = getProductQuantity(item.id);
     const qty = getQty(item.id);
     const qtyToAdd = inCartCount > 0 ? 1 : Math.max(1, qty);
@@ -656,7 +656,9 @@ export function MenuSection({ slug = "the-indulgent-spoon" }: MenuSectionProps) 
         category_id: null,
         sort_order: 0,
       },
-      qtyToAdd
+      qtyToAdd,
+      undefined,
+      e
     );
 
     setAddedItem(item.id);
@@ -860,6 +862,7 @@ export function MenuSection({ slug = "the-indulgent-spoon" }: MenuSectionProps) 
                 {/* Left Side: Product Image (42% width) */}
                 <Link
                   href={`/store/${slug}/product/${item.id}`}
+                  data-product-img={item.id}
                   className="relative w-[42%] shrink-0 overflow-hidden bg-[#EFE5D7] block cursor-pointer group"
                 >
                   <Image
@@ -992,7 +995,7 @@ export function MenuSection({ slug = "the-indulgent-spoon" }: MenuSectionProps) 
 
                     {/* Add Button with In-Cart State */}
                     <button
-                      onClick={() => handleAddToCart(item)}
+                      onClick={(e) => handleAddToCart(item, e)}
                       className={`flex items-center justify-center gap-1 px-2.5 py-1.5 rounded-lg text-[11px] font-semibold transition-all duration-200 cursor-pointer shadow-xs whitespace-nowrap ${
                         isJustAdded
                           ? "bg-[#4D7C47] text-white"
@@ -1044,6 +1047,7 @@ export function MenuSection({ slug = "the-indulgent-spoon" }: MenuSectionProps) 
                 {/* Image Container */}
                 <Link
                   href={`/store/${slug}/product/${item.id}`}
+                  data-product-img={item.id}
                   className="relative aspect-4/3 sm:aspect-[1.18/1] w-full overflow-hidden rounded-2xl bg-[#EFE5D7] block cursor-pointer"
                 >
                   <Image
@@ -1177,7 +1181,7 @@ export function MenuSection({ slug = "the-indulgent-spoon" }: MenuSectionProps) 
 
                     {/* Add to Cart Button */}
                     <button
-                      onClick={() => handleAddToCart(item)}
+                      onClick={(e) => handleAddToCart(item, e)}
                       className={`flex-1 flex items-center justify-center gap-2 py-2.5 px-4 rounded-xl text-xs sm:text-sm font-semibold transition-all duration-200 cursor-pointer shadow-xs ${
                         isJustAdded
                           ? "bg-[#4D7C47] text-white"

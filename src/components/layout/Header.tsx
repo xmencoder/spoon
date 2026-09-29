@@ -16,7 +16,21 @@ export function Header({ cartCount: initialCartCount }: HeaderProps) {
   const { totalItems, openCartDrawer, restaurantSlug } = useCart();
   const [isSearchOpen, setIsSearchOpen] = useState(false);
   const [searchQuery, setSearchQuery] = useState("");
+  const [isBouncing, setIsBouncing] = useState(false);
   const pathname = usePathname();
+
+  useEffect(() => {
+    const handleFlyCompleted = () => {
+      setIsBouncing(true);
+      const timer = setTimeout(() => setIsBouncing(false), 700);
+      return () => clearTimeout(timer);
+    };
+
+    window.addEventListener("cart-item-fly-completed", handleFlyCompleted);
+    return () => {
+      window.removeEventListener("cart-item-fly-completed", handleFlyCompleted);
+    };
+  }, []);
 
   const effectiveCartCount = totalItems !== undefined ? totalItems : (initialCartCount || 0);
   const activeSlug = restaurantSlug || DEFAULT_RESTAURANT_SLUG;
@@ -134,17 +148,27 @@ export function Header({ cartCount: initialCartCount }: HeaderProps) {
             </div>
 
             <Link
+              id="navbar-cart-icon"
+              data-navbar-cart
               href={`/store/${activeSlug}/cart`}
-              className="relative p-1 text-[#E6DBC9] hover:text-white transition-colors flex items-center justify-center cursor-pointer group"
+              className={`relative p-1.5 text-[#E6DBC9] hover:text-white transition-all duration-200 flex items-center justify-center cursor-pointer group rounded-full ${
+                isBouncing ? "animate-cart-bounce text-white ring-2 ring-[#E8D5BC]/80 bg-[#68653F]" : ""
+              }`}
               aria-label="View Shopping Cart"
               title="View Cart"
             >
               <ShoppingCart
-                className="w-5 h-5 text-[#EAE0D1] group-hover:text-white transition-colors"
+                className={`w-5 h-5 transition-colors ${
+                  isBouncing ? "text-white" : "text-[#EAE0D1] group-hover:text-white"
+                }`}
                 strokeWidth={1.75}
               />
               {effectiveCartCount > 0 && (
-                <span className="absolute -top-1 -right-2 bg-[#B54A3D] text-white text-[9.5px] font-bold w-4.5 h-4.5 rounded-full flex items-center justify-center shadow-xs border border-[#7A774D] animate-in zoom-in-50">
+                <span
+                  className={`absolute -top-1 -right-2 bg-[#B54A3D] text-white text-[9.5px] font-bold w-4.5 h-4.5 rounded-full flex items-center justify-center shadow-xs border border-[#7A774D] transition-transform ${
+                    isBouncing ? "scale-125 ring-2 ring-white" : "animate-in zoom-in-50"
+                  }`}
+                >
                   {effectiveCartCount}
                 </span>
               )}
