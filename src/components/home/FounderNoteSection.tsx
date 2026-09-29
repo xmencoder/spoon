@@ -91,10 +91,10 @@ export function FounderNoteSection() {
               >
                 <div className="relative w-[260px] sm:w-[300px] aspect-[3/4] overflow-hidden rounded-[1px]">
                   <Image
-                    src="/founder-photo.jpg"
+                    src="/founder-image.jpeg"
                     alt="Vasvi — Founder of The Indulgent Spoon, decorating a cake in her bakery kitchen"
                     fill
-                    className="object-cover object-top"
+                    className="object-cover object-center"
                     sizes="(max-width: 640px) 260px, 300px"
                     quality={90}
                   />
