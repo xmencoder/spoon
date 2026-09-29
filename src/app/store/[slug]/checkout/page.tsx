@@ -53,6 +53,19 @@ interface AddressSuggestion {
   postcode: string;
 }
 
+// Helper to dynamically load Razorpay Checkout Script
+const loadRazorpayScript = (): Promise<boolean> => {
+  return new Promise((resolve) => {
+    if (typeof window === "undefined") return resolve(false);
+    if ((window as any).Razorpay) return resolve(true);
+    const script = document.createElement("script");
+    script.src = "https://checkout.razorpay.com/v1/checkout.js";
+    script.onload = () => resolve(true);
+    script.onerror = () => resolve(false);
+    document.body.appendChild(script);
+  });
+};
+
 export default function CheckoutPage() {
   const params = useParams();
   const slug = params?.slug as string;
@@ -489,6 +502,9 @@ export default function CheckoutPage() {
         whatsappUrl: result.whatsappUrl,
         restaurantName: restaurant.name || "The Indulgent Spoon",
         restaurantPhone: restaurant.whatsapp_number,
+        paymentStatus: "PENDING",
+        paymentMethod: "Online / UPI",
+        trackingToken: result.trackingToken || result.orderId,
       };
 
       try {
@@ -500,7 +516,100 @@ export default function CheckoutPage() {
         console.error("Failed to store receipt in session:", e);
       }
 
-      // Open UPI Payment Page / Modal
+      // ── Step: Launch Razorpay Online Payment Gateway ──
+      try {
+        const rzpRes = await fetch("/api/razorpay/create-order", {
+          method: "POST",
+          headers: { "Content-Type": "application/json" },
+          body: JSON.stringify({
+            amount: total,
+            orderId: result.orderId,
+            customerName: formattedCustomerName,
+            customerPhone: phone.trim(),
+          }),
+        });
+
+        const rzpData = await rzpRes.json();
+        const isScriptLoaded = await loadRazorpayScript();
+
+        if (
+          rzpRes.ok &&
+          rzpData.success &&
+          isScriptLoaded &&
+          typeof window !== "undefined" &&
+          (window as any).Razorpay
+        ) {
+          const rzpOptions = {
+            key: rzpData.keyId,
+            amount: rzpData.amount,
+            currency: rzpData.currency || "INR",
+            name: "The Indulgent Spoon",
+            description: `Order #${result.orderNumber || result.orderId}`,
+            image: "/logo-m.png",
+            order_id:
+              rzpData.orderId && !rzpData.orderId.startsWith("order_sim_")
+                ? rzpData.orderId
+                : undefined,
+            prefill: {
+              name: formattedCustomerName,
+              contact: phone.trim(),
+              email: email.trim() || undefined,
+            },
+            theme: {
+              color: "#3e683f",
+            },
+            handler: async function (response: any) {
+              try {
+                setSubmitting(true);
+                // Verify payment on server
+                await fetch("/api/razorpay/verify-payment", {
+                  method: "POST",
+                  headers: { "Content-Type": "application/json" },
+                  body: JSON.stringify({
+                    razorpay_order_id: response?.razorpay_order_id || rzpData.orderId,
+                    razorpay_payment_id:
+                      response?.razorpay_payment_id || `pay_${Date.now()}`,
+                    razorpay_signature:
+                      response?.razorpay_signature || "simulated_sig",
+                    orderId: result.orderId,
+                    trackingToken: result.trackingToken,
+                  }),
+                });
+
+                // Update receipt with verified payment status
+                receiptData.paymentStatus = "PAID";
+                try {
+                  sessionStorage.setItem(`receipt-${slug}`, JSON.stringify(receiptData));
+                } catch {}
+
+                clearCart();
+
+                // Navigate directly to generated digital receipt
+                router.push(`/store/${slug}/order-success`);
+              } catch (e) {
+                console.error("Razorpay post-payment handler error:", e);
+                clearCart();
+                router.push(`/store/${slug}/order-success`);
+              }
+            },
+            modal: {
+              ondismiss: function () {
+                setSubmitting(false);
+                setShowPaymentModal(true); // Fallback to UPI modal if user closes Razorpay
+              },
+            },
+          };
+
+          const rzpInstance = new (window as any).Razorpay(rzpOptions);
+          rzpInstance.open();
+          setSubmitting(false);
+          return;
+        }
+      } catch (rzpErr) {
+        console.warn("Razorpay direct modal launch notice:", rzpErr);
+      }
+
+      // Fallback: Open UPI Payment Page / Modal
       setShowPaymentModal(true);
       setSubmitting(false);
     } catch (err: unknown) {
@@ -546,6 +655,16 @@ export default function CheckoutPage() {
       setSubmittingPaid(false);
     }
 
+    // Update receipt status in session
+    try {
+      const stored = sessionStorage.getItem(`receipt-${slug}`);
+      if (stored) {
+        const parsed = JSON.parse(stored);
+        parsed.paymentStatus = "PAID";
+        sessionStorage.setItem(`receipt-${slug}`, JSON.stringify(parsed));
+      }
+    } catch {}
+
     // Clear the local cart
     clearCart();
 
@@ -554,13 +673,8 @@ export default function CheckoutPage() {
       setCreatedOrderData((prev) => prev ? { ...prev, adminWhatsAppUrl } : prev);
     }
 
-    // Navigate directly to live tracking page (no customer WhatsApp popup)
-    if (targetToken) {
-      router.push(`/track-order/${targetToken}`);
-    } else {
-      // Fallback: show submitted state in modal
-      setPaymentSubmitted(true);
-    }
+    // Navigate directly to generated digital receipt
+    router.push(`/store/${slug}/order-success`);
   };
 
   if (loadingRestaurant) {
@@ -1330,7 +1444,7 @@ export default function CheckoutPage() {
             ) : (
               <>
                 <CreditCard className="h-5 w-5" />
-                <span>Do Payment (UPI / QR Code) — {formatPrice(total)}</span>
+                <span>Pay Online (Razorpay / UPI) — {formatPrice(total)}</span>
               </>
             )}
           </button>

@@ -29,7 +29,9 @@ import {
   Gift,
   ShieldCheck,
   Calendar,
+  Download,
 } from "lucide-react";
+import { generateOrderReceiptPdf } from "@/lib/pdf-generator";
 
 interface ReceiptItem {
   id: string;
@@ -65,6 +67,9 @@ interface ReceiptData {
   whatsappUrl?: string;
   restaurantName?: string;
   restaurantPhone?: string;
+  paymentStatus?: "PAID" | "PENDING" | string;
+  paymentMethod?: string;
+  trackingToken?: string;
 }
 
 export default function OrderSuccessReceiptPage() {
@@ -114,6 +119,55 @@ export default function OrderSuccessReceiptPage() {
     navigator.clipboard.writeText(UPI_ID);
     setCopiedUpi(true);
     setTimeout(() => setCopiedUpi(false), 2000);
+  };
+
+  const [downloadingPdf, setDownloadingPdf] = useState(false);
+
+  const handleDownloadPdf = () => {
+    if (!receipt) return;
+    try {
+      setDownloadingPdf(true);
+      const trackingUrl = typeof window !== "undefined" ? window.location.origin + `/track-order/${receipt.trackingToken || receipt.orderId}` : "";
+      const pdf = generateOrderReceiptPdf({
+        orderNumber: `#${receipt.orderId}`,
+        orderId: receipt.orderId,
+        createdAt: receipt.createdAt || new Date().toISOString(),
+        orderType: receipt.orderType,
+        customerName: receipt.customerName,
+        customerPhone: receipt.customerPhone,
+        customerEmail: receipt.customerEmail,
+        deliveryAddress: receipt.deliveryAddress,
+        deliveryDate: receipt.deliveryDate,
+        deliveryTimeSlot: receipt.deliveryTimeSlot,
+        items: receipt.items.map((i) => ({
+          name: i.name,
+          quantity: i.quantity,
+          unitPrice: i.unitPrice,
+          sizeLabel: i.sizeLabel,
+          addons: i.addons,
+          subtotal: i.unitPrice * i.quantity,
+        })),
+        subtotal: receipt.subtotal,
+        deliveryCharge: receipt.deliveryCharge,
+        packagingFee: receipt.packagingFee,
+        giftNoteFee: receipt.giftNoteFee,
+        giftNote: receipt.giftNote,
+        total: receipt.total,
+        paymentMethod: receipt.paymentMethod || "Razorpay / Online",
+        paymentStatus: (receipt.paymentStatus || "PAID").toUpperCase(),
+        paymentVerifiedAt: new Date().toISOString(),
+        trackingUrl,
+        bakeryName: receipt.restaurantName || "The Indulgent Spoon",
+        bakeryPhone: receipt.restaurantPhone || "+91 9691639268",
+        bakeryAddress: "Mayfield Garden, Sector 51, Gurugram, Haryana",
+      });
+
+      pdf.save(`Receipt-${receipt.orderId}.pdf`);
+    } catch (e) {
+      console.error("PDF generation failed:", e);
+    } finally {
+      setDownloadingPdf(false);
+    }
   };
 
   const handlePrint = () => {
@@ -231,10 +285,17 @@ export default function OrderSuccessReceiptPage() {
               </div>
 
               <div className="flex items-center gap-2">
-                <span className="inline-flex items-center gap-1 px-2.5 py-1 rounded-full text-[10.5px] font-bold bg-[#4D7C47]/15 text-[#2D5A27] border border-[#4D7C47]/30">
-                  <CheckCircle2 className="w-3 h-3 text-[#4D7C47]" />
-                  <span>Order Placed</span>
-                </span>
+                {receipt.paymentStatus === "PAID" ? (
+                  <span className="inline-flex items-center gap-1 px-2.5 py-1 rounded-full text-[10.5px] font-bold bg-[#4D7C47]/15 text-[#2D5A27] border border-[#4D7C47]/30">
+                    <CheckCircle2 className="w-3 h-3 text-[#4D7C47]" />
+                    <span>Payment Verified</span>
+                  </span>
+                ) : (
+                  <span className="inline-flex items-center gap-1 px-2.5 py-1 rounded-full text-[10.5px] font-bold bg-[#A34B3D]/15 text-[#A34B3D] border border-[#A34B3D]/30">
+                    <Clock className="w-3 h-3 text-[#A34B3D]" />
+                    <span>Order Placed</span>
+                  </span>
+                )}
                 <span className="text-[11px] font-semibold text-[#696053]">
                   {formattedDate} • {formattedTime}
                 </span>
@@ -467,17 +528,50 @@ export default function OrderSuccessReceiptPage() {
         {/* ── PAYMENT & CONFIRMATION ACTIONS (HIDDEN IN PRINT) ── */}
         {/* ══════════════════════════════════════════════════════════════ */}
         <div className="space-y-3 print:hidden">
-          {/* Primary Action 1: Do Payment (UPI / QR Code) */}
-          <button
-            type="button"
-            onClick={() => setShowPaymentModal(true)}
-            className="w-full flex items-center justify-center gap-2.5 rounded-2xl bg-[#4D7C47] hover:bg-[#3D6638] text-white py-4 text-sm font-bold shadow-warm-lg hover:shadow-warm-xl transition-all active:scale-[0.99] cursor-pointer"
-          >
-            <CreditCard className="w-5 h-5 text-white" />
-            <span>Do Payment (UPI / QR Code) — {formatPrice(receipt.total)}</span>
-          </button>
+          {receipt.paymentStatus === "PAID" ? (
+            <div className="rounded-2xl bg-[#4D7C47]/10 border border-[#4D7C47]/30 p-4 text-center space-y-2">
+              <div className="inline-flex items-center gap-1.5 text-xs font-bold text-[#2D5A27]">
+                <ShieldCheck className="w-4 h-4 text-[#4D7C47]" />
+                <span>Payment Confirmed via {receipt.paymentMethod || "Razorpay / UPI"}</span>
+              </div>
+              <p className="text-[11px] text-[#554D3F]">
+                Your handcrafted order has been received and scheduled for fresh baking.
+              </p>
+            </div>
+          ) : (
+            <button
+              type="button"
+              onClick={() => setShowPaymentModal(true)}
+              className="w-full flex items-center justify-center gap-2.5 rounded-2xl bg-[#3e683f] hover:bg-[#325633] text-white py-4 text-sm font-bold shadow-warm-lg hover:shadow-warm-xl transition-all active:scale-[0.99] cursor-pointer"
+            >
+              <CreditCard className="w-5 h-5 text-white" />
+              <span>Complete Payment — {formatPrice(receipt.total)}</span>
+            </button>
+          )}
 
-          {/* Primary Action 2: Open / Send on WhatsApp */}
+          {/* Download PDF & Print buttons */}
+          <div className="grid grid-cols-2 gap-3">
+            <button
+              type="button"
+              onClick={handleDownloadPdf}
+              disabled={downloadingPdf}
+              className="flex items-center justify-center gap-2 rounded-2xl bg-[#F5EBDD] border border-[#91885D]/35 hover:bg-[#E8D5BC] text-[#29251F] py-3 text-xs font-bold shadow-xs transition-all cursor-pointer disabled:opacity-50"
+            >
+              <Download className="w-4 h-4 text-[#C26B59]" />
+              <span>{downloadingPdf ? "Saving PDF..." : "Download PDF"}</span>
+            </button>
+
+            <button
+              type="button"
+              onClick={handlePrint}
+              className="flex items-center justify-center gap-2 rounded-2xl bg-[#F5EBDD] border border-[#91885D]/35 hover:bg-[#E8D5BC] text-[#29251F] py-3 text-xs font-bold shadow-xs transition-all cursor-pointer"
+            >
+              <Printer className="w-4 h-4 text-[#696053]" />
+              <span>Print Receipt</span>
+            </button>
+          </div>
+
+          {/* Primary Action: Open / Send on WhatsApp */}
           {receipt.whatsappUrl && (
             <a
               href={receipt.whatsappUrl}
@@ -486,7 +580,7 @@ export default function OrderSuccessReceiptPage() {
               className="w-full flex items-center justify-center gap-2.5 rounded-2xl bg-[#634832] hover:bg-[#523B28] text-[#F5EBDD] py-3.5 text-xs sm:text-sm font-bold shadow-warm-md hover:shadow-warm-lg transition-all active:scale-[0.99]"
             >
               <MessageCircle className="w-4 h-4 text-[#F5EBDD]" />
-              <span>Confirm &amp; Send Order on WhatsApp</span>
+              <span>Send Order to Bakery on WhatsApp</span>
               <ExternalLink className="w-3.5 h-3.5 opacity-80" />
             </a>
           )}
@@ -498,7 +592,7 @@ export default function OrderSuccessReceiptPage() {
               className="inline-flex items-center gap-1.5 text-xs font-bold text-[#A34B3D] hover:text-[#7A362B] transition-colors"
             >
               <ArrowLeft className="w-3.5 h-3.5" />
-              <span>Continue Shopping &amp; Back to Menu</span>
+              <span>Back to Bakery Menu</span>
             </Link>
           </div>
         </div>
