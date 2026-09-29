@@ -75,6 +75,7 @@ export interface Product {
   is_veg?: boolean | null;
   story_text?: string | null;
   rating?: number | null;
+  popular_rank?: number | null;
   created_at?: string;
   updated_at?: string;
 }

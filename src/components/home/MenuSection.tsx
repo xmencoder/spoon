@@ -558,10 +558,21 @@ export function MenuSection({ slug = "the-indulgent-spoon" }: MenuSectionProps) 
     }
   };
 
-  const filteredItems =
-    activeCategory === "popular"
-      ? activeMenuItems.filter((item) => item.isPopular)
-      : activeMenuItems.filter((item) => item.category === activeCategory);
+  const filteredItems = (() => {
+    if (activeCategory === "popular") {
+      const popularItems = activeMenuItems.filter((item) => item.isPopular);
+      if (dbLoaded && liveDbProducts.length > 0) {
+        // Sort by popular_rank from the live DB product
+        return [...popularItems].sort((a, b) => {
+          const rankA = liveDbProducts.find((p) => p.id === a.id)?.popular_rank ?? 999;
+          const rankB = liveDbProducts.find((p) => p.id === b.id)?.popular_rank ?? 999;
+          return rankA - rankB;
+        });
+      }
+      return popularItems;
+    }
+    return activeMenuItems.filter((item) => item.category === activeCategory);
+  })();
 
   const displayItems =
     filteredItems.length > 0
@@ -569,6 +580,7 @@ export function MenuSection({ slug = "the-indulgent-spoon" }: MenuSectionProps) 
       : activeMenuItems.filter((item) => item.isPopular).length > 0
       ? activeMenuItems.filter((item) => item.isPopular)
       : activeMenuItems.slice(0, 6);
+
 
   const getQty = (id: string) => (quantities[id] !== undefined ? quantities[id] : 1);
 

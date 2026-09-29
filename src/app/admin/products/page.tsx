@@ -1,6 +1,6 @@
 "use client";
 
-import React, { useEffect, useState, useTransition } from "react";
+import React, { useEffect, useState } from "react";
 import Link from "next/link";
 import Image from "next/image";
 import { useAdmin } from "@/lib/admin/AdminContext";
@@ -9,6 +9,7 @@ import {
   getAdminCategories,
   deleteAdminProduct,
   toggleAdminProductAvailability,
+  setProductPopularRank,
 } from "@/lib/admin/admin-service";
 import type { Product, Category } from "@/types/database";
 import { Button } from "@/components/ui/button";
@@ -18,15 +19,15 @@ import {
   Edit2,
   Trash2,
   Loader2,
-  Utensils,
   AlertTriangle,
   Star,
   CheckCircle2,
   Cake,
   Layers,
   ShoppingBag,
-  Sparkles,
   ShieldAlert,
+  Trophy,
+  X,
 } from "lucide-react";
 import { formatPrice } from "@/lib/utils";
 
@@ -40,6 +41,11 @@ export default function AdminProductsPage() {
   const [deleteModalProduct, setDeleteModalProduct] = useState<Product | null>(null);
   const [isDeleting, setIsDeleting] = useState(false);
   const [feedback, setFeedback] = useState<{ type: "success" | "error"; message: string } | null>(null);
+
+  // Popular rank modal state
+  const [popularModal, setPopularModal] = useState<{ product: Product } | null>(null);
+  const [popularRankInput, setPopularRankInput] = useState<string>("");
+  const [savingPopular, setSavingPopular] = useState(false);
 
   const loadData = async (restId: string) => {
     try {
@@ -100,6 +106,64 @@ export default function AdminProductsPage() {
         type: "error",
         message: "Failed to update availability status",
       });
+    }
+  };
+
+  // ── Popular / Featured handlers ──
+  const openPopularModal = (product: Product) => {
+    setPopularModal({ product });
+    setPopularRankInput(
+      product.featured && product.popular_rank ? String(product.popular_rank) : ""
+    );
+  };
+
+  const handleSavePopular = async () => {
+    if (!popularModal) return;
+    const { product } = popularModal;
+    const rank = popularRankInput.trim() === "" ? null : parseInt(popularRankInput, 10);
+    const makeFeatured = rank !== null && !isNaN(rank) && rank > 0;
+    try {
+      setSavingPopular(true);
+      await setProductPopularRank(product.id, makeFeatured, makeFeatured ? rank : null);
+      setProducts((prev) =>
+        prev.map((p) =>
+          p.id === product.id
+            ? { ...p, featured: makeFeatured, popular_rank: makeFeatured ? rank : null }
+            : p
+        )
+      );
+      setFeedback({
+        type: "success",
+        message: makeFeatured
+          ? `"${product.name}" added to Popular at rank #${rank}`
+          : `"${product.name}" removed from Popular`,
+      });
+      setTimeout(() => setFeedback(null), 3000);
+      setPopularModal(null);
+    } catch (err) {
+      console.error(err);
+      setFeedback({ type: "error", message: "Failed to update popular status" });
+    } finally {
+      setSavingPopular(false);
+    }
+  };
+
+  const handleRemovePopular = async (product: Product) => {
+    try {
+      await setProductPopularRank(product.id, false, null);
+      setProducts((prev) =>
+        prev.map((p) =>
+          p.id === product.id ? { ...p, featured: false, popular_rank: null } : p
+        )
+      );
+      setFeedback({
+        type: "success",
+        message: `"${product.name}" removed from Popular`,
+      });
+      setTimeout(() => setFeedback(null), 3000);
+    } catch (err) {
+      console.error(err);
+      setFeedback({ type: "error", message: "Failed to remove from popular" });
     }
   };
 
@@ -298,6 +362,7 @@ export default function AdminProductsPage() {
             <table className="w-full text-left text-xs text-spoon-dark">
               <thead className="border-b border-spoon-border bg-spoon-sand/30 font-bold uppercase tracking-wider text-spoon-muted text-[10px]">
                 <tr>
+                  <th className="px-4 py-4 text-center w-20">Popular</th>
                   <th className="px-6 py-4">Item & Photography</th>
                   <th className="px-6 py-4">Category</th>
                   <th className="px-6 py-4">Base Price</th>
@@ -320,6 +385,37 @@ export default function AdminProductsPage() {
                       key={item.id}
                       className="hover:bg-spoon-sand/15 transition-colors group"
                     >
+                      {/* Popular toggle cell */}
+                      <td className="px-4 py-4">
+                        <div className="flex flex-col items-center gap-1">
+                          {item.featured ? (
+                            <>
+                              {/* Ranked badge — click to remove */}
+                              <button
+                                onClick={() => handleRemovePopular(item)}
+                                className="group/pop flex flex-col items-center gap-0.5"
+                                title="Click to remove from Popular"
+                              >
+                                <span className="flex h-7 w-7 items-center justify-center rounded-full bg-amber-400 text-white shadow-sm group-hover/pop:bg-rose-500 transition-colors">
+                                  <Trophy className="h-3.5 w-3.5" />
+                                </span>
+                                <span className="text-[10px] font-bold text-amber-700 group-hover/pop:text-rose-600 transition-colors">
+                                  #{item.popular_rank ?? "–"}
+                                </span>
+                              </button>
+                            </>
+                          ) : (
+                            <button
+                              onClick={() => openPopularModal(item)}
+                              className="flex h-7 w-7 items-center justify-center rounded-full border-2 border-dashed border-spoon-border text-spoon-muted hover:border-amber-400 hover:text-amber-500 transition-all"
+                              title="Add to Popular Categories"
+                            >
+                              <Star className="h-3.5 w-3.5" />
+                            </button>
+                          )}
+                        </div>
+                      </td>
+
                       {/* Product details with image */}
                       <td className="px-6 py-4">
                         <div className="flex items-center gap-3.5">
@@ -550,6 +646,92 @@ export default function AdminProductsPage() {
                   <Trash2 className="h-4 w-4" />
                 )}
                 <span>Confirm Delete</span>
+              </button>
+            </div>
+          </div>
+        </div>
+      )}
+
+      {/* ── Popular Rank Modal ── */}
+      {popularModal && (
+        <div className="fixed inset-0 z-50 flex items-center justify-center bg-black/40 p-4 backdrop-blur-xs">
+          <div className="w-full max-w-sm rounded-3xl border border-spoon-border bg-white p-6 shadow-2xl space-y-4">
+            <div className="flex items-center justify-between">
+              <div className="flex items-center gap-2.5">
+                <div className="flex h-9 w-9 items-center justify-center rounded-full bg-amber-100">
+                  <Trophy className="h-4.5 w-4.5 text-amber-600" />
+                </div>
+                <div>
+                  <h3 className="font-serif text-base font-bold text-spoon-dark">Set Popular Rank</h3>
+                  <p className="text-[10px] text-spoon-muted">{popularModal.product.name}</p>
+                </div>
+              </div>
+              <button
+                onClick={() => setPopularModal(null)}
+                className="rounded-full p-1.5 text-spoon-muted hover:bg-spoon-sand transition-colors"
+              >
+                <X className="h-4 w-4" />
+              </button>
+            </div>
+
+            <p className="text-[11px] text-spoon-muted leading-relaxed">
+              Enter a rank number (1, 2, 3…). Products are displayed in the{" "}
+              <strong className="text-spoon-dark">Popular Categories</strong> section on the home page
+              in ascending rank order. Leave blank to remove from Popular.
+            </p>
+
+            <div className="space-y-1.5">
+              <label className="text-[10.5px] font-bold uppercase tracking-wider text-spoon-muted">
+                Rank Number
+              </label>
+              <input
+                type="number"
+                min={1}
+                max={999}
+                value={popularRankInput}
+                onChange={(e) => setPopularRankInput(e.target.value)}
+                placeholder="e.g. 1, 2, 3…"
+                className="w-full rounded-2xl border border-spoon-border bg-white px-4 py-2.5 text-sm font-bold text-spoon-dark placeholder:text-spoon-muted/50 focus:outline-none focus:ring-2 focus:ring-amber-300"
+                autoFocus
+              />
+              <p className="text-[10px] text-spoon-muted">
+                Rank 1 = shown first in Popular. Leave blank to remove from Popular.
+              </p>
+            </div>
+
+            <div className="flex justify-end gap-3 pt-2 border-t border-spoon-border/60">
+              <Button
+                variant="outline"
+                size="sm"
+                onClick={() => setPopularModal(null)}
+                disabled={savingPopular}
+              >
+                Cancel
+              </Button>
+              {popularModal.product.featured && (
+                <button
+                  onClick={() => {
+                    setPopularRankInput("");
+                    handleSavePopular();
+                  }}
+                  disabled={savingPopular}
+                  className="inline-flex items-center justify-center gap-1.5 rounded-xl bg-rose-50 hover:bg-rose-100 text-rose-700 border border-rose-200 px-4 py-2 text-xs font-bold transition-all"
+                >
+                  <X className="h-3.5 w-3.5" />
+                  Remove from Popular
+                </button>
+              )}
+              <button
+                onClick={handleSavePopular}
+                disabled={savingPopular || popularRankInput.trim() === ""}
+                className="inline-flex items-center justify-center gap-1.5 rounded-xl bg-amber-500 hover:bg-amber-600 text-white px-4 py-2 text-xs font-bold transition-all disabled:opacity-50"
+              >
+                {savingPopular ? (
+                  <Loader2 className="h-3.5 w-3.5 animate-spin" />
+                ) : (
+                  <Trophy className="h-3.5 w-3.5" />
+                )}
+                Save Rank
               </button>
             </div>
           </div>

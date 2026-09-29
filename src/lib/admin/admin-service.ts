@@ -599,6 +599,25 @@ export async function toggleAdminProductAvailability(
 }
 
 /**
+ * Set or clear the popular/featured status and rank for a product.
+ * - featured=true + popular_rank=rank  → shown in Popular Categories at the given rank
+ * - featured=false + popular_rank=null → removed from Popular Categories
+ */
+export async function setProductPopularRank(
+  productId: string,
+  featured: boolean,
+  popularRank: number | null
+): Promise<void> {
+  const supabase = createClient();
+  const { error } = await supabase
+    .from("products")
+    .update({ featured, popular_rank: popularRank })
+    .eq("id", productId);
+
+  if (error) throw error;
+}
+
+/**
  * Fetch orders for restaurant
  */
 export async function getAdminOrders(restaurantId: string): Promise<Order[]> {
