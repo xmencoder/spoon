@@ -225,3 +225,33 @@ export interface CartItem {
   product: Product;
   quantity: number;
 }
+
+export type BulkOrderStatus =
+  | "new"
+  | "contacted"
+  | "in_discussion"
+  | "confirmed"
+  | "completed"
+  | "cancelled";
+
+export interface BulkOrderEnquiry {
+  id: string;
+  enquiry_number?: string | null;
+  restaurant_id?: string | null;
+  customer_name: string;
+  customer_phone: string;
+  customer_email?: string | null;
+  company_name?: string | null;
+  occasion: string;
+  estimated_quantity: string;
+  target_date?: string | null;
+  delivery_location?: string | null;
+  budget_range?: string | null;
+  product_interests?: string[] | null;
+  dietary_preferences?: string[] | null;
+  message?: string | null;
+  status: BulkOrderStatus;
+  admin_notes?: string | null;
+  created_at: string;
+  updated_at?: string;
+}

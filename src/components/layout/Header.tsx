@@ -90,6 +90,17 @@ export function Header({ cartCount: initialCartCount }: HeaderProps) {
             >
               Our Story
             </Link>
+
+            <Link
+              href="/bulk-orders"
+              className={`transition-colors duration-200 hidden sm:inline ${
+                pathname === "/bulk-orders"
+                  ? "text-[#FAF5ED] font-semibold"
+                  : "text-[#E6DBC9] hover:text-white"
+              }`}
+            >
+              Bulk Orders
+            </Link>
           </nav>
 
           {/* ── CENTER LOGO (mostly inside navbar, just a tiny bit peeking out) ── */}

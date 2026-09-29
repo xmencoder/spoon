@@ -17,6 +17,7 @@ import {
   X,
   Loader2,
   CalendarClock,
+  Gift,
 } from "lucide-react";
 
 function AdminLayoutInner({ children }: { children: React.ReactNode }) {
@@ -35,6 +36,7 @@ function AdminLayoutInner({ children }: { children: React.ReactNode }) {
     { label: "Categories", href: "/admin/categories", icon: FolderTree },
     { label: "Delivery Slots", href: "/admin/delivery", icon: CalendarClock },
     { label: "Orders", href: "/admin/orders", icon: ShoppingBag },
+    { label: "Bulk Enquiries", href: "/admin/bulk-orders", icon: Gift },
     { label: "Settings", href: "/admin/settings", icon: Settings },
   ];
 

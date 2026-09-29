@@ -54,13 +54,9 @@ export function Footer() {
                 </Link>
               </li>
               <li>
-                <Link href="/store/the-indulgent-spoon/checkout" className="hover:text-[#C26B59] transition-colors">
-                  Direct Checkout
-                </Link>
-              </li>
-              <li>
-                <Link href="/admin/login" className="hover:text-[#C26B59] transition-colors">
-                  Kitchen Admin Portal
+                <Link href="/bulk-orders" className="hover:text-[#C26B59] transition-colors inline-flex items-center gap-1.5 text-[#C26B59] font-bold">
+                  <Sparkles className="h-3.5 w-3.5" />
+                  <span>Bulk Orders & Gifting</span>
                 </Link>
               </li>
             </ul>
