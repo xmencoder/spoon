@@ -145,8 +145,8 @@ export default function CartPage() {
     setFavorites((prev) => ({ ...prev, [id]: !prev[id] }));
   };
 
-  const handleAddRecommended = (product: Product) => {
-    addItem(product, 1);
+  const handleAddRecommended = (product: Product, e?: React.MouseEvent) => {
+    addItem(product, 1, undefined, e);
     setAddedRecId(product.id);
     setTimeout(() => setAddedRecId(null), 1500);
   };
@@ -248,13 +248,16 @@ export default function CartPage() {
                         {/* Item Details (Image + Titles + Addons) */}
                         <div className="w-full sm:col-span-6 flex items-center gap-3.5">
                           {/* Thumbnail */}
-                          <div className="relative h-18 w-18 sm:h-20 sm:w-20 shrink-0 rounded-2xl overflow-hidden bg-[#E8D5BC] border border-[#91885D]/25 shadow-2xs">
+                          <Link
+                            href={`/store/${slug}/product/${item.product.id}`}
+                            className="relative h-18 w-18 sm:h-20 sm:w-20 shrink-0 rounded-2xl overflow-hidden bg-[#E8D5BC] border border-[#91885D]/25 shadow-2xs block cursor-pointer group/thumb"
+                          >
                             {item.product.image_url ? (
                               <Image
                                 src={item.product.image_url}
                                 alt={item.product.name}
                                 fill
-                                className="object-cover"
+                                className="object-cover group-hover/thumb:scale-105 transition-transform duration-300"
                                 sizes="80px"
                               />
                             ) : (
@@ -262,12 +265,17 @@ export default function CartPage() {
                                 <ShoppingBag className="h-6 w-6" />
                               </div>
                             )}
-                          </div>
+                          </Link>
 
                           <div className="min-w-0 flex-1">
-                            <h3 className="font-serif font-bold text-sm sm:text-base text-[#29251F] leading-tight">
-                              {item.product.name}
-                            </h3>
+                            <Link
+                              href={`/store/${slug}/product/${item.product.id}`}
+                              className="hover:text-[#C26B59] transition-colors block"
+                            >
+                              <h3 className="font-serif font-bold text-sm sm:text-base text-[#29251F] leading-tight">
+                                {item.product.name}
+                              </h3>
+                            </Link>
                             {item.sizeLabel && (
                               <span className="inline-block text-[11px] font-bold text-[#A34B3D] bg-[#A34B3D]/10 px-2 py-0.5 rounded-md mt-1">
                                 Size: {item.sizeLabel}
@@ -549,23 +557,29 @@ export default function CartPage() {
                     <div>
                       {/* Image with Heart Favorite Overlay */}
                       <div className="relative aspect-[4/3] w-full overflow-hidden bg-[#E8D5BC]">
-                        {treat.image_url ? (
-                          <Image
-                            src={treat.image_url}
-                            alt={treat.name}
-                            fill
-                            className="object-cover group-hover:scale-105 transition-transform duration-500"
-                            sizes="(max-width: 640px) 50vw, (max-width: 1024px) 33vw, 20vw"
-                          />
-                        ) : (
-                          <div className="flex h-full items-center justify-center text-[#696053]">
-                            <ShoppingBag className="w-8 h-8" />
-                          </div>
-                        )}
+                        <Link
+                          href={`/store/${slug}/product/${treat.id}`}
+                          data-product-img={treat.id}
+                          className="block relative w-full h-full cursor-pointer"
+                        >
+                          {treat.image_url ? (
+                            <Image
+                              src={treat.image_url}
+                              alt={treat.name}
+                              fill
+                              className="object-cover group-hover:scale-105 transition-transform duration-500"
+                              sizes="(max-width: 640px) 50vw, (max-width: 1024px) 33vw, 20vw"
+                            />
+                          ) : (
+                            <div className="flex h-full items-center justify-center text-[#696053]">
+                              <ShoppingBag className="w-8 h-8" />
+                            </div>
+                          )}
+                        </Link>
 
                         {/* In Cart Indicator Ribbon */}
                         {isAlreadyInCart && (
-                          <div className="absolute top-2.5 left-2.5 z-10 animate-in fade-in">
+                          <div className="absolute top-2.5 left-2.5 z-10 animate-in fade-in pointer-events-none">
                             <span className="inline-flex items-center gap-1 px-2 py-0.5 rounded-md text-[9px] font-bold text-white bg-[#4D7C47] shadow-sm border border-white/20">
                               <Check className="w-2.5 h-2.5 stroke-[3]" />
                               <span>{recInCartQty} in Cart</span>
@@ -574,8 +588,12 @@ export default function CartPage() {
                         )}
 
                         <button
-                          onClick={() => toggleFavorite(treat.id)}
-                          className="absolute top-2.5 right-2.5 w-7 h-7 rounded-full bg-[#FAF6EF]/80 backdrop-blur-xs flex items-center justify-center text-[#696053] hover:text-[#C26B59] transition-colors shadow-2xs cursor-pointer"
+                          onClick={(e) => {
+                            e.preventDefault();
+                            e.stopPropagation();
+                            toggleFavorite(treat.id);
+                          }}
+                          className="absolute top-2.5 right-2.5 w-7 h-7 rounded-full bg-[#FAF6EF]/80 backdrop-blur-xs flex items-center justify-center text-[#696053] hover:text-[#C26B59] transition-colors shadow-2xs cursor-pointer z-10"
                           aria-label="Add to favorites"
                         >
                           <Heart
@@ -587,7 +605,10 @@ export default function CartPage() {
                       </div>
 
                       {/* Content */}
-                      <div className="p-3.5 pb-2">
+                      <Link
+                        href={`/store/${slug}/product/${treat.id}`}
+                        className="p-3.5 pb-2 block hover:opacity-90 transition-opacity cursor-pointer"
+                      >
                         {categoryObj?.name && (
                           <span className="text-[10px] font-semibold text-[#8B7D6B] uppercase tracking-wider block mb-0.5">
                             {categoryObj.name}
@@ -601,7 +622,7 @@ export default function CartPage() {
                             {treat.description}
                           </p>
                         )}
-                      </div>
+                      </Link>
                     </div>
 
                     {/* Price & Add Button */}
@@ -611,7 +632,7 @@ export default function CartPage() {
                       </span>
 
                       <button
-                        onClick={() => handleAddRecommended(treat)}
+                        onClick={(e) => handleAddRecommended(treat, e)}
                         className={`inline-flex items-center gap-1 rounded-xl px-2.5 py-1.5 text-[11px] font-bold shadow-2xs transition-all active:scale-90 cursor-pointer ${
                           isJustAdded
                             ? "bg-[#4D7C47] text-[#FAF5ED]"
