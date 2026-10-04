@@ -216,10 +216,9 @@ export default function CartPage() {
             </p>
             <Link
               href="/#menu"
-              className="inline-flex items-center gap-2 rounded-full bg-[#C26B59] hover:bg-[#A95145] text-[#F5EBDD] px-8 py-3.5 text-sm font-bold shadow-md transition-all active:scale-95"
+              className="inline-flex items-center justify-center rounded-full bg-[#C26B59] hover:bg-[#A95145] text-[#F5EBDD] px-8 py-3.5 text-sm font-bold shadow-md transition-all active:scale-95"
             >
-              <Sparkles className="w-4 h-4" />
-              <span>Explore Bakery Menu</span>
+              Explore Bakery Menu
             </Link>
           </div>
         ) : (
