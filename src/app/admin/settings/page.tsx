@@ -15,9 +15,6 @@ import {
   Store,
   Upload,
   X,
-  Clock,
-  Phone,
-  MapPin,
   Truck,
   ShoppingBag,
 } from "lucide-react";
@@ -99,11 +96,6 @@ export default function AdminSettingsPage() {
 
     if (!name.trim()) {
       setErrorMsg("Restaurant brand name is required.");
-      return;
-    }
-
-    if (!whatsappNumber.trim()) {
-      setErrorMsg("WhatsApp number is required for dispatch orders.");
       return;
     }
 
@@ -260,117 +252,7 @@ export default function AdminSettingsPage() {
 
           <hr className="border-spoon-border/60" />
 
-          {/* Section 2: Contact & Location */}
-          <div className="space-y-4">
-            <h2 className="font-serif font-bold text-base text-spoon-dark flex items-center gap-2">
-              <Phone className="h-4 w-4 text-spoon-caramel" />
-              <span>Contact & Dispatch Coordinates</span>
-            </h2>
-
-            <div className="grid grid-cols-1 sm:grid-cols-2 gap-4">
-              <div>
-                <label className="block text-xs font-bold uppercase tracking-wider text-spoon-dark mb-1.5">
-                  WhatsApp Dispatch Number *
-                </label>
-                <Input
-                  value={whatsappNumber}
-                  onChange={(e) => setWhatsappNumber(e.target.value)}
-                  placeholder="+919876543210"
-                  required
-                  className="text-xs"
-                />
-                <p className="text-[10px] text-spoon-muted mt-1">
-                  Customer orders are formatted and routed directly to this WhatsApp number.
-                </p>
-              </div>
-
-              <div>
-                <label className="block text-xs font-bold uppercase tracking-wider text-spoon-dark mb-1.5">
-                  Secondary Customer Support Phone
-                </label>
-                <Input
-                  value={phone}
-                  onChange={(e) => setPhone(e.target.value)}
-                  placeholder="+91 1274 250000"
-                  className="text-xs"
-                />
-              </div>
-            </div>
-
-            <div className="grid grid-cols-1 sm:grid-cols-2 gap-4 pt-1">
-              <div>
-                <label className="block text-xs font-bold uppercase tracking-wider text-spoon-dark mb-1.5 flex items-center gap-1.5">
-                  <MapPin className="h-3.5 w-3.5 text-spoon-muted" />
-                  <span>Kitchen Physical Address</span>
-                </label>
-                <Input
-                  value={address}
-                  onChange={(e) => setAddress(e.target.value)}
-                  placeholder="Sector 14, Rewari, Haryana 123401"
-                  className="text-xs"
-                />
-              </div>
-
-              <div>
-                <label className="block text-xs font-bold uppercase tracking-wider text-spoon-dark mb-1.5 flex items-center gap-1.5">
-                  <Clock className="h-3.5 w-3.5 text-spoon-muted" />
-                  <span>Opening Hours / Service Timings</span>
-                </label>
-                <Input
-                  value={openingHours}
-                  onChange={(e) => setOpeningHours(e.target.value)}
-                  placeholder="11:00 AM – 11:00 PM Daily"
-                  className="text-xs"
-                />
-              </div>
-            </div>
-          </div>
-
-          <hr className="border-spoon-border/60" />
-
-          {/* Section 3: Delivery Fees & Minimums */}
-          <div className="space-y-4">
-            <h2 className="font-serif font-bold text-base text-spoon-dark flex items-center gap-2">
-              <Truck className="h-4 w-4 text-spoon-caramel" />
-              <span>Ordering Rules & Pricing</span>
-            </h2>
-
-            <div className="grid grid-cols-1 sm:grid-cols-2 gap-4">
-              <div>
-                <label className="block text-xs font-bold uppercase tracking-wider text-spoon-dark mb-1.5">
-                  Standard Delivery Fee (₹)
-                </label>
-                <Input
-                  type="number"
-                  min="0"
-                  step="1"
-                  value={deliveryCharge}
-                  onChange={(e) => setDeliveryCharge(e.target.value)}
-                  placeholder="40"
-                  className="text-xs font-semibold"
-                />
-              </div>
-
-              <div>
-                <label className="block text-xs font-bold uppercase tracking-wider text-spoon-dark mb-1.5">
-                  Minimum Order Amount (₹)
-                </label>
-                <Input
-                  type="number"
-                  min="0"
-                  step="1"
-                  value={minimumOrder}
-                  onChange={(e) => setMinimumOrder(e.target.value)}
-                  placeholder="200"
-                  className="text-xs font-semibold"
-                />
-              </div>
-            </div>
-          </div>
-
-          <hr className="border-spoon-border/60" />
-
-          {/* Section 4: Live Store Status Toggles */}
+          {/* Section 2: Live Store Status Toggles */}
           <div className="space-y-3">
             <h2 className="font-serif font-bold text-base text-spoon-dark">
               Live Operations & Channels
