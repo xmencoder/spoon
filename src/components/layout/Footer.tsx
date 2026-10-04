@@ -74,10 +74,6 @@ export function Footer() {
               <p className="leading-relaxed text-xs">
                 Fresh batches prepared daily using slow-cooking traditions and premium spices.
               </p>
-              <div className="text-xs pt-1">
-                <span className="font-semibold text-[#29251F] block">Kitchen Hours:</span>
-                <span>11:00 AM – 11:00 PM Daily</span>
-              </div>
             </div>
           </div>
         </div>
