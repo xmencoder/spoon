@@ -98,3 +98,46 @@ body {
   animation: cartBounce 0.65s cubic-bezier(0.175, 0.885, 0.32, 1.275) both;
 }
 
+/* ── Product Image Loader ────────────────────────────────────────── */
+/* Shown only while a product photo is loading from the database.    */
+.product-img-loader {
+  width: 65px;
+  aspect-ratio: 1;
+  position: relative;
+}
+.product-img-loader:before,
+.product-img-loader:after {
+  content: "";
+  position: absolute;
+  border-radius: 50px;
+  box-shadow: 0 0 0 3px inset rgba(255,255,255,0.75);
+  animation: productImgSpin 2.5s infinite;
+}
+.product-img-loader:after {
+  animation-delay: -1.25s;
+  border-radius: 0;
+}
+
+/* Fills the full parent container instead of a fixed 65 px size   */
+.product-img-loader-fill {
+  position: absolute;
+  inset: 0;
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  background: rgba(239, 229, 215, 0.72);
+  z-index: 5;
+}
+
+@keyframes productImgSpin {
+  0%    { inset: 0    35px 35px 0    }
+  12.5% { inset: 0    35px 0    0    }
+  25%   { inset: 35px 35px 0    0    }
+  37.5% { inset: 35px 0    0    0    }
+  50%   { inset: 35px 0    0    35px }
+  62.5% { inset: 0    0    0    35px }
+  75%   { inset: 0    0    35px 35px }
+  87.5% { inset: 0    0    35px 0    }
+  100%  { inset: 0    35px 35px 0    }
+}
+

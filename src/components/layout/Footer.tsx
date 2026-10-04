@@ -1,5 +1,6 @@
+import Image from "next/image";
 import Link from "next/link";
-import { UtensilsCrossed, MessageCircle, Sparkles } from "lucide-react";
+import { UtensilsCrossed, MessageCircle } from "lucide-react";
 
 export function Footer() {
   return (
@@ -55,7 +56,9 @@ export function Footer() {
               </li>
               <li>
                 <Link href="/bulk-orders" className="hover:text-[#C26B59] transition-colors inline-flex items-center gap-1.5 text-[#C26B59] font-bold">
-                  <Sparkles className="h-3.5 w-3.5" />
+                  <span className="relative w-4 h-4 shrink-0 inline-block">
+                    <Image src="/logo_stamp.png" alt="" fill className="object-contain" sizes="16px" />
+                  </span>
                   <span>Bulk Orders & Gifting</span>
                 </Link>
               </li>
@@ -82,9 +85,17 @@ export function Footer() {
         {/* Decorative Brand Divider */}
         <div className="mt-16 flex items-center justify-center gap-4">
           <div className="h-[1px] flex-1 bg-gradient-to-r from-transparent via-[#91885D]/40 to-[#91885D]/40" />
-          <div className="flex items-center gap-2 text-[#91885D]">
+          <div className="flex items-center gap-3 text-[#91885D]">
             <span className="text-[10px] tracking-[0.3em] uppercase font-bold text-[#696053]">Est. 2024</span>
-            <Sparkles className="h-3.5 w-3.5 text-[#C26B59]" strokeWidth={1.75} />
+            <div className="relative w-8 h-8 shrink-0">
+              <Image
+                src="/logo_stamp.png"
+                alt="The Indulgent Spoon"
+                fill
+                className="object-contain opacity-80"
+                sizes="32px"
+              />
+            </div>
             <span className="text-[10px] tracking-[0.3em] uppercase font-bold text-[#696053]">The Indulgent Spoon</span>
           </div>
           <div className="h-[1px] flex-1 bg-gradient-to-l from-transparent via-[#91885D]/40 to-[#91885D]/40" />

@@ -3,6 +3,7 @@
 import React, { useEffect, useState } from "react";
 import Link from "next/link";
 import Image from "next/image";
+import ProductImage from "@/components/ui/ProductImage";
 import { useAdmin } from "@/lib/admin/AdminContext";
 import {
   getAdminProducts,
@@ -421,7 +422,7 @@ export default function AdminProductsPage() {
                         <div className="flex items-center gap-3.5">
                           <div className="relative h-14 w-14 shrink-0 overflow-hidden rounded-2xl bg-spoon-sand border border-spoon-border/70 shadow-2xs">
                             {item.image_url ? (
-                              <Image
+                              <ProductImage
                                 src={item.image_url}
                                 alt={item.name}
                                 fill

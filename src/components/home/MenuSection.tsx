@@ -3,6 +3,7 @@
 import React, { useState, useRef, useEffect, useCallback } from "react";
 import Image from "next/image";
 import Link from "next/link";
+import ProductImage from "@/components/ui/ProductImage";
 import {
   Heart,
   ShoppingCart,
@@ -12,6 +13,8 @@ import {
   ChefHat,
   ChevronLeft,
   ChevronRight,
+  LayoutGrid,
+  X,
 } from "lucide-react";
 import { useCart } from "@/lib/store/CartContext";
 import { createClient } from "@/lib/supabase/client";
@@ -352,6 +355,7 @@ export function MenuSection({ slug = "the-indulgent-spoon" }: MenuSectionProps) 
   const [quantities, setQuantities] = useState<Record<string, number>>({});
   const [favorites, setFavorites] = useState<Record<string, boolean>>({});
   const [addedItem, setAddedItem] = useState<string | null>(null);
+  const [isCategoryDrawerOpen, setIsCategoryDrawerOpen] = useState(false);
   const scrollContainerRef = useRef<HTMLDivElement>(null);
 
   // ── LIVE DATA FROM SUPABASE (with fallback to hardcoded) ──
@@ -524,8 +528,19 @@ export function MenuSection({ slug = "the-indulgent-spoon" }: MenuSectionProps) 
   }, []);
 
   // Use live data if loaded, otherwise fallback to hardcoded constants
-  const activeCategoryCards = dbLoaded && liveCategories.length > 0 ? liveCategories : CATEGORY_CARDS;
+  const baseCategoryCards = dbLoaded && liveCategories.length > 0 ? liveCategories : CATEGORY_CARDS;
   const activeMenuItems = dbLoaded && liveMenuItems.length > 0 ? liveMenuItems : MENU_ITEMS;
+
+  // Append "All Menu" at the end so users can browse every product at once
+  const allMenuCard: CategoryCard = {
+    id: "all",
+    name: "All Menu",
+    count: `${activeMenuItems.length} items`,
+    image:
+      activeMenuItems[0]?.image ||
+      "https://images.unsplash.com/photo-1578985545062-69928b1d9587?w=300&auto=format&fit=crop&q=80",
+  };
+  const activeCategoryCards = [...baseCategoryCards, allMenuCard];
 
   // Listen to cross-component category selection events (e.g. from WhatWeSellSection)
   useEffect(() => {
@@ -559,6 +574,9 @@ export function MenuSection({ slug = "the-indulgent-spoon" }: MenuSectionProps) 
   };
 
   const filteredItems = (() => {
+    if (activeCategory === "all") {
+      return activeMenuItems;
+    }
     if (activeCategory === "popular") {
       const popularItems = activeMenuItems.filter((item) => item.isPopular);
       if (dbLoaded && liveDbProducts.length > 0) {
@@ -678,6 +696,25 @@ export function MenuSection({ slug = "the-indulgent-spoon" }: MenuSectionProps) 
     }, 1400);
   };
 
+  // Close drawer when body scroll-lock should be applied
+  useEffect(() => {
+    if (isCategoryDrawerOpen) {
+      document.body.style.overflow = "hidden";
+    } else {
+      document.body.style.overflow = "";
+    }
+    return () => { document.body.style.overflow = ""; };
+  }, [isCategoryDrawerOpen]);
+
+  const handleSelectCategoryFromDrawer = (catId: string) => {
+    setActiveCategory(catId);
+    setIsCategoryDrawerOpen(false);
+    setTimeout(() => {
+      const el = document.getElementById("menu");
+      if (el) el.scrollIntoView({ behavior: "smooth" });
+    }, 280);
+  };
+
   return (
     <section
       id="menu"
@@ -745,23 +782,19 @@ export function MenuSection({ slug = "the-indulgent-spoon" }: MenuSectionProps) 
               </svg>
             </div>
 
-            {/* Circular stamp badge */}
-            <div className="relative w-16 h-16 sm:w-24 sm:h-24 rounded-full border border-dashed border-[#85725A]/40 bg-[#FAF4EC]/80 backdrop-blur-xs flex flex-col items-center justify-center text-center p-1.5 sm:p-2 shadow-2xs select-none">
-              <span className="text-[7px] sm:text-[9px] font-semibold uppercase tracking-wider text-[#7A6A54] leading-[1.15]">
-                SWEET
-              </span>
-              <span className="text-[7px] sm:text-[9px] font-semibold uppercase tracking-wider text-[#7A6A54] leading-[1.15]">
-                THINGS
-              </span>
-              <span className="text-[7px] sm:text-[9px] font-semibold uppercase tracking-wider text-[#7A6A54] leading-[1.15]">
-                BRIGHTER
-              </span>
-              <span className="text-[7px] sm:text-[9px] font-semibold uppercase tracking-wider text-[#7A6A54] leading-[1.15]">
-                PEOPLE
-              </span>
-              <span className="text-[8px] sm:text-[10px] text-[#A34B3D] mt-0.5 leading-none">♡</span>
+
+            {/* Circular stamp badge — brand logo */}
+            <div className="relative w-16 h-16 sm:w-24 sm:h-24 select-none shrink-0">
+              <Image
+                src="/logo_stamp.png"
+                alt="The Indulgent Spoon"
+                fill
+                className="object-contain drop-shadow-sm"
+                sizes="96px"
+              />
             </div>
           </div>
+
         </div>
 
         {/* ══════════════════════════════════════════════════════ */}
@@ -876,7 +909,7 @@ export function MenuSection({ slug = "the-indulgent-spoon" }: MenuSectionProps) 
                   data-product-img={item.id}
                   className="relative w-[42%] shrink-0 overflow-hidden bg-[#EFE5D7] block cursor-pointer group"
                 >
-                  <Image
+                  <ProductImage
                     src={item.image}
                     alt={item.name}
                     fill
@@ -1061,7 +1094,7 @@ export function MenuSection({ slug = "the-indulgent-spoon" }: MenuSectionProps) 
                   data-product-img={item.id}
                   className="relative aspect-4/3 sm:aspect-[1.18/1] w-full overflow-hidden rounded-2xl bg-[#EFE5D7] block cursor-pointer"
                 >
-                  <Image
+                  <ProductImage
                     src={item.image}
                     alt={item.name}
                     fill
@@ -1238,6 +1271,112 @@ export function MenuSection({ slug = "the-indulgent-spoon" }: MenuSectionProps) 
           </Link>
         </div>
       </div>
+
+      {/* ═══════════════════════════════════════════════════════════ */}
+      {/* ── MOBILE FLOATING MENU FAB (bottom-right, md:hidden) ──── */}
+      {/* ═══════════════════════════════════════════════════════════ */}
+      <div className="md:hidden">
+
+        {/* ── FAB BUTTON ── */}
+        <button
+          onClick={() => setIsCategoryDrawerOpen(true)}
+          aria-label="Browse categories"
+          className="fixed bottom-6 right-5 z-40 flex flex-col items-center justify-center gap-0.5 w-[60px] h-[60px] rounded-full bg-[#29251F] text-white shadow-[0_6px_24px_rgba(41,37,31,0.45)] active:scale-95 transition-transform duration-150"
+        >
+          <LayoutGrid className="w-5 h-5" strokeWidth={1.8} />
+          <span className="text-[9px] font-bold uppercase tracking-[0.12em] leading-none">Menu</span>
+        </button>
+
+        {/* ── BACKDROP ── */}
+        <div
+          onClick={() => setIsCategoryDrawerOpen(false)}
+          className={`fixed inset-0 z-50 bg-black/50 backdrop-blur-[2px] transition-opacity duration-300 ${
+            isCategoryDrawerOpen ? "opacity-100 pointer-events-auto" : "opacity-0 pointer-events-none"
+          }`}
+          aria-hidden="true"
+        />
+
+        {/* ── DRAWER SHEET ── */}
+        <div
+          className={`fixed bottom-0 left-0 right-0 z-50 bg-[#FAF5ED] rounded-t-3xl shadow-[0_-8px_40px_rgba(41,37,31,0.22)] transition-transform duration-300 ease-out ${
+            isCategoryDrawerOpen ? "translate-y-0" : "translate-y-full"
+          }`}
+          style={{ maxHeight: "82dvh" }}
+        >
+          {/* Handle bar */}
+          <div className="flex justify-center pt-3 pb-1">
+            <div className="w-10 h-1 rounded-full bg-[#C8BAA8]" />
+          </div>
+
+          {/* Header */}
+          <div className="flex items-center justify-between px-5 py-3 border-b border-[#EAE0D1]">
+            <div>
+              <h3 className="font-serif text-lg font-bold text-[#29251F] leading-tight">Our Menu</h3>
+              <p className="text-[11px] text-[#7A6A5A] mt-0.5">Tap a category to explore</p>
+            </div>
+            <button
+              onClick={() => setIsCategoryDrawerOpen(false)}
+              className="w-8 h-8 rounded-full bg-[#EFE8DC] flex items-center justify-center text-[#695F52] active:bg-[#E2D6C6] transition-colors"
+              aria-label="Close menu"
+            >
+              <X className="w-4 h-4" />
+            </button>
+          </div>
+
+          {/* Category list — scrollable */}
+          <div className="overflow-y-auto" style={{ maxHeight: "calc(82dvh - 100px)" }}>
+            <ul className="px-4 py-3 space-y-2 pb-8">
+              {activeCategoryCards.map((cat) => {
+                const isActive = activeCategory === cat.id;
+                return (
+                  <li key={cat.id}>
+                    <button
+                      onClick={() => handleSelectCategoryFromDrawer(cat.id)}
+                      className={`w-full flex items-center gap-4 px-4 py-3 rounded-2xl transition-all duration-200 active:scale-[0.98] ${
+                        isActive
+                          ? "bg-[#29251F] text-white shadow-md"
+                          : "bg-white border border-[#EAE0D1] text-[#29251F] hover:border-[#C8BAA8] hover:bg-[#FAF5ED]"
+                      }`}
+                    >
+                      {/* Category thumbnail */}
+                      <div className="relative w-12 h-12 rounded-xl overflow-hidden shrink-0 bg-[#EFE5D7]">
+                        <Image
+                          src={cat.image}
+                          alt={cat.name}
+                          fill
+                          sizes="48px"
+                          className="object-cover"
+                        />
+                      </div>
+
+                      {/* Name + count */}
+                      <div className="flex-1 text-left">
+                        <span className={`font-serif text-base font-bold block leading-tight ${isActive ? "text-white" : "text-[#29251F]"}`}>
+                          {cat.name}
+                        </span>
+                        <span className={`text-[11px] mt-0.5 block ${isActive ? "text-white/70" : "text-[#7A6A5A]"}`}>
+                          {cat.count}
+                        </span>
+                      </div>
+
+                      {/* Active chevron / indicator */}
+                      {isActive ? (
+                        <div className="w-6 h-6 rounded-full bg-white/20 flex items-center justify-center shrink-0">
+                          <Check className="w-3.5 h-3.5 text-white" strokeWidth={2.5} />
+                        </div>
+                      ) : (
+                        <ChevronRight className="w-4 h-4 text-[#C8BAA8] shrink-0" strokeWidth={1.8} />
+                      )}
+                    </button>
+                  </li>
+                );
+              })}
+            </ul>
+          </div>
+        </div>
+      </div>
+
     </section>
+
   );
 }
