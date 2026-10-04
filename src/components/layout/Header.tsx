@@ -4,7 +4,7 @@ import React, { useState, useEffect } from "react";
 import Link from "next/link";
 import Image from "next/image";
 import { usePathname } from "next/navigation";
-import { Search, ShoppingCart, X } from "lucide-react";
+import { ShoppingCart } from "lucide-react";
 
 import { useCart, DEFAULT_RESTAURANT_SLUG } from "@/lib/store/CartContext";
 
@@ -14,8 +14,6 @@ interface HeaderProps {
 
 export function Header({ cartCount: initialCartCount }: HeaderProps) {
   const { totalItems, openCartDrawer, restaurantSlug } = useCart();
-  const [isSearchOpen, setIsSearchOpen] = useState(false);
-  const [searchQuery, setSearchQuery] = useState("");
   const [isBouncing, setIsBouncing] = useState(false);
   const pathname = usePathname();
 
@@ -120,44 +118,8 @@ export function Header({ cartCount: initialCartCount }: HeaderProps) {
             </Link>
           </div>
 
-          {/* ── RIGHT ACTIONS: SEARCH & CART ── */}
+          {/* ── RIGHT ACTIONS: CART ── */}
           <div className="flex items-center gap-3.5 sm:gap-6 text-xs sm:text-sm font-serif">
-            <div className="relative flex items-center">
-              {isSearchOpen ? (
-                <div className="flex items-center bg-[#68653F] rounded-full px-2.5 py-1 border border-[#918D5D] transition-all">
-                  <input
-                    type="text"
-                    value={searchQuery}
-                    onChange={(e) => setSearchQuery(e.target.value)}
-                    placeholder="Search cakes, cookies..."
-                    autoFocus
-                    className="bg-transparent text-xs text-[#FAF5ED] placeholder-[#D5C9B3] focus:outline-none w-28 sm:w-40 font-sans"
-                  />
-                  <button
-                    onClick={() => {
-                      setIsSearchOpen(false);
-                      setSearchQuery("");
-                    }}
-                    className="text-[#E6DBC9] hover:text-white p-0.5 ml-1 cursor-pointer"
-                  >
-                    <X className="w-3.5 h-3.5" />
-                  </button>
-                </div>
-              ) : (
-                <button
-                  onClick={() => setIsSearchOpen(true)}
-                  className="flex items-center gap-1.5 text-[#E6DBC9] hover:text-white transition-colors cursor-pointer group"
-                >
-                  <span className="hidden sm:inline text-xs sm:text-sm tracking-wide">
-                    Search
-                  </span>
-                  <Search
-                    className="w-4 h-4 text-[#E6DBC9] group-hover:text-white transition-colors"
-                    strokeWidth={1.8}
-                  />
-                </button>
-              )}
-            </div>
 
             <Link
               id="navbar-cart-icon"
