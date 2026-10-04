@@ -96,23 +96,13 @@ export function Header({ cartCount: initialCartCount }: HeaderProps) {
           <div className="absolute left-1/2 -translate-x-1/2 top-1/2 -translate-y-[44%] z-30 select-none pointer-events-auto">
             <Link href="/" className="block group">
               <div className="relative w-[72px] h-[72px] sm:w-[84px] sm:h-[84px] md:w-[96px] md:h-[96px] transition-transform duration-300 group-hover:scale-105 drop-shadow-[0_3px_10px_rgba(41,37,31,0.25)]">
-                {/* Mobile: original tan logo */}
-                <Image
-                  src="/logo-nav.png"
-                  alt="The Indulgent Spoon"
-                  fill
-                  priority
-                  className="object-contain sm:hidden"
-                  sizes="72px"
-                />
-                {/* sm+: stamp logo */}
                 <Image
                   src="/logo-m.png"
                   alt="The Indulgent Spoon"
                   fill
                   priority
-                  className="object-contain hidden sm:block"
-                  sizes="96px"
+                  className="object-contain"
+                  sizes="(max-width: 640px) 72px, (max-width: 768px) 84px, 96px"
                 />
               </div>
             </Link>
