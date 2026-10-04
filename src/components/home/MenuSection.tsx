@@ -786,7 +786,7 @@ export function MenuSection({ slug = "the-indulgent-spoon" }: MenuSectionProps) 
             {/* Circular stamp badge — brand logo */}
             <div className="relative w-16 h-16 sm:w-24 sm:h-24 select-none shrink-0">
               <Image
-                src="/logo_stamp.png"
+                src="/logo-m.png"
                 alt="The Indulgent Spoon"
                 fill
                 className="object-contain drop-shadow-sm"
