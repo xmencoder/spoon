@@ -135,20 +135,31 @@ export function FounderNoteSection() {
           <div className="lg:col-span-7 space-y-6 sm:space-y-7 text-center lg:text-left">
             {/* Heading */}
             <h2 className="font-serif text-3xl sm:text-4xl lg:text-[2.75rem] font-bold leading-[1.15] text-[#29251F] tracking-tight">
-              A Little More<br className="hidden sm:block" />{" "}
-              Than Just Desserts
+              Where Healthy Meets<br className="hidden sm:block" />{" "}
+              Truly Indulgent
             </h2>
 
             {/* Body text */}
             <div className="space-y-4 text-sm sm:text-[15px] leading-relaxed text-[#29251F]/80 max-w-lg mx-auto lg:mx-0">
               <p>
-                The Indulgent Spoon started with a simple idea — to make everyday
-                moments a little sweeter. What began as late-night baking experiments
-                slowly turned into a passion for creating bakes that bring comfort,
-                joy, and people closer.
+                The Indulgent Spoon began with my passion for baking. With my dad being diabetic
+                and my mom being health-conscious, I started experimenting with bakes that were
+                healthier yet still delicious.
               </p>
-              <p className="text-[#696053]">
-                Thank you for being a part of this journey.
+              <p>
+                And that&apos;s how The Indulgent Spoon was born — a little space where healthy
+                and truly indulgent desserts come together.
+              </p>
+              <p>
+                What started with me baking for my family has now grown into something I get
+                to share with all of you.
+              </p>
+              <p>
+                Because I believe you shouldn&apos;t have to choose between eating better
+                and something delicious.
+              </p>
+              <p className="text-[#696053] italic">
+                So, welcome to my little world of indulgence — made with love, one bake at a time.
               </p>
             </div>
 
