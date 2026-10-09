@@ -1,3 +1,4 @@
+import { cache } from "react";
 import { createClient } from "./server";
 import type {
   Restaurant,
@@ -9,64 +10,70 @@ import type {
 } from "@/types/database";
 
 /**
- * Fetch restaurant details by its unique slug
+ * Fetch restaurant details by its unique slug (per-request cached)
  */
-export async function getRestaurantBySlug(slug: string): Promise<Restaurant | null> {
-  const supabase = await createClient();
-  const { data, error } = await supabase
-    .from("restaurants")
-    .select("*")
-    .eq("slug", slug)
-    .single();
+export const getRestaurantBySlug = cache(
+  async (slug: string): Promise<Restaurant | null> => {
+    const supabase = await createClient();
+    const { data, error } = await supabase
+      .from("restaurants")
+      .select("*")
+      .eq("slug", slug)
+      .single();
 
-  if (error || !data) {
-    return null;
+    if (error || !data) {
+      return null;
+    }
+    return data as Restaurant;
   }
-  return data as Restaurant;
-}
+);
 
 /**
- * Fetch default restaurant (fallback by slug or first restaurant)
+ * Fetch default restaurant (fallback by slug or first restaurant) (per-request cached)
  */
-export async function getDefaultRestaurant(): Promise<Restaurant | null> {
-  const supabase = await createClient();
-  const defaultSlug =
-    process.env.NEXT_PUBLIC_DEFAULT_RESTAURANT_SLUG || "the-indulgent-spoon";
+export const getDefaultRestaurant = cache(
+  async (): Promise<Restaurant | null> => {
+    const supabase = await createClient();
+    const defaultSlug =
+      process.env.NEXT_PUBLIC_DEFAULT_RESTAURANT_SLUG || "the-indulgent-spoon";
 
-  const { data: match } = await supabase
-    .from("restaurants")
-    .select("*")
-    .eq("slug", defaultSlug)
-    .maybeSingle();
+    const { data: match } = await supabase
+      .from("restaurants")
+      .select("*")
+      .eq("slug", defaultSlug)
+      .maybeSingle();
 
-  if (match) return match as Restaurant;
+    if (match) return match as Restaurant;
 
-  const { data: first } = await supabase
-    .from("restaurants")
-    .select("*")
-    .order("created_at", { ascending: true })
-    .limit(1)
-    .maybeSingle();
+    const { data: first } = await supabase
+      .from("restaurants")
+      .select("*")
+      .order("created_at", { ascending: true })
+      .limit(1)
+      .maybeSingle();
 
-  return (first as Restaurant) || null;
-}
+    return (first as Restaurant) || null;
+  }
+);
 
 /**
- * Fetch all categories for a restaurant, ordered by sort_order
+ * Fetch all categories for a restaurant, ordered by sort_order (per-request cached)
  */
-export async function getCategories(restaurantId: string): Promise<Category[]> {
-  const supabase = await createClient();
-  const { data, error } = await supabase
-    .from("categories")
-    .select("*")
-    .eq("restaurant_id", restaurantId)
-    .order("sort_order", { ascending: true });
+export const getCategories = cache(
+  async (restaurantId: string): Promise<Category[]> => {
+    const supabase = await createClient();
+    const { data, error } = await supabase
+      .from("categories")
+      .select("*")
+      .eq("restaurant_id", restaurantId)
+      .order("sort_order", { ascending: true });
 
-  if (error || !data) {
-    return [];
+    if (error || !data) {
+      return [];
+    }
+    return data as Category[];
   }
-  return data as Category[];
-}
+);
 
 function unpackProduct(product: any): Product {
   if (!product) return product;
@@ -111,46 +118,47 @@ function unpackProduct(product: any): Product {
 }
 
 /**
- * Fetch products for a restaurant, optionally filtered by category
+ * Fetch products for a restaurant, optionally filtered by category (per-request cached)
  */
-export async function getProducts(
-  restaurantId: string,
-  categoryId?: string
-): Promise<Product[]> {
-  const supabase = await createClient();
-  let query = supabase
-    .from("products")
-    .select("*")
-    .eq("restaurant_id", restaurantId)
-    .order("sort_order", { ascending: true });
+export const getProducts = cache(
+  async (restaurantId: string, categoryId?: string): Promise<Product[]> => {
+    const supabase = await createClient();
+    let query = supabase
+      .from("products")
+      .select("*")
+      .eq("restaurant_id", restaurantId)
+      .order("sort_order", { ascending: true });
 
-  if (categoryId && categoryId !== "all") {
-    query = query.eq("category_id", categoryId);
-  }
+    if (categoryId && categoryId !== "all") {
+      query = query.eq("category_id", categoryId);
+    }
 
-  const { data, error } = await query;
-  if (error || !data) {
-    return [];
+    const { data, error } = await query;
+    if (error || !data) {
+      return [];
+    }
+    return (data as any[]).map(unpackProduct);
   }
-  return (data as any[]).map(unpackProduct);
-}
+);
 
 /**
- * Fetch a single product by ID
+ * Fetch a single product by ID (per-request cached)
  */
-export async function getProductById(productId: string): Promise<Product | null> {
-  const supabase = await createClient();
-  const { data, error } = await supabase
-    .from("products")
-    .select("*")
-    .eq("id", productId)
-    .single();
+export const getProductById = cache(
+  async (productId: string): Promise<Product | null> => {
+    const supabase = await createClient();
+    const { data, error } = await supabase
+      .from("products")
+      .select("*")
+      .eq("id", productId)
+      .single();
 
-  if (error || !data) {
-    return null;
+    if (error || !data) {
+      return null;
+    }
+    return unpackProduct(data);
   }
-  return unpackProduct(data);
-}
+);
 
 /**
  * Fetch orders for a restaurant (protected for owners via RLS)

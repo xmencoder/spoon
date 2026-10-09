@@ -28,7 +28,7 @@ export interface CategoryCard {
 }
 
 // Exactly only the categories requested by the user:
-// Popular, Tea Cake, Muffins, Sourdough, Spreads, Sugar Free, Cake Jars, Gift Boxes
+// Popular, All Menus, Tea Cake, Muffins, Sourdough, Spreads, Sugar Free, Cake Jars, Gift Boxes
 export const CATEGORY_CARDS: CategoryCard[] = [
   {
     id: "popular",
@@ -36,6 +36,13 @@ export const CATEGORY_CARDS: CategoryCard[] = [
     count: "18 items",
     image:
       "https://images.unsplash.com/photo-1578985545062-69928b1d9587?w=300&auto=format&fit=crop&q=80",
+  },
+  {
+    id: "all",
+    name: "All Menus",
+    count: "88 items",
+    image:
+      "https://images.unsplash.com/photo-1555507036-ab1f4038808a?w=300&auto=format&fit=crop&q=80",
   },
   {
     id: "tea-cake",
@@ -531,16 +538,26 @@ export function MenuSection({ slug = "the-indulgent-spoon" }: MenuSectionProps) 
   const baseCategoryCards = dbLoaded && liveCategories.length > 0 ? liveCategories : CATEGORY_CARDS;
   const activeMenuItems = dbLoaded && liveMenuItems.length > 0 ? liveMenuItems : MENU_ITEMS;
 
-  // Append "All Menu" at the end so users can browse every product at once
+  // "All Menus" card showing total items
   const allMenuCard: CategoryCard = {
     id: "all",
-    name: "All Menu",
+    name: "All Menus",
     count: `${activeMenuItems.length} items`,
     image:
       activeMenuItems[0]?.image ||
-      "https://images.unsplash.com/photo-1578985545062-69928b1d9587?w=300&auto=format&fit=crop&q=80",
+      "https://images.unsplash.com/photo-1555507036-ab1f4038808a?w=300&auto=format&fit=crop&q=80",
   };
-  const activeCategoryCards = [...baseCategoryCards, allMenuCard];
+
+  // Categories order: First "Popular", then "All Menus", then rest of categories exactly the same
+  const popularCard = baseCategoryCards.find((c) => c.id === "popular");
+  const otherCategoryCards = baseCategoryCards.filter(
+    (c) => c.id !== "popular" && c.id !== "all"
+  );
+  const activeCategoryCards: CategoryCard[] = [
+    ...(popularCard ? [popularCard] : []),
+    allMenuCard,
+    ...otherCategoryCards,
+  ];
 
   // Listen to cross-component category selection events (e.g. from WhatWeSellSection)
   useEffect(() => {
@@ -718,7 +735,7 @@ export function MenuSection({ slug = "the-indulgent-spoon" }: MenuSectionProps) 
   return (
     <section
       id="menu"
-      className="relative overflow-hidden bg-[#F4E9DC] py-10 sm:py-16 lg:py-20 text-[#29251F]"
+      className="relative overflow-hidden bg-[#F4E9DC] py-10 sm:py-16 lg:py-20 text-[#29251F] scroll-mt-16 sm:scroll-mt-20"
     >
       {/* Vintage subtle ambient background gradient */}
       <div className="pointer-events-none absolute inset-0 bg-[radial-gradient(ellipse_at_top,#FFF9F0_0%,rgba(244,233,220,0.4)_60%,rgba(217,188,158,0.25)_100%)]" />
@@ -1258,17 +1275,42 @@ export function MenuSection({ slug = "the-indulgent-spoon" }: MenuSectionProps) 
           })}
         </div>
 
-        {/* View Full Catalog Link */}
+        {/* View Full Catalog Link or More Coming Soon */}
         <div className="mt-8 sm:mt-12 text-center">
-          <Link
-            href="/#menu"
-            className="inline-flex items-center gap-2 text-xs sm:text-sm font-semibold uppercase tracking-[0.18em] text-[#A34B3D] hover:text-[#82382D] transition-colors group"
-          >
-            <span>Explore Complete Kitchen Menu</span>
-            <span className="transition-transform group-hover:translate-x-1">
-              →
-            </span>
-          </Link>
+          {activeCategory === "all" ? (
+            <div className="inline-flex flex-col items-center justify-center py-4 px-6 sm:px-8 rounded-2xl bg-[#FAF5ED]/90 border border-[#E7DCCE] shadow-xs max-w-md mx-auto">
+              <div className="flex items-center gap-2.5 text-[#A34B3D] mb-1">
+                <span className="h-px w-6 sm:w-8 bg-[#A34B3D]/30" />
+                <span className="font-serif italic text-base sm:text-lg font-semibold tracking-wide">
+                  More Delights Coming Soon
+                </span>
+                <span className="h-px w-6 sm:w-8 bg-[#A34B3D]/30" />
+              </div>
+              <p className="text-xs sm:text-[13px] text-[#706657] font-medium leading-relaxed">
+                Our chefs are constantly baking fresh experiments and seasonal treats. Stay tuned! ♡
+              </p>
+            </div>
+          ) : (
+            <button
+              type="button"
+              onClick={() => {
+                setActiveCategory("all");
+                const el = document.getElementById("menu");
+                if (el) {
+                  el.scrollIntoView({ behavior: "smooth" });
+                }
+                if (scrollContainerRef.current) {
+                  scrollContainerRef.current.scrollTo({ left: 60, behavior: "smooth" });
+                }
+              }}
+              className="inline-flex items-center gap-2 text-xs sm:text-sm font-semibold uppercase tracking-[0.18em] text-[#A34B3D] hover:text-[#82382D] transition-colors group cursor-pointer"
+            >
+              <span>Explore Complete Kitchen Menu</span>
+              <span className="transition-transform group-hover:translate-x-1">
+                →
+              </span>
+            </button>
+          )}
         </div>
       </div>
 

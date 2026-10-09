@@ -316,7 +316,6 @@ export async function approveOrderPaymentAction(payload: {
 
   const now = new Date().toISOString();
   const orderNum = order.order_number || `#${order.id.slice(0, 8).toUpperCase()}`;
-  const trackingUrl = `${SITE_URL}/track-order/${order.tracking_token}`;
 
   // 3. Atomically update order to verified + confirmed
   const { error: updateErr } = await supabase
@@ -381,7 +380,6 @@ export async function approveOrderPaymentAction(payload: {
     paymentMethod: "UPI",
     paymentStatus: "VERIFIED",
     paymentVerifiedAt: now,
-    trackingUrl,
     bakeryName: BAKERY_NAME,
     bakeryPhone: "+91 9691639268",
     bakeryAddress: "The Indulgent Spoon, DLF Phase 4, Gurugram",
@@ -429,8 +427,6 @@ export async function approveOrderPaymentAction(payload: {
 
   customerMsg +=
     `Your order has been received by our kitchen team.\n\n` +
-    `*Track your order live here:*\n` +
-    `📦 ${trackingUrl}\n\n` +
     `Thank you for ordering from ${BAKERY_NAME} ❤️`;
 
   await sendWhatsAppMessage({
@@ -451,7 +447,6 @@ export async function approveOrderPaymentAction(payload: {
       orderType: order.order_type,
       deliveryDate: order.delivery_date,
       deliveryTimeSlot: order.delivery_time_slot,
-      trackingUrl,
       pdfBuffer,
     });
   }
@@ -459,7 +454,6 @@ export async function approveOrderPaymentAction(payload: {
   return {
     success: true,
     orderNumber: orderNum,
-    trackingUrl,
   };
 }
 
@@ -560,7 +554,6 @@ export async function advanceOrderStatusAction(payload: {
 
   const isDelivery = order.order_type === "delivery";
   const orderNum = order.order_number || `#${order.id.slice(0, 8).toUpperCase()}`;
-  const trackingUrl = `${SITE_URL}/track-order/${order.tracking_token}`;
 
   // Strict state validation based on fulfillment type
   if (isDelivery && payload.newStatus === "ready_for_pickup") {
@@ -599,7 +592,6 @@ export async function advanceOrderStatusAction(payload: {
       `Order ${orderNum}\n\n` +
       `Your freshly baked order is out for delivery.\n` +
       `Delivery slot: ${order.delivery_time_slot || "Scheduled window"}\n\n` +
-      `📦 *Track live:* ${trackingUrl}\n\n` +
       `— ${BAKERY_NAME} ❤️`;
   } else if (payload.newStatus === "delivered") {
     notificationText =
@@ -614,7 +606,6 @@ export async function advanceOrderStatusAction(payload: {
       `Your order is freshly prepared and packed ready for pickup.\n` +
       `Pickup Location: The Indulgent Spoon, DLF Phase 4, Gurugram\n` +
       `Pickup Slot: ${order.delivery_time_slot || "Scheduled window"}\n\n` +
-      `📦 *View Order:* ${trackingUrl}\n\n` +
       `— ${BAKERY_NAME} ❤️`;
   }
 

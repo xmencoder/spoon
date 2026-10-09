@@ -1,140 +1,11 @@
-import Link from "next/link";
 import Image from "next/image";
 import { Header } from "@/components/layout/Header";
 import { Footer } from "@/components/layout/Footer";
-import { Button } from "@/components/ui/button";
-import { Badge } from "@/components/ui/badge";
-import {
-  ArrowRight,
-  Plus,
-  Clock,
-  Star,
-  Award,
-} from "lucide-react";
+import { Clock, Star, Award } from "lucide-react";
 import { MenuSection } from "@/components/home/MenuSection";
 import { FounderNoteSection } from "@/components/home/FounderNoteSection";
-import {
-  getDefaultRestaurant,
-  getCategories,
-  getProducts,
-} from "@/lib/supabase/queries";
-
-interface CategoryItem {
-  id: string;
-  name: string;
-  image: string;
-  count: string;
-}
-
-const DEFAULT_CATEGORIES: CategoryItem[] = [
-  {
-    id: "bestseller",
-    name: "Bestseller",
-    image:
-      "https://images.unsplash.com/photo-1555507036-ab1f4038808a?w=200&auto=format&fit=crop&q=80",
-    count: "6",
-  },
-];
-
-interface ProductItem {
-  id: string;
-  name: string;
-  description: string;
-  price: number;
-  category: string;
-  badge: string;
-  badgeVariant: "bestseller" | "special" | "default" | "fresh" | "indulgent" | "chilled";
-  image: string;
-  prepTime: string;
-  aspectRatio: string;
-}
-
-const FEATURED_PRODUCTS: ProductItem[] = [
-  {
-    id: "1",
-    name: "Royal Chicken Dum Biryani",
-    description:
-      "Fragrant 2-year aged basmati layered with succulent farm chicken, caramel brown onions, saffron threads, and pot-sealed on low dum.",
-    price: 349,
-    category: "Biryani",
-    badge: "Bestseller",
-    badgeVariant: "bestseller",
-    image:
-      "https://images.unsplash.com/photo-1563379091339-03b21ab4a4f8?w=800&auto=format&fit=crop&q=80",
-    prepTime: "25 min",
-    aspectRatio: "aspect-[4/3]",
-  },
-  {
-    id: "2",
-    name: "Smoked Paneer Tikka",
-    description:
-      "Hand-pressed artisanal cottage cheese steeped in Kashmiri red chilli, cold-pressed mustard oil, hung curd, and roasted over natural charcoal.",
-    price: 289,
-    category: "Starters",
-    badge: "Chef's Special",
-    badgeVariant: "special",
-    image:
-      "https://images.unsplash.com/photo-1599488615731-7e5c2823ff28?w=800&auto=format&fit=crop&q=80",
-    prepTime: "20 min",
-    aspectRatio: "aspect-[4/3]",
-  },
-  {
-    id: "3",
-    name: "Old Delhi Butter Chicken",
-    description:
-      "Charcoal roasted tandoori chicken simmered slowly in a rich velvet satin makhani sauce infused with fresh butter and sun-dried fenugreek.",
-    price: 389,
-    category: "Main Course",
-    badge: "Popular",
-    badgeVariant: "default",
-    image:
-      "https://images.unsplash.com/photo-1603894584373-5ac82b2ae398?w=800&auto=format&fit=crop&q=80",
-    prepTime: "25 min",
-    aspectRatio: "aspect-[4/3]",
-  },
-  {
-    id: "4",
-    name: "Artisanal Butter Croissant",
-    description:
-      "Folded with 72 gossamer layers of pure cultured European butter. Hand-laminated, slow-proofed, and baked golden every sunrise.",
-    price: 169,
-    category: "Bakery",
-    badge: "Freshly Baked",
-    badgeVariant: "fresh",
-    image:
-      "https://images.unsplash.com/photo-1555507036-ab1f4038808a?w=800&auto=format&fit=crop&q=80",
-    prepTime: "Daily Batch",
-    aspectRatio: "aspect-[4/3]",
-  },
-  {
-    id: "5",
-    name: "Belgium Truffle Brownie",
-    description:
-      "Dense, molten center crafted from 70% single-origin Belgian dark chocolate, topped with house-made salted caramel and toasted pecans.",
-    price: 199,
-    category: "Desserts",
-    badge: "Indulgent",
-    badgeVariant: "indulgent",
-    image:
-      "https://images.unsplash.com/photo-1606313564200-e75d5e30476c?w=800&auto=format&fit=crop&q=80",
-    prepTime: "Warm Serve",
-    aspectRatio: "aspect-[4/3]",
-  },
-  {
-    id: "6",
-    name: "Signature Cold Brew Coffee",
-    description:
-      "Single-estate Arabica beans coarse-ground and slow-steeped for 18 hours in cold filtered spring water. Poured over ice with whole milk.",
-    price: 159,
-    category: "Beverages",
-    badge: "Chilled",
-    badgeVariant: "chilled",
-    image:
-      "https://images.unsplash.com/photo-1517701604599-bb29b565090c?w=800&auto=format&fit=crop&q=80",
-    prepTime: "Instant Serve",
-    aspectRatio: "aspect-[4/3]",
-  },
-];
+import { OrderNowButton } from "@/components/home/OrderNowButton";
+import { getDefaultRestaurant } from "@/lib/supabase/queries";
 
 export default async function Home() {
   const restaurant = await getDefaultRestaurant();
@@ -143,59 +14,13 @@ export default async function Home() {
     process.env.NEXT_PUBLIC_DEFAULT_RESTAURANT_SLUG ||
     "the-indulgent-spoon";
 
-  let displayCategories = DEFAULT_CATEGORIES;
-  let displayProducts = FEATURED_PRODUCTS;
-
-  if (restaurant) {
-    const [dbCats, dbProds] = await Promise.all([
-      getCategories(restaurant.id),
-      getProducts(restaurant.id),
-    ]);
-
-    if (dbCats && dbCats.length > 0) {
-      // Strictly fetch from backend — no hardcoded "All Items" or mock categories
-      displayCategories = dbCats.map((c) => {
-        const categoryProducts = dbProds.filter((p) => p.category_id === c.id);
-        const firstWithImage = categoryProducts.find((p) => p.image_url);
-        return {
-          id: c.id,
-          name: c.name,
-          image:
-            firstWithImage?.image_url ||
-            "https://images.unsplash.com/photo-1555507036-ab1f4038808a?w=200&auto=format&fit=crop&q=80",
-          count: String(categoryProducts.length),
-        };
-      });
-    }
-
-    if (dbProds && dbProds.length > 0) {
-      displayProducts = dbProds.map((p) => {
-        const cat = dbCats.find((c) => c.id === p.category_id);
-        return {
-          id: p.id,
-          name: p.name,
-          description: p.description || "",
-          price: p.price,
-          category: cat?.name || "Bestseller",
-          badge: p.featured ? "Chef's Special" : "Fresh",
-          badgeVariant: p.featured ? ("special" as const) : ("default" as const),
-          image:
-            p.image_url ||
-            "https://images.unsplash.com/photo-1563379091339-03b21ab4a4f8?w=800&auto=format&fit=crop&q=80",
-          prepTime: "Freshly Made",
-          aspectRatio: "aspect-[4/3]",
-        };
-      });
-    }
-  }
-
   return (
     <div className="flex min-h-screen flex-col bg-[#D9BC9E] text-[#29251F]">
       <Header cartCount={0} />
 
       {/* ═══ HERO SECTION — Full-bleed HD background (sits under transparent navbar) ═══ */}
       <section className="relative overflow-hidden border-b border-[#91885D]/30 min-h-screen flex items-center justify-center">
-        {/* HD Background image — vivid food grading, max quality */}
+        {/* HD Background image — vivid food grading, optimized quality */}
         <Image
           src="/main.jpeg"
           alt="Artisanal bakery spread with fresh breads, cakes, muffins, cookies and chocolate spreads"
@@ -203,13 +28,13 @@ export default async function Home() {
           priority
           className="object-cover object-[50%_45%] sm:object-[center_40%] contrast-[1.06] saturate-[1.12] brightness-[0.96] transition-transform duration-1000 scale-[1.01]"
           sizes="100vw"
-          quality={100}
+          quality={85}
         />
 
         {/* Dynamic HD Photographic Lighting & Gradients */}
         {/* Ambient warm studio lighting vignette */}
         <div className="absolute inset-0 bg-[radial-gradient(ellipse_at_center,rgba(41,37,31,0.15)_0%,rgba(41,37,31,0.55)_80%,rgba(41,37,31,0.75)_100%)]" />
-        
+
         {/* Directional light fade for top navbar transparency & bottom blend */}
         <div className="absolute inset-0 bg-gradient-to-b from-[#29251F]/60 via-transparent to-[#29251F]/70 sm:from-[#29251F]/65 sm:via-[#29251F]/20 sm:to-[#29251F]/75" />
         <div className="absolute inset-0 bg-gradient-to-t from-[#D9BC9E]/20 via-transparent to-transparent pointer-events-none" />
@@ -255,16 +80,7 @@ export default async function Home() {
 
           {/* CTAs */}
           <div className="flex justify-center mt-8 sm:mt-10">
-            <Link href="/#menu">
-              <Button
-                variant="cta"
-                size="lg"
-                className="gap-2 rounded-full px-9 py-4 text-sm shadow-[0_8px_32px_rgba(194,107,89,0.4)] hover:shadow-[0_12px_40px_rgba(194,107,89,0.5)] transition-shadow duration-300"
-              >
-                Order Now
-                <ArrowRight className="h-4 w-4" strokeWidth={2} />
-              </Button>
-            </Link>
+            <OrderNowButton />
           </div>
 
           {/* Quick stats row */}
@@ -294,7 +110,7 @@ export default async function Home() {
         <div className="absolute bottom-6 left-1/2 -translate-x-1/2 z-10 flex flex-col items-center gap-1.5 animate-bounce">
           <span className="text-[9px] font-semibold uppercase tracking-[0.25em] text-[#F5EBDD]/50">Scroll</span>
           <svg width="16" height="10" viewBox="0 0 16 10" fill="none" className="text-[#F5EBDD]/40">
-            <path d="M1 1L8 8L15 1" stroke="currentColor" strokeWidth="1.5" strokeLinecap="round" strokeLinejoin="round"/>
+            <path d="M1 1L8 8L15 1" stroke="currentColor" strokeWidth="1.5" strokeLinecap="round" strokeLinejoin="round" />
           </svg>
         </div>
       </section>

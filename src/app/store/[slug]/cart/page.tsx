@@ -7,7 +7,6 @@ import { useParams, useRouter } from "next/navigation";
 import {
   useCart,
   DEFAULT_RESTAURANT_SLUG,
-  GIFT_NOTE_FEE,
 } from "@/lib/store/CartContext";
 import { formatPrice } from "@/lib/utils";
 import { createClient } from "@/lib/supabase/client";
@@ -21,7 +20,6 @@ import {
   Minus,
   X,
   Trash2,
-  Gift,
   Heart,
   ShoppingBag,
   Sparkles,
@@ -40,12 +38,7 @@ export default function CartPage() {
     totalItems,
     subtotal,
     packagingFee,
-    giftNoteFee,
     total,
-    hasGiftNote,
-    giftNote,
-    setHasGiftNote,
-    setGiftNote,
     increment,
     decrement,
     removeItem,
@@ -85,11 +78,13 @@ export default function CartPage() {
                 .eq("restaurant_id", targetRestId)
                 .eq("available", true)
                 .order("sort_order", { ascending: true })
+                .limit(24)
             : supabase
                 .from("products")
                 .select("*")
                 .eq("available", true)
-                .order("sort_order", { ascending: true }),
+                .order("sort_order", { ascending: true })
+                .limit(24),
           targetRestId
             ? supabase
                 .from("categories")
@@ -388,14 +383,7 @@ export default function CartPage() {
                     </div>
                   )}
 
-                  {hasGiftNote && (
-                    <div className="flex justify-between text-[#554D3F]">
-                      <span>Gift Note</span>
-                      <span className="font-bold text-[#29251F]">
-                        +{formatPrice(GIFT_NOTE_FEE)}
-                      </span>
-                    </div>
-                  )}
+
 
                   <div className="pt-3 border-t border-[#91885D]/20 flex justify-between items-baseline">
                     <span className="font-serif text-base font-bold text-[#29251F]">
@@ -407,40 +395,7 @@ export default function CartPage() {
                   </div>
                 </div>
 
-                {/* ── GIFT NOTE OPTION ── */}
-                <div className="pt-3 border-t border-[#91885D]/20 space-y-2">
-                  <label className="flex items-center gap-2 cursor-pointer select-none">
-                    <input
-                      type="checkbox"
-                      checked={hasGiftNote}
-                      onChange={(e) => setHasGiftNote(e.target.checked)}
-                      className="rounded border-[#91885D]/40 text-[#C26B59] focus:ring-[#C26B59] h-4 w-4"
-                    />
-                    <span className="text-xs font-bold text-[#29251F] flex items-center gap-1.5">
-                      <Gift className="w-3.5 h-3.5 text-[#C26B59]" />
-                      <span>Add Gift Card Message (+₹40)</span>
-                    </span>
-                  </label>
 
-                  {hasGiftNote && (
-                    <div className="pt-2 animate-in fade-in">
-                      <textarea
-                        value={giftNote}
-                        onChange={(e) => {
-                          if (e.target.value.length <= 200) {
-                            setGiftNote(e.target.value);
-                          }
-                        }}
-                        placeholder="Write your heartfelt message here..."
-                        rows={3}
-                        className="w-full text-xs text-[#29251F] placeholder-[#8A7B6B] bg-[#FAF6EF] border border-[#91885D]/35 rounded-xl p-3 focus:outline-none focus:border-[#C26B59] transition-colors resize-none"
-                      />
-                      <div className="text-right text-[10px] text-[#696053] mt-1">
-                        {giftNote.length}/200
-                      </div>
-                    </div>
-                  )}
-                </div>
 
                 {/* ── PROCEED TO CHECKOUT BUTTON ── */}
                 <Link

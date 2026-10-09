@@ -127,7 +127,6 @@ export default function OrderSuccessReceiptPage() {
     if (!receipt) return;
     try {
       setDownloadingPdf(true);
-      const trackingUrl = typeof window !== "undefined" ? window.location.origin + `/track-order/${receipt.trackingToken || receipt.orderId}` : "";
       const pdf = generateOrderReceiptPdf({
         orderNumber: `#${receipt.orderId}`,
         orderId: receipt.orderId,
@@ -156,7 +155,6 @@ export default function OrderSuccessReceiptPage() {
         paymentMethod: receipt.paymentMethod || "Razorpay / Online",
         paymentStatus: (receipt.paymentStatus || "PAID").toUpperCase(),
         paymentVerifiedAt: new Date().toISOString(),
-        trackingUrl,
         bakeryName: receipt.restaurantName || "The Indulgent Spoon",
         bakeryPhone: receipt.restaurantPhone || "+91 9691639268",
         bakeryAddress: "Mayfield Garden, Sector 51, Gurugram, Haryana",

@@ -624,11 +624,19 @@ export async function getAdminOrders(restaurantId: string): Promise<Order[]> {
   const supabase = createClient();
   const { data, error } = await supabase
     .from("orders")
-    .select("*")
+    .select("*, order_items(*)")
     .eq("restaurant_id", restaurantId)
     .order("created_at", { ascending: false });
 
-  if (error) throw error;
+  if (error) {
+    const { data: fallbackData, error: fallbackError } = await supabase
+      .from("orders")
+      .select("*")
+      .eq("restaurant_id", restaurantId)
+      .order("created_at", { ascending: false });
+    if (fallbackError) throw fallbackError;
+    return (fallbackData as Order[]) || [];
+  }
   return (data as Order[]) || [];
 }
 

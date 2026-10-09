@@ -30,7 +30,7 @@ export interface ReceiptData {
   paymentMethod: string;
   paymentStatus: string;
   paymentVerifiedAt?: string | null;
-  trackingUrl: string;
+  trackingUrl?: string;
   bakeryName?: string;
   bakeryPhone?: string;
   bakeryAddress?: string;
@@ -282,29 +282,31 @@ export function generateOrderReceiptPdf(data: ReceiptData): jsPDF {
 
   y += 18;
 
-  // ── 6. Track Order Box & Live Link ──
-  doc.setFillColor(250, 246, 239);
-  doc.setDrawColor(194, 107, 89);
-  doc.roundedRect(margin, y, contentWidth, 24, 3, 3, "FD");
+  // ── 6. Track Order Box & Live Link (Optional) ──
+  if (data.trackingUrl) {
+    doc.setFillColor(250, 246, 239);
+    doc.setDrawColor(194, 107, 89);
+    doc.roundedRect(margin, y, contentWidth, 24, 3, 3, "FD");
 
-  doc.setFont("helvetica", "bold");
-  doc.setFontSize(9.5);
-  doc.setTextColor(99, 72, 50);
-  doc.text("📦 LIVE ORDER TRACKING", margin + 6, y + 7);
+    doc.setFont("helvetica", "bold");
+    doc.setFontSize(9.5);
+    doc.setTextColor(99, 72, 50);
+    doc.text("📦 LIVE ORDER TRACKING", margin + 6, y + 7);
 
-  doc.setFont("helvetica", "normal");
-  doc.setFontSize(8);
-  doc.setTextColor(105, 96, 83);
-  doc.text(
-    "You can track the live kitchen & baking status of your fresh handcrafted order anytime:",
-    margin + 6,
-    y + 13
-  );
+    doc.setFont("helvetica", "normal");
+    doc.setFontSize(8);
+    doc.setTextColor(105, 96, 83);
+    doc.text(
+      "You can track the live kitchen & baking status of your fresh handcrafted order anytime:",
+      margin + 6,
+      y + 13
+    );
 
-  doc.setFont("helvetica", "bold");
-  doc.setFontSize(8.5);
-  doc.setTextColor(163, 75, 61);
-  doc.textWithLink(data.trackingUrl, margin + 6, y + 19, { url: data.trackingUrl });
+    doc.setFont("helvetica", "bold");
+    doc.setFontSize(8.5);
+    doc.setTextColor(163, 75, 61);
+    doc.textWithLink(data.trackingUrl, margin + 6, y + 19, { url: data.trackingUrl });
+  }
 
   // ── 7. Footer Note ──
   const footerY = pageHeight - 14;

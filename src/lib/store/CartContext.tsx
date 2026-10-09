@@ -6,6 +6,7 @@ import React, {
   useReducer,
   useEffect,
   useCallback,
+  useMemo,
   useState,
 } from "react";
 import type { Product } from "@/types/database";
@@ -453,37 +454,66 @@ export function CartProvider({
   const giftNoteFee = state.hasGiftNote ? GIFT_NOTE_FEE : 0;
   const total = subtotal + deliveryFee + packagingFee + giftNoteFee;
 
+  const contextValue = useMemo(
+    () => ({
+      items: state.items,
+      totalItems,
+      subtotal,
+      deliveryFee,
+      packagingFee,
+      giftNoteFee,
+      total,
+      hasGiftNote: state.hasGiftNote,
+      giftNote: state.giftNote,
+      isDrawerOpen,
+      lastAddedItem,
+      restaurantSlug,
+      addItem,
+      removeItem,
+      increment,
+      decrement,
+      setQuantity,
+      clearCart,
+      getQuantity,
+      getProductQuantity,
+      hasItem,
+      setHasGiftNote,
+      setGiftNote,
+      setIsDrawerOpen,
+      openCartDrawer,
+      closeCartDrawer,
+    }),
+    [
+      state.items,
+      totalItems,
+      subtotal,
+      deliveryFee,
+      packagingFee,
+      giftNoteFee,
+      total,
+      state.hasGiftNote,
+      state.giftNote,
+      isDrawerOpen,
+      lastAddedItem,
+      restaurantSlug,
+      addItem,
+      removeItem,
+      increment,
+      decrement,
+      setQuantity,
+      clearCart,
+      getQuantity,
+      getProductQuantity,
+      hasItem,
+      setHasGiftNote,
+      setGiftNote,
+      openCartDrawer,
+      closeCartDrawer,
+    ]
+  );
+
   return (
-    <CartContext.Provider
-      value={{
-        items: state.items,
-        totalItems,
-        subtotal,
-        deliveryFee,
-        packagingFee,
-        giftNoteFee,
-        total,
-        hasGiftNote: state.hasGiftNote,
-        giftNote: state.giftNote,
-        isDrawerOpen,
-        lastAddedItem,
-        restaurantSlug,
-        addItem,
-        removeItem,
-        increment,
-        decrement,
-        setQuantity,
-        clearCart,
-        getQuantity,
-        getProductQuantity,
-        hasItem,
-        setHasGiftNote,
-        setGiftNote,
-        setIsDrawerOpen,
-        openCartDrawer,
-        closeCartDrawer,
-      }}
-    >
+    <CartContext.Provider value={contextValue}>
       {children}
     </CartContext.Provider>
   );

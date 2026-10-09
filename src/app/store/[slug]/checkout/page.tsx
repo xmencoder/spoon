@@ -1645,14 +1645,12 @@ export default function CheckoutPage() {
                 </div>
 
                 <div className="space-y-2">
-                  {(createdOrderData.trackingToken || createdOrderData.orderId) && (
-                    <Link
-                      href={`/track-order/${createdOrderData.trackingToken || createdOrderData.orderId}`}
-                      className="w-full flex items-center justify-center gap-2 rounded-2xl bg-[#C26B59] hover:bg-[#A95145] text-white py-3.5 text-xs font-bold shadow-md transition-colors"
-                    >
-                      <span>📦 Track Live Order Status</span>
-                    </Link>
-                  )}
+                  <Link
+                    href={`/store/${slug}`}
+                    className="w-full flex items-center justify-center gap-2 rounded-2xl bg-[#C26B59] hover:bg-[#A95145] text-white py-3.5 text-xs font-bold shadow-md transition-colors"
+                  >
+                    <span>Back to Menu</span>
+                  </Link>
                 </div>
               </div>
             )}

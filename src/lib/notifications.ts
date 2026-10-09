@@ -263,7 +263,7 @@ export async function sendCustomerOrderEmail(payload: {
   orderType: "delivery" | "takeaway";
   deliveryDate?: string | null;
   deliveryTimeSlot?: string | null;
-  trackingUrl: string;
+  trackingUrl?: string;
   pdfBuffer?: Buffer;
 }): Promise<{ success: boolean; error?: string }> {
   try {
@@ -353,12 +353,6 @@ export async function sendCustomerOrderEmail(payload: {
               </table>
             </div>
 
-            <!-- Track Order CTA Button -->
-            <div style="text-align: center; margin: 28px 0;">
-              <a href="${payload.trackingUrl}" style="background: #C26B59; color: #FFFFFF; text-decoration: none; padding: 14px 28px; border-radius: 30px; font-weight: bold; font-size: 14px; display: inline-block; box-shadow: 0 4px 10px rgba(194, 107, 89, 0.3);">
-                📦 Track Live Kitchen & Baking Status
-              </a>
-            </div>
 
             <p style="font-size: 12px; color: #696053; text-align: center; margin: 0 0 16px 0;">
               Your official PDF payment receipt is attached with this email for your records.

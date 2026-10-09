@@ -86,6 +86,7 @@ export type PaymentStatus =
   | "unpaid"
   | "verification_pending"
   | "verified"
+  | "paid"
   | "not_received"
   | "refunded";
 
@@ -138,6 +139,7 @@ export interface Order {
   receipt_generated_at?: string | null;
   created_at?: string;
   updated_at?: string;
+  order_items?: OrderItem[];
 }
 
 export interface OrderStatusHistory {

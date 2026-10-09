@@ -21,6 +21,9 @@ const caveat = Caveat({
 });
 
 export const metadata: Metadata = {
+  metadataBase: new URL(
+    process.env.NEXT_PUBLIC_SITE_URL || "https://theindulgentspoon.com"
+  ),
   title: "The Indulgent Spoon — Artisanal Bakery & Patisserie",
   description:
     "Order handcrafted fresh sourdough, zero-sugar spreads, and decadent desserts. 100% eggless products made fresh on order.",

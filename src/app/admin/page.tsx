@@ -284,13 +284,13 @@ export default function AdminDashboardPage() {
           <div className="grid grid-cols-1 sm:grid-cols-2 lg:grid-cols-4 gap-3 pt-6 mt-6 border-t border-spoon-border/60">
             <Link
               href="/admin/orders"
-              className="flex flex-col p-4 rounded-2xl bg-amber-50/70 hover:bg-amber-100/70 border border-amber-300 transition-all group"
+              className="flex flex-col p-4 rounded-2xl bg-spoon-cream hover:bg-spoon-sand/60 border border-spoon-border/80 transition-all group"
             >
-              <span className="text-xs font-bold text-amber-950 group-hover:text-amber-800">
-                🔔 Payment & Orders →
+              <span className="text-xs font-bold text-spoon-dark group-hover:text-spoon-caramel">
+                🛍️ Orders & Management →
               </span>
-              <span className="text-[11px] text-amber-800/80 mt-1">
-                Verify UPI payments & manage pipeline
+              <span className="text-[11px] text-spoon-muted mt-1">
+                View orders, products details & Razorpay status
               </span>
             </Link>
 

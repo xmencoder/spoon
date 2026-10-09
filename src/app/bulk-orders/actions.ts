@@ -7,15 +7,16 @@ export interface BulkOrderFormData {
   customer_name: string;
   customer_phone: string;
   customer_email?: string;
+  requirement?: string;
+  message?: string;
   company_name?: string;
-  occasion: string;
-  estimated_quantity: string;
+  occasion?: string;
+  estimated_quantity?: string;
   target_date?: string;
   delivery_location?: string;
   budget_range?: string;
-  product_interests: string[];
-  dietary_preferences: string[];
-  message?: string;
+  product_interests?: string[];
+  dietary_preferences?: string[];
 }
 
 export async function submitBulkOrderEnquiryAction(formData: BulkOrderFormData) {
@@ -24,16 +25,15 @@ export async function submitBulkOrderEnquiryAction(formData: BulkOrderFormData) 
 
     // Basic validation
     if (!formData.customer_name?.trim()) {
-      return { success: false, error: "Please enter your full name." };
+      return { success: false, error: "Please enter your name." };
     }
     if (!formData.customer_phone?.trim()) {
-      return { success: false, error: "Please enter a valid phone or WhatsApp number." };
+      return { success: false, error: "Please enter your WhatsApp / phone number." };
     }
-    if (!formData.occasion?.trim()) {
-      return { success: false, error: "Please select an occasion or event type." };
-    }
-    if (!formData.estimated_quantity?.trim()) {
-      return { success: false, error: "Please specify an estimated quantity." };
+    const requirementText =
+      formData.requirement?.trim() || formData.message?.trim() || "";
+    if (!requirementText) {
+      return { success: false, error: "Please enter your requirement." };
     }
 
     // Get default restaurant ID
@@ -61,14 +61,15 @@ export async function submitBulkOrderEnquiryAction(formData: BulkOrderFormData) 
       customer_phone: formData.customer_phone.trim(),
       customer_email: formData.customer_email?.trim() || null,
       company_name: formData.company_name?.trim() || null,
-      occasion: formData.occasion,
-      estimated_quantity: formData.estimated_quantity,
+      occasion: formData.occasion?.trim() || "Bulk Order Requirement",
+      estimated_quantity:
+        formData.estimated_quantity?.trim() || "Custom / As specified",
       target_date: formData.target_date || null,
       delivery_location: formData.delivery_location?.trim() || null,
       budget_range: formData.budget_range || null,
       product_interests: formData.product_interests || [],
       dietary_preferences: formData.dietary_preferences || [],
-      message: formData.message?.trim() || null,
+      message: requirementText,
       status: "new" as BulkOrderStatus,
       created_at: new Date().toISOString(),
       updated_at: new Date().toISOString(),
@@ -82,7 +83,7 @@ export async function submitBulkOrderEnquiryAction(formData: BulkOrderFormData) 
 
     if (error) {
       console.error("Error inserting bulk order enquiry:", error);
-      // Even if database has RLS or schema mismatch, provide a graceful return
+      // Graceful fallback return
       return {
         success: true,
         enquiryNumber,
@@ -100,7 +101,9 @@ export async function submitBulkOrderEnquiryAction(formData: BulkOrderFormData) 
     console.error("submitBulkOrderEnquiryAction error:", err);
     return {
       success: false,
-      error: err?.message || "Failed to submit bulk enquiry. Please try again or reach out on WhatsApp.",
+      error:
+        err?.message ||
+        "Failed to submit bulk enquiry. Please try again or reach out on WhatsApp.",
     };
   }
 }

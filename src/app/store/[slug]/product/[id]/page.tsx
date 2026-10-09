@@ -78,16 +78,6 @@ export default async function ProductDetailPage({ params }: Props) {
     }
   }
 
-  // Fetch sibling products for recommendations
-  if (restaurant?.id) {
-    try {
-      const all = await getProducts(restaurant.id);
-      otherProducts = all.filter((p) => p.id !== id).slice(0, 5);
-    } catch {
-      otherProducts = [];
-    }
-  }
-
   let product: Product | null = dbProduct;
   let badge: string | undefined = undefined;
   let categoryName = "Bakery";
@@ -96,7 +86,6 @@ export default async function ProductDetailPage({ params }: Props) {
     product = dbProduct;
     badge = (dbProduct.badge as string) || undefined;
   } else {
-    // Fallback stub if id not found in DB
     product = {
       id,
       restaurant_id: restaurant.id,
@@ -104,22 +93,29 @@ export default async function ProductDetailPage({ params }: Props) {
       name: "Bakery Item",
       description: "Artisanal bake prepared with premium ingredients.",
       price: 500,
-      image_url: "https://images.unsplash.com/photo-1578985545062-69928b1d9587?w=800&auto=format&fit=crop&q=80",
+      image_url:
+        "https://images.unsplash.com/photo-1578985545062-69928b1d9587?w=800&auto=format&fit=crop&q=80",
       available: true,
       featured: true,
       sort_order: 0,
     };
   }
 
-  // If we have restaurant categories in DB, attempt lookup
-  try {
-    const categories = await getCategories(restaurant.id);
-    if (categories && product.category_id) {
-      const match = categories.find((c) => c.id === product?.category_id);
-      if (match) categoryName = match.name;
+  // Fetch sibling products for recommendations and categories in parallel
+  if (restaurant?.id) {
+    try {
+      const [all, categories] = await Promise.all([
+        getProducts(restaurant.id),
+        getCategories(restaurant.id),
+      ]);
+      otherProducts = all.filter((p) => p.id !== id).slice(0, 5);
+      if (categories && product?.category_id) {
+        const match = categories.find((c) => c.id === product?.category_id);
+        if (match) categoryName = match.name;
+      }
+    } catch {
+      otherProducts = [];
     }
-  } catch {
-    // ignore
   }
 
   return (

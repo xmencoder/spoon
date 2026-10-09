@@ -540,11 +540,11 @@ export default function AdminBulkOrdersPage() {
                       </div>
                     )}
 
-                    {/* Message / Special Note */}
+                    {/* Message / Requirement */}
                     {enquiry.message && (
                       <div className="bg-spoon-cream/40 p-3 rounded-xl border border-spoon-border text-xs text-spoon-dark leading-relaxed">
                         <span className="font-semibold text-spoon-caramel block mb-0.5">
-                          Customer Message / Requests:
+                          Customer Requirement:
                         </span>
                         &ldquo;{enquiry.message}&rdquo;
                       </div>
