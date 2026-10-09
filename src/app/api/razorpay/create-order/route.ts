@@ -36,6 +36,7 @@ export async function POST(req: NextRequest) {
         notes: {
           customer_name: customerName || "",
           customer_phone: customerPhone || "",
+          order_id: orderId || "",
         },
       };
 

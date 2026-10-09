@@ -1,0 +1,5 @@
+# Supabase Edge Function Configuration
+# verify_jwt is set to false because Razorpay webhooks come directly from Razorpay servers.
+# Security is strictly enforced via HMAC-SHA256 signature verification with RAZORPAY_WEBHOOK_SECRET.
+[functions.razorpay-order-notification]
+verify_jwt = false
