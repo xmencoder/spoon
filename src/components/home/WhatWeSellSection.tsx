@@ -335,20 +335,9 @@ export function WhatWeSellSection() {
     return () => clearInterval(timer);
   }, [isUserInteracting, scrollToIndex]);
 
-  // When user clicks a category: Select that category in MenuSection and scroll to #menu!
+  // When user clicks a category: Open that category directly on Full Menu page!
   const handleCategoryClick = (categorySlug: string) => {
-    // 1. Dispatch custom event to MenuSection
-    window.dispatchEvent(
-      new CustomEvent("select-category", { detail: categorySlug })
-    );
-
-    // 2. Scroll smoothly to #menu
-    const menuEl = document.getElementById("menu");
-    if (menuEl) {
-      menuEl.scrollIntoView({ behavior: "smooth" });
-    } else {
-      window.location.hash = "menu";
-    }
+    window.location.href = `/full-menu#section-${categorySlug}`;
   };
 
   return (

@@ -1,6 +1,7 @@
 "use server";
 
 import { createClient } from "@/lib/supabase/server";
+import { createAdminClient } from "@/lib/supabase/admin";
 import type { OrderType } from "@/types/database";
 import { calculateRoadDistanceAndCharge } from "@/lib/delivery-config";
 
@@ -129,6 +130,17 @@ export async function createOrder(
       };
     });
 
+    // Add gift note / message card as a distinct order item if requested
+    if (data.hasGiftNote && data.giftNote?.trim()) {
+      orderItems.push({
+        productId: null as any,
+        productName: `💌 Message Card: "${data.giftNote.trim()}"`,
+        quantity: 1,
+        unitPrice: 40,
+        subtotal: 40,
+      });
+    }
+
     const itemsSubtotal = orderItems.reduce((sum, i) => sum + i.subtotal, 0);
 
     // 2. Server-side validation of delivery charge (never trust browser value)
@@ -165,7 +177,9 @@ export async function createOrder(
       .map((b) => b.toString(16).padStart(2, "0"))
       .join("");
 
-    // 3. Create order record with delivery slot details
+    // 3. Create order record with delivery slot details using admin client
+    const admin = createAdminClient();
+
     const orderPayload: any = {
       restaurant_id: data.restaurantId,
       order_number: generatedOrderNumber,
@@ -198,7 +212,7 @@ export async function createOrder(
       }
     }
 
-    const { data: order, error: orderError } = await supabase
+    const { data: order, error: orderError } = await admin
       .from("orders")
       .insert(orderPayload)
       .select()
@@ -213,20 +227,52 @@ export async function createOrder(
     const orderNumber = order.order_number || generatedOrderNumber;
     const trackingToken = order.tracking_token || generatedTrackingToken;
 
-    // 4. Insert order items
-    await supabase.from("order_items").insert(
-      orderItems.map((item) => ({
-        order_id: order.id,
-        product_id: item.productId,
-        product_name: item.productName,
-        quantity: item.quantity,
-        unit_price: item.unitPrice,
-        subtotal: item.subtotal,
-      }))
-    );
+    // 4. Insert order items with admin client (bypasses RLS reliably)
+    const validUuidRegex = /^[0-9a-f]{8}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{12}$/i;
+
+    // Check which prospective product IDs actually exist in the products table
+    const prospectiveIds = orderItems
+      .map((i) => i.productId)
+      .filter((id): id is string => Boolean(id && validUuidRegex.test(id)));
+
+    const existingIdSet = new Set<string>();
+    if (prospectiveIds.length > 0) {
+      try {
+        const { data: matchedProds } = await admin
+          .from("products")
+          .select("id")
+          .in("id", prospectiveIds);
+        if (matchedProds) {
+          matchedProds.forEach((p) => existingIdSet.add(p.id));
+        }
+      } catch (checkErr) {
+        console.warn("Could not check product ID existence:", checkErr);
+      }
+    }
+
+    const itemsToInsert = orderItems.map((item) => ({
+      order_id: order.id,
+      product_id: item.productId && existingIdSet.has(item.productId) ? item.productId : null,
+      product_name: item.productName,
+      quantity: item.quantity,
+      unit_price: item.unitPrice,
+      subtotal: item.subtotal,
+    }));
+
+    const { error: itemsInsertError } = await admin.from("order_items").insert(itemsToInsert);
+
+    if (itemsInsertError) {
+      console.error("Failed to insert order items, trying safe fallback with null product_ids:", itemsInsertError);
+      // Fallback: guaranteed insert with product_id: null so items are NEVER lost
+      const safeFallbackItems = itemsToInsert.map((i) => ({ ...i, product_id: null }));
+      const { error: fallbackErr } = await admin.from("order_items").insert(safeFallbackItems);
+      if (fallbackErr) {
+        console.error("Critical: Fallback order_items insert also failed:", fallbackErr);
+      }
+    }
 
     // Initial status history
-    await supabase.from("order_status_history").insert({
+    await admin.from("order_status_history").insert({
       order_id: order.id,
       status: "payment_verification_pending",
       changed_by: "customer",

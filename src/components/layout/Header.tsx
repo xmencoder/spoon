@@ -62,12 +62,12 @@ export function Header({ cartCount: initialCartCount }: HeaderProps) {
       <div className="relative bg-[#7A774D] h-14 sm:h-16">
         <div className="mx-auto max-w-7xl h-full px-4 sm:px-8 flex items-center justify-between relative">
           {/* ── LEFT NAVIGATION LINKS ── */}
-          <nav className="flex items-center gap-5 sm:gap-8 text-xs sm:text-sm font-serif font-medium tracking-wide">
+          <nav className="flex items-center gap-3.5 sm:gap-6 md:gap-7 text-xs sm:text-sm font-serif font-medium tracking-wide">
             <Link
               href="/"
               className={`transition-colors duration-200 ${
                 pathname === "/"
-                  ? "text-[#F8F2E8] hover:text-white"
+                  ? "text-[#FAF5ED] font-semibold"
                   : "text-[#F0E7D8] hover:text-white"
               }`}
             >
@@ -75,12 +75,23 @@ export function Header({ cartCount: initialCartCount }: HeaderProps) {
             </Link>
 
             <Link
-              href="/#menu"
-              className="relative text-[#FAF5ED] font-semibold transition-colors duration-200 group"
+              href="/full-menu"
+              className={`relative transition-colors duration-200 group ${
+                pathname === "/full-menu" || pathname === "/menu"
+                  ? "text-[#FAF5ED] font-semibold"
+                  : "text-[#F0E7D8] hover:text-white"
+              }`}
             >
               <span>Menu</span>
-              <span className="absolute -bottom-1 left-0 right-0 h-[1.5px] bg-[#E8DEC8] rounded-full" />
+              <span
+                className={`absolute -bottom-1 left-0 right-0 h-[1.5px] bg-[#E8DEC8] rounded-full transition-opacity ${
+                  pathname === "/full-menu" || pathname === "/menu"
+                    ? "opacity-100"
+                    : "opacity-0 group-hover:opacity-60"
+                }`}
+              />
             </Link>
+
 
             <Link
               href="/#founders-note"
@@ -88,8 +99,6 @@ export function Header({ cartCount: initialCartCount }: HeaderProps) {
             >
               Our Story
             </Link>
-
-
           </nav>
 
           {/* ── CENTER LOGO (mostly inside navbar, just a tiny bit peeking out) ── */}

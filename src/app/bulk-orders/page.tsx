@@ -93,7 +93,7 @@ export default function BulkOrdersPage() {
       `📝 *Requirement:* ${submittedEnquiry.requirement}\n\n` +
       `Could you please share your bulk catalogue & custom pricing quote? Thank you!`
     );
-    return `https://wa.me/919876543210?text=${text}`;
+    return `https://wa.me/919717123510?text=${text}`;
   };
 
   return (

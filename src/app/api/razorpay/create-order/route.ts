@@ -1,5 +1,6 @@
 import { NextRequest, NextResponse } from "next/server";
 import Razorpay from "razorpay";
+import { createAdminClient } from "@/lib/supabase/admin";
 
 export async function POST(req: NextRequest) {
   try {
@@ -42,6 +43,19 @@ export async function POST(req: NextRequest) {
 
       const razorpayOrder = await razorpay.orders.create(options);
 
+      // Persist the generated Razorpay order ID to the order immediately
+      if (orderId && razorpayOrder?.id) {
+        try {
+          const admin = createAdminClient();
+          await admin
+            .from("orders")
+            .update({ razorpay_order_id: razorpayOrder.id })
+            .eq("id", orderId);
+        } catch (dbErr) {
+          console.warn("Failed to attach razorpay_order_id to order:", dbErr);
+        }
+      }
+
       return NextResponse.json({
         success: true,
         orderId: razorpayOrder.id,
@@ -53,6 +67,18 @@ export async function POST(req: NextRequest) {
     } else {
       // Demo / Test simulated Razorpay order when live keys are pending
       const mockOrderId = `order_sim_${Date.now()}_${Math.random().toString(36).substring(2, 7)}`;
+
+      if (orderId) {
+        try {
+          const admin = createAdminClient();
+          await admin
+            .from("orders")
+            .update({ razorpay_order_id: mockOrderId })
+            .eq("id", orderId);
+        } catch (dbErr) {
+          console.warn("Failed to attach mock razorpay_order_id to order:", dbErr);
+        }
+      }
       return NextResponse.json({
         success: true,
         orderId: mockOrderId,

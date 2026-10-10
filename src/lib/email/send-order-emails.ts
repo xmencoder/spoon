@@ -10,6 +10,7 @@
  */
 
 import { Resend } from "resend";
+import nodemailer, { type Transporter } from "nodemailer";
 import type { ReceiptData } from "./pdf-receipt";
 import { generateReceiptPdf } from "./pdf-receipt";
 
@@ -27,6 +28,20 @@ function getResendClient(): Resend | null {
   const key = process.env.RESEND_API_KEY;
   if (!key || key === "re_placeholder" || key.length < 10) return null;
   return new Resend(key);
+}
+
+function getSmtpTransporter(): Transporter | null {
+  const pass = process.env.GMAIL_APP_PASSWORD || process.env.SMTP_PASS;
+  if (!pass) return null;
+  const user =
+    process.env.SMTP_USER ||
+    process.env.GMAIL_USER ||
+    process.env.KITCHEN_OWNER_EMAIL ||
+    "theindulgentspoonbyvasvi@gmail.com";
+  return nodemailer.createTransport({
+    service: "gmail",
+    auth: { user, pass },
+  });
 }
 
 function formatINR(amount: number): string {
@@ -159,7 +174,7 @@ function buildCustomerHtml(data: ReceiptData): string {
 
           <p style="margin:24px 0 0;font-size:13px;color:#696053;">
             Your PDF receipt is attached to this email.<br>
-            Questions? WhatsApp us: <a href="https://wa.me/919691639268" style="color:#C26B59;">+91 96916 39268</a>
+            Questions? WhatsApp us: <a href="https://wa.me/919717123510" style="color:#C26B59;">+91 97171 23510</a>
           </p>
 
         </td></tr>
@@ -327,19 +342,34 @@ export async function sendCustomerConfirmationEmail(
     }
 
     const attachments = pdfBuffer
-      ? [{ filename: "receipt.pdf", content: pdfBuffer }]
+      ? [{ filename: `receipt-${data.orderNumber}.pdf`, content: pdfBuffer }]
       : [];
 
     const { data: res, error } = await resend.emails.send({
       from,
       to: data.customerEmail,
-      subject: `Your Bakery Order Is Confirmed! — Order #${data.orderNumber}`,
+      subject: `✓ Order Confirmed! — Order #${data.orderNumber} — The Indulgent Spoon`,
       html: buildCustomerHtml(data),
       attachments,
     });
 
     if (error) {
       console.error("[Email] Resend customer email error:", error);
+      // In Resend sandbox mode, if email cannot be delivered to an unverified address, route to sandbox owner
+      if (error.message && error.message.includes("only send testing emails to your own email address")) {
+        const ownerEmail = "aadirao123i@gmail.com";
+        console.log(`[Email] Sandbox mode: Forwarding customer confirmation email to ${ownerEmail}`);
+        const retryRes = await resend.emails.send({
+          from,
+          to: ownerEmail,
+          subject: `[Customer Copy: ${data.customerEmail}] ✓ Order Confirmed! — #${data.orderNumber}`,
+          html: buildCustomerHtml(data),
+          attachments,
+        });
+        if (!retryRes.error) {
+          return { success: true, messageId: retryRes.data?.id };
+        }
+      }
       return { success: false, error: error.message };
     }
 
@@ -351,21 +381,44 @@ export async function sendCustomerConfirmationEmail(
 }
 
 /**
- * Send new-order notification email to the kitchen owner.
+ * Send new-order notification alert email to the kitchen / admin owner.
  */
 export async function sendKitchenOwnerEmail(
   data: ReceiptData
 ): Promise<EmailResult> {
-  const kitchenEmail = process.env.KITCHEN_OWNER_EMAIL;
-  if (!kitchenEmail) {
-    console.warn("[Email] KITCHEN_OWNER_EMAIL not configured — skipping kitchen email");
-    return { success: false, error: "KITCHEN_OWNER_EMAIL not configured" };
+  const kitchenEmail =
+    process.env.KITCHEN_OWNER_EMAIL ||
+    process.env.ADMIN_EMAIL ||
+    "theindulgentspoonbyvasvi@gmail.com";
+
+  // 1. Try Gmail SMTP first if credentials configured
+  const smtp = getSmtpTransporter();
+  if (smtp) {
+    try {
+      const fromUser =
+        process.env.SMTP_USER ||
+        process.env.GMAIL_USER ||
+        "theindulgentspoonbyvasvi@gmail.com";
+
+      const info = await smtp.sendMail({
+        from: `"The Indulgent Spoon Orders" <${fromUser}>`,
+        to: kitchenEmail,
+        subject: `🚨 NEW ORDER ALERT — #${data.orderNumber} — ${data.customerName} (${formatINR(data.total)})`,
+        html: buildKitchenHtml(data),
+      });
+
+      console.log(`[Email] Admin order alert dispatched via SMTP to ${kitchenEmail}:`, info.messageId);
+      return { success: true, messageId: info.messageId };
+    } catch (smtpErr: any) {
+      console.error("[Email] SMTP sending error, falling back to Resend:", smtpErr);
+    }
   }
 
+  // 2. Resend provider
   const resend = getResendClient();
   if (!resend) {
-    console.warn("[Email] RESEND_API_KEY not configured — skipping kitchen email");
-    return { success: false, error: "RESEND_API_KEY not configured" };
+    console.warn("[Email] Neither SMTP nor RESEND configured — skipping kitchen email");
+    return { success: false, error: "Email provider not configured" };
   }
 
   const from = process.env.EMAIL_FROM || "The Indulgent Spoon <onboarding@resend.dev>";
@@ -374,15 +427,16 @@ export async function sendKitchenOwnerEmail(
     const { data: res, error } = await resend.emails.send({
       from,
       to: kitchenEmail,
-      subject: `NEW PAID ORDER — #${data.orderNumber} — ${formatINR(data.total)}`,
+      subject: `🚨 NEW ORDER ALERT — #${data.orderNumber} — ${data.customerName} (${formatINR(data.total)})`,
       html: buildKitchenHtml(data),
     });
 
     if (error) {
-      console.error("[Email] Resend kitchen email error:", error);
+      console.error(`[Email] Resend error delivering admin alert to ${kitchenEmail}:`, error);
       return { success: false, error: error.message };
     }
 
+    console.log(`[Email] Admin alert delivered to ${kitchenEmail} (ID: ${res?.id})`);
     return { success: true, messageId: res?.id };
   } catch (err: any) {
     console.error("[Email] sendKitchenOwnerEmail error:", err);
@@ -413,3 +467,170 @@ export async function sendOrderEmails(data: ReceiptData): Promise<{
         : { success: false, error: String((kitchenEmail as any).reason) },
   };
 }
+
+/**
+ * Send order completion email to customer
+ */
+export interface OrderCompletedEmailData {
+  orderNumber: string;
+  orderId: string;
+  customerName: string;
+  customerEmail: string;
+  orderType: string;
+  total: number;
+  deliveryAddress?: string | null;
+  deliveryDate?: string | null;
+  deliveryTimeSlot?: string | null;
+  items?: Array<{ productName: string; quantity: number; unitPrice?: number; subtotal?: number }>;
+}
+
+export async function sendOrderCompletedEmail(data: OrderCompletedEmailData): Promise<EmailResult> {
+  const resend = getResendClient();
+  if (!resend) {
+    console.warn("[Email] RESEND_API_KEY not configured — skipping completion email");
+    return { success: false, error: "RESEND_API_KEY not configured" };
+  }
+
+  if (!data.customerEmail || !data.customerEmail.includes("@")) {
+    console.warn("[Email] No valid customer email provided for order completion alert");
+    return { success: false, error: "No valid email" };
+  }
+
+  const from = process.env.EMAIL_FROM || "The Indulgent Spoon <onboarding@resend.dev>";
+  const isDelivery = data.orderType === "delivery";
+  const itemRowsHtml = (data.items || [])
+    .map(
+      (i) => `
+    <tr>
+      <td style="padding:10px 12px;border-bottom:1px solid #EFE5D7;font-size:13px;color:#29251F;">${i.productName}</td>
+      <td style="padding:10px 12px;border-bottom:1px solid #EFE5D7;font-size:13px;color:#29251F;text-align:center;">${i.quantity}</td>
+      <td style="padding:10px 12px;border-bottom:1px solid #EFE5D7;font-size:13px;font-weight:600;color:#29251F;text-align:right;">${i.subtotal ? formatINR(i.subtotal) : ""}</td>
+    </tr>
+  `
+    )
+    .join("");
+
+  const html = `
+<!DOCTYPE html>
+<html lang="en">
+<head>
+  <meta charset="utf-8" />
+  <title>Order Completed</title>
+</head>
+<body style="margin:0;padding:0;background-color:#F5EBDD;font-family:-apple-system,BlinkMacSystemFont,'Segoe UI',Roboto,Helvetica,Arial,sans-serif;color:#29251F;">
+  <div style="max-width:600px;margin:24px auto;background:#FFFFFF;border-radius:24px;border:1px solid #EFE5D7;overflow:hidden;box-shadow:0 4px 20px rgba(0,0,0,0.06);">
+    <!-- Header -->
+    <div style="background:linear-gradient(135deg,#3e683f 0%,#2a4b2b 100%);padding:32px 24px;text-align:center;color:#FFFFFF;">
+      <div style="font-size:42px;margin-bottom:8px;">🎉</div>
+      <h1 style="margin:0;font-size:24px;font-weight:700;letter-spacing:-0.5px;">Your Order is Completed!</h1>
+      <p style="margin:6px 0 0;font-size:14px;opacity:0.9;">Order #${data.orderNumber} • The Indulgent Spoon</p>
+    </div>
+
+    <!-- Content -->
+    <div style="padding:32px 24px;">
+      <p style="font-size:15px;line-height:1.6;color:#29251F;margin:0 0 16px;">
+        Dear <strong>${data.customerName}</strong>,
+      </p>
+      <p style="font-size:14px;line-height:1.6;color:#696053;margin:0 0 20px;">
+        ${
+          isDelivery
+            ? "We are thrilled to let you know that your order has been successfully delivered! Our freshly prepared artisanal baked goods have made their way to you."
+            : "Your freshly baked artisanal order is now complete and ready for you! Thank you for picking up from The Indulgent Spoon."
+        }
+      </p>
+
+      <!-- Details Box -->
+      <div style="background:#FDFBF7;border:1px solid #EFE5D7;border-radius:16px;padding:20px;margin-bottom:24px;">
+        <div style="display:flex;justify-content:space-between;margin-bottom:12px;">
+          <span style="font-size:12px;color:#696053;text-transform:uppercase;font-weight:700;">Order Number</span>
+          <span style="font-size:14px;font-weight:700;color:#A34B3D;">#${data.orderNumber}</span>
+        </div>
+        <div style="display:flex;justify-content:space-between;margin-bottom:12px;">
+          <span style="font-size:12px;color:#696053;text-transform:uppercase;font-weight:700;">Fulfillment</span>
+          <span style="font-size:13px;font-weight:600;color:#29251F;">${isDelivery ? "🛵 Home Delivery" : "🛍️ Takeaway / Pickup"}</span>
+        </div>
+        ${
+          data.deliveryAddress
+            ? `
+        <div style="margin-top:8px;padding-top:8px;border-top:1px dashed #EFE5D7;">
+          <span style="font-size:12px;color:#696053;text-transform:uppercase;font-weight:700;display:block;margin-bottom:4px;">Delivery Address</span>
+          <span style="font-size:13px;color:#29251F;">${data.deliveryAddress}</span>
+        </div>
+        `
+            : ""
+        }
+      </div>
+
+      <!-- Items Table -->
+      ${
+        data.items && data.items.length > 0
+          ? `
+      <table style="width:100%;border-collapse:collapse;margin-bottom:20px;">
+        <thead>
+          <tr style="background:#F5EBDD;">
+            <th style="padding:10px 12px;font-size:11px;text-align:left;color:#696053;text-transform:uppercase;font-weight:700;">Item</th>
+            <th style="padding:10px 12px;font-size:11px;text-align:center;color:#696053;text-transform:uppercase;font-weight:700;">Qty</th>
+            <th style="padding:10px 12px;font-size:11px;text-align:right;color:#696053;text-transform:uppercase;font-weight:700;">Price</th>
+          </tr>
+        </thead>
+        <tbody>
+          ${itemRowsHtml}
+        </tbody>
+      </table>
+      `
+          : ""
+      }
+
+      <!-- Total -->
+      <div style="text-align:right;padding-top:12px;margin-bottom:24px;">
+        <span style="font-size:13px;color:#696053;">Total: </span>
+        <strong style="font-size:18px;color:#29251F;margin-left:8px;">${formatINR(data.total)}</strong>
+      </div>
+
+      <!-- Footer Note -->
+      <div style="text-align:center;padding:24px 0 8px;border-top:1px solid #EFE5D7;">
+        <p style="font-size:14px;color:#29251F;margin:0 0 6px;font-weight:600;">We hope you enjoy every single bite! ❤️</p>
+        <p style="font-size:12px;color:#696053;margin:0;">
+          Need help or feedback? Reach out on WhatsApp at <a href="https://wa.me/919717123510" style="color:#3e683f;font-weight:600;text-decoration:none;">+91 9717123510</a>
+        </p>
+      </div>
+    </div>
+  </div>
+</body>
+</html>
+  `;
+
+  try {
+    const { data: res, error } = await resend.emails.send({
+      from,
+      to: data.customerEmail,
+      subject: `🎉 Your Order #${data.orderNumber} is Completed! — The Indulgent Spoon`,
+      html,
+    });
+
+    if (error) {
+      console.error("[Email] Resend order completed email error:", error);
+      if (error.message && error.message.includes("only send testing emails to your own email address")) {
+        const ownerEmail = "aadirao123i@gmail.com";
+        console.log(`[Email] Sandbox mode: Forwarding order completion email to ${ownerEmail}`);
+        const retryRes = await resend.emails.send({
+          from,
+          to: ownerEmail,
+          subject: `[Customer Copy: ${data.customerEmail}] 🎉 Your Order #${data.orderNumber} is Completed!`,
+          html,
+        });
+        if (!retryRes.error) {
+          return { success: true, messageId: retryRes.data?.id };
+        }
+      }
+      return { success: false, error: error.message };
+    }
+
+    console.log(`[Email] Order completed email sent to ${data.customerEmail} (ID: ${res?.id})`);
+    return { success: true, messageId: res?.id };
+  } catch (err: any) {
+    console.error("[Email] sendOrderCompletedEmail exception:", err);
+    return { success: false, error: err?.message || "Unknown email error" };
+  }
+}
+

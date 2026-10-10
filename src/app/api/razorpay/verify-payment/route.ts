@@ -47,7 +47,7 @@ export async function POST(req: NextRequest) {
     const nowIso = new Date().toISOString();
 
     const updatePayload: any = {
-      payment_status: "paid",
+      payment_status: "verified",
       status: "confirmed",
       payment_method: "Razorpay",
       payment_verified_at: nowIso,
@@ -63,11 +63,22 @@ export async function POST(req: NextRequest) {
       .from("orders")
       .update(updatePayload)
       .eq("id", orderId)
-      .select("id, order_number, tracking_token, customer_name, customer_phone, customer_email, delivery_address, order_type, delivery_date, delivery_time_slot, subtotal, delivery_charge, packaging_charge, total, has_gift_note, gift_note, created_at")
+      .select("*")
       .single();
 
     if (updateError) {
       console.error("Failed to update order payment status in Supabase:", updateError);
+      // Fallback minimal update to guarantee verified status
+      await admin
+        .from("orders")
+        .update({
+          payment_status: "verified",
+          status: "confirmed",
+          payment_method: "Razorpay",
+          razorpay_payment_id: razorpay_payment_id || null,
+          updated_at: nowIso,
+        })
+        .eq("id", orderId);
     }
 
     // 3. Insert into order status history if available

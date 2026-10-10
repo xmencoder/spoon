@@ -276,17 +276,22 @@ export default function CartPage() {
                               </span>
                             )}
                             {item.addons && item.addons.length > 0 && (
-                              <div className="mt-1 space-y-0.5">
+                              <div className="mt-2 space-y-1">
                                 {item.addons.map((addon, idx) => (
-                                  <p
+                                  <div
                                     key={idx}
-                                    className="text-[11px] text-[#696053] flex items-center gap-1"
+                                    className="flex items-center justify-between gap-2 bg-amber-50 border border-amber-200/80 rounded-lg px-2.5 py-1.5"
                                   >
-                                    <span>+ {addon.label}</span>
-                                    <span className="text-[#8B7D6B]">
-                                      (+₹{addon.price})
+                                    <div className="flex items-center gap-1.5 min-w-0">
+                                      <Sparkles className="w-3 h-3 text-amber-500 shrink-0" />
+                                      <span className="text-[11.5px] font-semibold text-amber-900 leading-tight">
+                                        {addon.label}
+                                      </span>
+                                    </div>
+                                    <span className="text-[11px] font-bold text-amber-700 bg-amber-100 border border-amber-200/70 px-2 py-0.5 rounded-md shrink-0 whitespace-nowrap">
+                                      +₹{addon.price}
                                     </span>
-                                  </p>
+                                  </div>
                                 ))}
                               </div>
                             )}

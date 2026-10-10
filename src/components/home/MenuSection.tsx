@@ -1,6 +1,6 @@
 "use client";
 
-import React, { useState, useRef, useEffect, useCallback } from "react";
+import React, { useState, useRef, useEffect, useCallback, useMemo } from "react";
 import Image from "next/image";
 import Link from "next/link";
 import ProductImage from "@/components/ui/ProductImage";
@@ -36,13 +36,6 @@ export const CATEGORY_CARDS: CategoryCard[] = [
     count: "18 items",
     image:
       "https://images.unsplash.com/photo-1578985545062-69928b1d9587?w=300&auto=format&fit=crop&q=80",
-  },
-  {
-    id: "all",
-    name: "All Menus",
-    count: "88 items",
-    image:
-      "https://images.unsplash.com/photo-1555507036-ab1f4038808a?w=300&auto=format&fit=crop&q=80",
   },
   {
     id: "tea-cake",
@@ -355,15 +348,24 @@ function LeafDivider({ active }: { active: boolean }) {
 
 interface MenuSectionProps {
   slug?: string;
+  isFullMenu?: boolean;
 }
 
-export function MenuSection({ slug = "the-indulgent-spoon" }: MenuSectionProps) {
+export function MenuSection({
+  slug = "the-indulgent-spoon",
+  isFullMenu = false,
+}: MenuSectionProps) {
   const [activeCategory, setActiveCategory] = useState<string>("popular");
+  const [activeSectionId, setActiveSectionId] = useState<string>("popular");
   const [quantities, setQuantities] = useState<Record<string, number>>({});
   const [favorites, setFavorites] = useState<Record<string, boolean>>({});
   const [addedItem, setAddedItem] = useState<string | null>(null);
   const [isCategoryDrawerOpen, setIsCategoryDrawerOpen] = useState(false);
   const scrollContainerRef = useRef<HTMLDivElement>(null);
+  const tabsContainerRef = useRef<HTMLDivElement>(null);
+  const tabRefs = useRef<Record<string, HTMLButtonElement | null>>({});
+  const isManualScrolling = useRef(false);
+  const manualScrollTimeout = useRef<NodeJS.Timeout | null>(null);
 
   // ── LIVE DATA FROM SUPABASE (with fallback to hardcoded) ──
   const [liveCategories, setLiveCategories] = useState<CategoryCard[]>([]);
@@ -538,24 +540,13 @@ export function MenuSection({ slug = "the-indulgent-spoon" }: MenuSectionProps) 
   const baseCategoryCards = dbLoaded && liveCategories.length > 0 ? liveCategories : CATEGORY_CARDS;
   const activeMenuItems = dbLoaded && liveMenuItems.length > 0 ? liveMenuItems : MENU_ITEMS;
 
-  // "All Menus" card showing total items
-  const allMenuCard: CategoryCard = {
-    id: "all",
-    name: "All Menus",
-    count: `${activeMenuItems.length} items`,
-    image:
-      activeMenuItems[0]?.image ||
-      "https://images.unsplash.com/photo-1555507036-ab1f4038808a?w=300&auto=format&fit=crop&q=80",
-  };
-
-  // Categories order: First "Popular", then "All Menus", then rest of categories exactly the same
+  // Categories order: First "Popular", then rest of categories in order
   const popularCard = baseCategoryCards.find((c) => c.id === "popular");
   const otherCategoryCards = baseCategoryCards.filter(
     (c) => c.id !== "popular" && c.id !== "all"
   );
   const activeCategoryCards: CategoryCard[] = [
     ...(popularCard ? [popularCard] : []),
-    allMenuCard,
     ...otherCategoryCards,
   ];
 
@@ -723,13 +714,169 @@ export function MenuSection({ slug = "the-indulgent-spoon" }: MenuSectionProps) 
     return () => { document.body.style.overflow = ""; };
   }, [isCategoryDrawerOpen]);
 
+  const getCategoryItems = useCallback(
+    (catId: string): MenuItem[] => {
+      if (catId === "popular") {
+        const popularItems = activeMenuItems.filter((item) => item.isPopular);
+        if (dbLoaded && liveDbProducts.length > 0) {
+          return [...popularItems].sort((a, b) => {
+            const rankA = liveDbProducts.find((p) => p.id === a.id)?.popular_rank ?? 999;
+            const rankB = liveDbProducts.find((p) => p.id === b.id)?.popular_rank ?? 999;
+            return rankA - rankB;
+          });
+        }
+        return popularItems;
+      }
+      return activeMenuItems.filter(
+        (item) =>
+          item.category === catId ||
+          item.category.toLowerCase() === catId.toLowerCase() ||
+          item.category.toLowerCase().replace(/\s+/g, "-") === catId.toLowerCase()
+      );
+    },
+    [activeMenuItems, dbLoaded, liveDbProducts]
+  );
+
+  const categorySections = useMemo(() => {
+    if (!isFullMenu) return [];
+
+    const sections: Array<{
+      id: string;
+      name: string;
+      items: MenuItem[];
+    }> = [];
+
+    // 1. Popular first
+    const popularItems = getCategoryItems("popular");
+    if (popularItems.length > 0) {
+      sections.push({
+        id: "popular",
+        name: "Popular",
+        items: popularItems,
+      });
+    }
+
+    // 2. Next: other categories in order
+    for (const cat of activeCategoryCards) {
+      if (cat.id === "popular" || cat.id === "all") continue;
+      const items = getCategoryItems(cat.id);
+      if (items.length > 0) {
+        sections.push({
+          id: cat.id,
+          name: cat.name,
+          items,
+        });
+      }
+    }
+
+    return sections;
+  }, [isFullMenu, activeCategoryCards, getCategoryItems]);
+
+  // Scroll tabs container horizontally to center the active tab — WITHOUT touching page scroll
+  const scrollTabIntoView = (id: string) => {
+    const tabEl = tabRefs.current[id];
+    const container = tabsContainerRef.current;
+    if (tabEl && container) {
+      const tabLeft = tabEl.offsetLeft;
+      const tabWidth = tabEl.offsetWidth;
+      const containerWidth = container.offsetWidth;
+      const targetScrollLeft = tabLeft - containerWidth / 2 + tabWidth / 2;
+      container.scrollTo({ left: Math.max(0, targetScrollLeft), behavior: "smooth" });
+    }
+  };
+
+  const scrollToCategorySection = (id: string) => {
+    setActiveSectionId(id);
+    isManualScrolling.current = true;
+    if (manualScrollTimeout.current) clearTimeout(manualScrollTimeout.current);
+
+    const el = document.getElementById(`section-${id}`);
+    if (el) {
+      const isMobile = typeof window !== "undefined" && window.innerWidth < 768;
+      const yOffset = isMobile ? -195 : -215;
+      const y = el.getBoundingClientRect().top + window.pageYOffset + yOffset;
+      window.scrollTo({ top: Math.max(0, y), behavior: "smooth" });
+    }
+
+    scrollTabIntoView(id);
+
+    manualScrollTimeout.current = setTimeout(() => {
+      isManualScrolling.current = false;
+    }, 800);
+  };
+
+  // Scroll Spy for Full Menu: auto update active category when scrolling (Mobile & Desktop)
+  useEffect(() => {
+    if (!isFullMenu || categorySections.length === 0) return;
+
+    const handleScroll = () => {
+      if (isManualScrolling.current) return;
+
+      const isMobile = window.innerWidth < 768;
+      const scrollPosition = window.scrollY + (isMobile ? 215 : 235);
+
+      let currentId = categorySections[0].id;
+      for (const sec of categorySections) {
+        const el = document.getElementById(`section-${sec.id}`);
+        if (el) {
+          if (scrollPosition >= el.offsetTop) {
+            currentId = sec.id;
+          }
+        }
+      }
+
+      setActiveSectionId((prev) => {
+        if (prev !== currentId) {
+          scrollTabIntoView(currentId);
+          return currentId;
+        }
+        return prev;
+      });
+    };
+
+    window.addEventListener("scroll", handleScroll, { passive: true });
+    return () => {
+      window.removeEventListener("scroll", handleScroll);
+      if (manualScrollTimeout.current) clearTimeout(manualScrollTimeout.current);
+    };
+  }, [isFullMenu, categorySections]);
+
+  // Handle initial category target from URL hash or query param when navigating to Full Menu
+  useEffect(() => {
+    if (!isFullMenu || categorySections.length === 0) return;
+
+    const handleHashOrQuery = () => {
+      const hash = window.location.hash?.replace("#section-", "").replace("#", "");
+      const params = new URLSearchParams(window.location.search);
+      const targetId = params.get("category") || hash;
+      if (!targetId) return;
+
+      const match = categorySections.find(
+        (s) =>
+          s.id.toLowerCase() === targetId.toLowerCase() ||
+          s.name.toLowerCase().replace(/\s+/g, "-") === targetId.toLowerCase()
+      );
+      if (match) {
+        setTimeout(() => {
+          scrollToCategorySection(match.id);
+        }, 200);
+      }
+    };
+
+    handleHashOrQuery();
+    window.addEventListener("hashchange", handleHashOrQuery);
+    return () => window.removeEventListener("hashchange", handleHashOrQuery);
+  }, [isFullMenu, categorySections]);
+
   const handleSelectCategoryFromDrawer = (catId: string) => {
-    setActiveCategory(catId);
     setIsCategoryDrawerOpen(false);
     setTimeout(() => {
-      const el = document.getElementById("menu");
-      if (el) el.scrollIntoView({ behavior: "smooth" });
-    }, 280);
+      if (isFullMenu) {
+        scrollToCategorySection(catId);
+      } else {
+        window.location.href = `/full-menu#section-${catId}`;
+      }
+    }, 250);
   };
 
   return (
@@ -815,96 +962,307 @@ export function MenuSection({ slug = "the-indulgent-spoon" }: MenuSectionProps) 
         </div>
 
         {/* ══════════════════════════════════════════════════════ */}
-        {/* ── SMOOTH HORIZONTAL SLIDE CATEGORY CARDS ────────── */}
+        {/* ── CATEGORY NAV: FULL MENU = STICKY PILLS / HOME = SLIDER */}
         {/* ══════════════════════════════════════════════════════ */}
-        <div className="relative mb-8 sm:mb-12 group/slider">
-          {/* Left Arrow Button */}
-          <button
-            onClick={() => scroll("left")}
-            className="hidden sm:flex absolute -left-3 top-1/2 -translate-y-1/2 z-20 w-8 h-8 rounded-full bg-[#FAF5ED] border border-[#D8CABE] shadow-md items-center justify-center text-[#554D3D] hover:bg-[#F3EFE4] hover:scale-110 active:scale-95 transition-all opacity-0 group-hover/slider:opacity-100 cursor-pointer"
-            aria-label="Scroll categories left"
-          >
-            <ChevronLeft className="w-4 h-4" />
-          </button>
-
-          {/* Right Arrow Button */}
-          <button
-            onClick={() => scroll("right")}
-            className="hidden sm:flex absolute -right-3 top-1/2 -translate-y-1/2 z-20 w-8 h-8 rounded-full bg-[#FAF5ED] border border-[#D8CABE] shadow-md items-center justify-center text-[#554D3D] hover:bg-[#F3EFE4] hover:scale-110 active:scale-95 transition-all opacity-0 group-hover/slider:opacity-100 cursor-pointer"
-            aria-label="Scroll categories right"
-          >
-            <ChevronRight className="w-4 h-4" />
-          </button>
-
-          {/* Scrollable Container with ample right padding so Gift Boxes is never cut off */}
-          <div
-            ref={scrollContainerRef}
-            className="flex items-stretch gap-2.5 sm:gap-3.5 overflow-x-auto pb-4 pt-1 px-1 sm:px-2 scrollbar-none scroll-smooth -mx-3.5 sm:mx-0 pr-10 sm:pr-8"
-          >
-            {activeCategoryCards.map((cat, index) => {
-              const isActive = activeCategory === cat.id;
-
-              return (
-                <div key={cat.id} className="relative flex items-center shrink-0">
-                  {/* Connecting diamond accent between cards */}
-                  {index > 0 && (
-                    <span className="absolute -left-1.5 sm:-left-2 z-10 text-[7px] sm:text-[8px] text-[#C48473] select-none pointer-events-none opacity-80">
-                      ◆
-                    </span>
-                  )}
-
-                  <button
-                    onClick={() => setActiveCategory(cat.id)}
-                    className={`group relative flex flex-col items-center justify-between w-[92px] sm:w-[104px] md:w-[112px] pt-3 pb-2.5 px-2 rounded-2xl transition-all duration-300 cursor-pointer ${
-                      isActive
-                        ? "bg-[#F3EFE4] border-2 border-[#8A8F76] shadow-[0_4px_16px_rgba(138,143,118,0.22)] scale-[1.02]"
-                        : "bg-[#FAF5ED]/95 border border-[#E7DCCE]/80 hover:border-[#8A8F76]/50 hover:bg-[#F6EFE3] hover:shadow-xs shadow-[0_1px_4px_rgba(41,37,31,0.03)]"
-                    }`}
-                  >
-                    {/* Top Circular Image */}
-                    <div className="relative w-13 h-13 sm:w-15 sm:h-15 rounded-full p-0.5 flex items-center justify-center mb-1">
-                      <div className="relative w-full h-full rounded-full overflow-hidden bg-[#E8DDD0]/70 border border-[#D8CABE]/50 shadow-inner">
-                        <Image
-                          src={cat.image}
-                          alt={cat.name}
-                          fill
-                          sizes="65px"
-                          className="object-cover transition-transform duration-300 group-hover:scale-110"
-                        />
+        {isFullMenu ? (
+          /* ─── FULL MENU: STICKY CIRCULAR CARD BAR (Mobile & Desktop) ─── */
+          <div className="sticky top-[76px] sm:top-[88px] z-30 -mx-3.5 sm:-mx-6 lg:-mx-8 px-3.5 sm:px-6 lg:px-8 py-2.5 sm:py-3 bg-[#F4E9DC]/97 backdrop-blur-md border-b border-[#E2D3C0] shadow-[0_4px_16px_rgba(41,37,31,0.06)] mb-4 sm:mb-6">
+            <div
+              ref={tabsContainerRef}
+              className="flex items-stretch gap-2.5 sm:gap-3.5 overflow-x-auto pb-1 pt-0.5 px-0.5 scrollbar-none scroll-smooth"
+            >
+              {categorySections.map((sec, index) => {
+                const isActive = activeSectionId === sec.id;
+                const catCard = activeCategoryCards.find((c) => c.id === sec.id);
+                const catImage = catCard?.image || "https://images.unsplash.com/photo-1578985545062-69928b1d9587?w=300&auto=format&fit=crop&q=80";
+                const catCount = catCard?.count || `${sec.items.length} items`;
+                return (
+                  <div key={sec.id} className="relative flex items-center shrink-0">
+                    {index > 0 && (
+                      <span className="absolute -left-1.5 sm:-left-2 z-10 text-[7px] sm:text-[8px] text-[#C48473] select-none pointer-events-none opacity-70">◆</span>
+                    )}
+                    <button
+                      ref={(el) => { tabRefs.current[sec.id] = el; }}
+                      onClick={() => scrollToCategorySection(sec.id)}
+                      className={`group relative flex flex-col items-center justify-between w-[86px] sm:w-[98px] md:w-[104px] pt-2.5 pb-2 px-1.5 rounded-2xl transition-all duration-300 cursor-pointer ${
+                        isActive
+                          ? "bg-[#F3EFE4] border-2 border-[#8A8F76] shadow-[0_4px_16px_rgba(138,143,118,0.22)] scale-[1.03]"
+                          : "bg-[#FAF5ED]/95 border border-[#E7DCCE]/80 hover:border-[#8A8F76]/50 hover:bg-[#F6EFE3] hover:shadow-sm shadow-[0_1px_4px_rgba(41,37,31,0.03)]"
+                      }`}
+                    >
+                      <div className="relative w-11 h-11 sm:w-12 sm:h-12 rounded-full p-0.5 flex items-center justify-center mb-1">
+                        <div className="relative w-full h-full rounded-full overflow-hidden bg-[#E8DDD0]/70 border border-[#D8CABE]/50 shadow-inner">
+                          <Image src={catImage} alt={sec.name} fill sizes="56px" className="object-cover transition-transform duration-300 group-hover:scale-110" />
+                        </div>
                       </div>
+                      <h3 className={`font-serif text-[11.5px] sm:text-[12.5px] font-semibold tracking-tight transition-colors leading-tight text-center ${
+                        isActive ? "text-[#29251F] font-bold" : "text-[#3D362C] group-hover:text-[#29251F]"
+                      }`}>{sec.name}</h3>
+                      <LeafDivider active={isActive} />
+                      <span className={`text-[9.5px] sm:text-[10px] tracking-wide ${ isActive ? "text-[#5E5546] font-medium" : "text-[#7D7363]" }`}>{catCount}</span>
+                    </button>
+                  </div>
+                );
+              })}
+            </div>
+          </div>
+        ) : (
+          /* ─── HORIZONTAL CARD SLIDER (homepage) ─── */
+          <div className="relative mb-8 sm:mb-12 group/slider">
+            {/* Left Arrow Button */}
+            <button
+              onClick={() => scroll("left")}
+              className="hidden sm:flex absolute -left-3 top-1/2 -translate-y-1/2 z-20 w-8 h-8 rounded-full bg-[#FAF5ED] border border-[#D8CABE] shadow-md items-center justify-center text-[#554D3D] hover:bg-[#F3EFE4] hover:scale-110 active:scale-95 transition-all opacity-0 group-hover/slider:opacity-100 cursor-pointer"
+              aria-label="Scroll categories left"
+            >
+              <ChevronLeft className="w-4 h-4" />
+            </button>
+
+            {/* Right Arrow Button */}
+            <button
+              onClick={() => scroll("right")}
+              className="hidden sm:flex absolute -right-3 top-1/2 -translate-y-1/2 z-20 w-8 h-8 rounded-full bg-[#FAF5ED] border border-[#D8CABE] shadow-md items-center justify-center text-[#554D3D] hover:bg-[#F3EFE4] hover:scale-110 active:scale-95 transition-all opacity-0 group-hover/slider:opacity-100 cursor-pointer"
+              aria-label="Scroll categories right"
+            >
+              <ChevronRight className="w-4 h-4" />
+            </button>
+
+            {/* Scrollable Container with ample right padding so Gift Boxes is never cut off */}
+            <div
+              ref={scrollContainerRef}
+              className="flex items-stretch gap-2.5 sm:gap-3.5 overflow-x-auto pb-4 pt-1 px-1 sm:px-2 scrollbar-none scroll-smooth -mx-3.5 sm:mx-0 pr-10 sm:pr-8"
+            >
+              {activeCategoryCards.map((cat, index) => {
+                const isActive = activeCategory === cat.id;
+
+                return (
+                  <div key={cat.id} className="relative flex items-center shrink-0">
+                    {/* Connecting diamond accent between cards */}
+                    {index > 0 && (
+                      <span className="absolute -left-1.5 sm:-left-2 z-10 text-[7px] sm:text-[8px] text-[#C48473] select-none pointer-events-none opacity-80">
+                        ◆
+                      </span>
+                    )}
+
+                    <Link
+                      href={`/full-menu#section-${cat.id}`}
+                      className="group relative flex flex-col items-center justify-between w-[92px] sm:w-[104px] md:w-[112px] pt-3 pb-2.5 px-2 rounded-2xl transition-all duration-300 cursor-pointer bg-[#FAF5ED]/95 border border-[#E7DCCE]/80 hover:border-[#8A8F76]/50 hover:bg-[#F6EFE3] hover:shadow-xs shadow-[0_1px_4px_rgba(41,37,31,0.03)]"
+                    >
+                      {/* Top Circular Image */}
+                      <div className="relative w-13 h-13 sm:w-15 sm:h-15 rounded-full p-0.5 flex items-center justify-center mb-1">
+                        <div className="relative w-full h-full rounded-full overflow-hidden bg-[#E8DDD0]/70 border border-[#D8CABE]/50 shadow-inner">
+                          <Image
+                            src={cat.image}
+                            alt={cat.name}
+                            fill
+                            sizes="65px"
+                            className="object-cover transition-transform duration-300 group-hover:scale-110"
+                          />
+                        </div>
+                      </div>
+
+                      {/* Category Name */}
+                      <h3
+                        className="font-serif text-[12.5px] sm:text-sm font-semibold tracking-tight transition-colors leading-tight text-center text-[#3D362C] group-hover:text-[#29251F]"
+                      >
+                        {cat.name}
+                      </h3>
+
+                      {/* Leaf Divider */}
+                      <LeafDivider active={false} />
+
+                      {/* Item Count */}
+                      <span
+                        className="text-[10px] sm:text-[10.5px] tracking-wide transition-colors text-[#7D7363]"
+                      >
+                        {cat.count}
+                      </span>
+                    </Link>
+                  </div>
+                );
+              })}
+            </div>
+          </div>
+        )}
+
+        {/* ══════════════════════════════════════════════════════════════════ */}
+        {/* ── FULL MENU: STACKED CATEGORY SECTIONS WITH HEADINGS ─────────── */}
+        {/* ══════════════════════════════════════════════════════════════════ */}
+        {isFullMenu ? (
+          <div className="mt-6 space-y-12 sm:space-y-16">
+            {categorySections.map((sec, secIdx) => (
+              <section
+                key={sec.id}
+                id={`section-${sec.id}`}
+                className="scroll-mt-[195px] sm:scroll-mt-[215px]"
+              >
+                {/* ── Category Section Heading ── */}
+                <div className="relative mb-5 pt-2">
+                  <div className="flex items-center gap-2 mb-1">
+                    {secIdx === 0 ? (
+                      <span className="inline-flex items-center gap-1.5 px-2.5 py-0.5 rounded-full bg-[#E5D7C3] text-[10px] sm:text-[11px] font-bold uppercase tracking-wider text-[#69553F]">
+                        <span>✨</span>
+                        <span>Popular • Top Rated</span>
+                      </span>
+                    ) : (
+                      <span className="inline-flex items-center gap-1.5 px-2.5 py-0.5 rounded-full bg-[#EFE4D6] text-[9.5px] sm:text-[10px] font-semibold uppercase tracking-wider text-[#7C6C58]">
+                        <span className="w-1.5 h-1.5 rounded-full bg-[#8A8F76]" />
+                        <span>Freshly Baked Daily</span>
+                      </span>
+                    )}
+                  </div>
+
+                  <div className="flex items-end justify-between gap-3 border-b border-[#D8CABE]/80 pb-2.5">
+                    <div className="flex items-baseline gap-2.5 flex-1 min-w-0">
+                      <h2 className="font-serif text-2xl sm:text-3xl font-bold text-[#29251F] tracking-tight leading-tight">
+                        {sec.name}
+                      </h2>
+                      <span className="text-[11px] sm:text-xs text-[#827563] font-serif italic hidden xs:inline">
+                        — Artisan creations
+                      </span>
                     </div>
 
-                    {/* Category Name */}
-                    <h3
-                      className={`font-serif text-[12.5px] sm:text-sm font-semibold tracking-tight transition-colors leading-tight text-center ${
-                        isActive
-                          ? "text-[#29251F] font-bold"
-                          : "text-[#3D362C] group-hover:text-[#29251F]"
-                      }`}
-                    >
-                      {cat.name}
-                    </h3>
-
-                    {/* Leaf Divider */}
-                    <LeafDivider active={isActive} />
-
-                    {/* Item Count */}
-                    <span
-                      className={`text-[10px] sm:text-[10.5px] tracking-wide transition-colors ${
-                        isActive
-                          ? "text-[#5E5546] font-medium"
-                          : "text-[#7D7363]"
-                      }`}
-                    >
-                      {cat.count}
-                    </span>
-                  </button>
+                    <div className="shrink-0 flex items-center gap-1.5">
+                      <span className="px-2.5 py-0.5 rounded-full bg-[#FAF5ED] border border-[#D8CABE] text-[10.5px] sm:text-[11.5px] font-semibold text-[#5C5243] shadow-[0_1px_3px_rgba(41,37,31,0.04)]">
+                        {sec.items.length} {sec.items.length === 1 ? "item" : "items"}
+                      </span>
+                    </div>
+                  </div>
                 </div>
-              );
-            })}
-          </div>
-        </div>
 
+                {/* Mobile list */}
+                <div className="flex flex-col gap-4 md:hidden">
+                  {sec.items.map((item) => {
+                    const qty = getQty(item.id);
+                    const isJustAdded = addedItem === item.id;
+                    const inCartCount = getProductQuantity(item.id);
+                    const isAlreadyInCart = inCartCount > 0;
+                    return (
+                      <div
+                        key={`fm-mob-${sec.id}-${item.id}`}
+                        className="flex flex-row rounded-2xl bg-[#FAF4EB] border border-[#E5D7C6] overflow-hidden shadow-[0_2px_10px_rgba(41,37,31,0.05)] transition-all"
+                      >
+                        <Link
+                          href={`/store/${slug}/product/${item.id}`}
+                          data-product-img={item.id}
+                          className="relative w-[42%] shrink-0 overflow-hidden bg-[#EFE5D7] block cursor-pointer group"
+                        >
+                          <ProductImage src={item.image} alt={item.name} fill sizes="45vw" className="object-cover group-hover:scale-105 transition-transform duration-300" />
+                          {isAlreadyInCart && (
+                            <div className="absolute top-2 right-2 z-10 animate-in fade-in zoom-in-75">
+                              <span className="inline-flex items-center gap-1 px-1.5 py-0.5 rounded-md text-[8.5px] font-bold text-white bg-[#4D7C47] shadow-sm"><Check className="w-2.5 h-2.5 stroke-[3]" /><span>{inCartCount} in Cart</span></span>
+                            </div>
+                          )}
+                          {item.badge && item.badge !== "NONE" && (
+                            <div className="absolute top-2 left-2 z-10">
+                              <span className={`inline-block px-2 py-0.5 rounded-[4px] text-[9px] font-bold uppercase tracking-wider text-white shadow-xs ${ item.badge === "BESTSELLER" ? "bg-[#8E2822]" : item.badge === "POPULAR" ? "bg-[#A33D31]" : "bg-[#B04336]" }`}>{item.badge}</span>
+                            </div>
+                          )}
+                        </Link>
+                        <div className="w-[58%] p-3 flex flex-col justify-between">
+                          <div>
+                            <div className="flex items-start justify-between gap-1.5">
+                              <Link href={`/store/${slug}/product/${item.id}`} className="hover:text-[#A34B3D] transition-colors flex-1 min-w-0">
+                                <h3 className="font-serif text-sm font-bold text-[#29251F] leading-tight line-clamp-2">{item.name}</h3>
+                              </Link>
+                              <VegSymbol className="w-3.5 h-3.5 mt-0.5" />
+                            </div>
+                            <p className="mt-1 text-[11px] text-[#706657] leading-snug line-clamp-2">{item.description}</p>
+                            <div className="mt-2 flex flex-wrap gap-1">
+                              {item.tags.map((tag) => (<span key={tag} className="px-1.5 py-0.5 rounded-[4px] bg-[#EFE8DC] text-[#695F52] text-[9px] font-medium leading-none">{tag}</span>))}
+                            </div>
+                          </div>
+                          <div className="mt-3 pt-2 border-t border-[#EAE0D1] flex items-center justify-between gap-1">
+                            <span className="font-serif text-sm font-bold text-[#29251F] whitespace-nowrap">₹{item.price}</span>
+                            <div className="flex items-center rounded-lg bg-[#EFE8DC] px-1.5 py-0.5 border border-[#E2D6C6]">
+                              <button onClick={() => handleDecrement(item.id)} className="p-0.5 text-[#695F52] hover:text-[#29251F] cursor-pointer" aria-label="Decrease"><Minus className="w-3 h-3" strokeWidth={2} /></button>
+                              <span className="w-4 text-center text-[11px] font-bold text-[#29251F]">{inCartCount > 0 ? inCartCount : qty}</span>
+                              <button onClick={() => handleIncrement(item.id)} className="p-0.5 text-[#695F52] hover:text-[#29251F] cursor-pointer" aria-label="Increase"><Plus className="w-3 h-3" strokeWidth={2} /></button>
+                            </div>
+                            <button
+                              onClick={(e) => handleAddToCart(item, e)}
+                              className={`flex items-center justify-center gap-1 px-2.5 py-1.5 rounded-lg text-[11px] font-semibold transition-all duration-200 cursor-pointer shadow-xs whitespace-nowrap ${ isJustAdded ? "bg-[#4D7C47] text-white" : isAlreadyInCart ? "bg-[#5D6B3F] hover:bg-[#4E5B33] text-white" : "bg-[#A34B3D] hover:bg-[#8F3F32] text-white active:scale-95" }`}
+                            >
+                              {isJustAdded ? (<><Check className="w-3 h-3" strokeWidth={2.5} /><span>Added!</span></>) : isAlreadyInCart ? (<><Check className="w-3 h-3" strokeWidth={2.5} /><span>In Cart ({inCartCount}) +</span></>) : (<><ShoppingCart className="w-3 h-3" strokeWidth={2} /><span>Add +</span></>)}
+                            </button>
+                          </div>
+                        </div>
+                      </div>
+                    );
+                  })}
+                </div>
+
+                {/* Desktop grid */}
+                <div className="hidden md:grid md:grid-cols-2 lg:grid-cols-3 gap-6 sm:gap-7">
+                  {sec.items.map((item) => {
+                    const isFav = !!favorites[item.id];
+                    const qty = getQty(item.id);
+                    const isJustAdded = addedItem === item.id;
+                    const inCartCount = getProductQuantity(item.id);
+                    const isAlreadyInCart = inCartCount > 0;
+                    return (
+                      <div key={`fm-desk-${sec.id}-${item.id}`} className="group flex flex-col rounded-3xl bg-[#FAF5ED] border border-[#E7DCCE] p-3.5 sm:p-4 shadow-[0_2px_12px_rgba(41,37,31,0.04)] hover:shadow-[0_8px_24px_rgba(41,37,31,0.08)] hover:border-[#D4C3AE] transition-all duration-300">
+                        <Link href={`/store/${slug}/product/${item.id}`} data-product-img={item.id} className="relative aspect-4/3 sm:aspect-[1.18/1] w-full overflow-hidden rounded-2xl bg-[#EFE5D7] block cursor-pointer">
+                          <ProductImage src={item.image} alt={item.name} fill sizes="(max-width: 1024px) 50vw, 33vw" className="object-cover transition-transform duration-500 group-hover:scale-105" />
+                          {isAlreadyInCart && (
+                            <div className="absolute top-3 left-3 z-20 animate-in fade-in zoom-in-75">
+                              <span className="inline-flex items-center gap-1.5 px-2.5 py-1 rounded-md text-[10px] font-bold text-white bg-[#4D7C47] shadow-sm border border-white/20"><Check className="w-3 h-3 stroke-[3]" /><span>{inCartCount} in Cart</span></span>
+                            </div>
+                          )}
+                          {item.badge && !isAlreadyInCart && (
+                            <div className="absolute top-3 left-3 z-10">
+                              <span className={`inline-block px-2.5 py-1 rounded-md text-[10px] font-bold uppercase tracking-wider text-white shadow-xs ${ item.badge === "POPULAR" ? "bg-[#A33D31]" : "bg-[#B04336]" }`}>{item.badge}</span>
+                            </div>
+                          )}
+                          <button onClick={(e) => { e.preventDefault(); e.stopPropagation(); toggleFavorite(item.id); }} className="absolute top-3 right-3 w-8 h-8 rounded-full bg-black/25 backdrop-blur-md border border-white/20 flex items-center justify-center text-white hover:bg-black/40 hover:scale-110 active:scale-95 transition-all cursor-pointer z-10" aria-label="Add to favorites">
+                            <Heart className={`w-4 h-4 transition-colors ${ isFav ? "fill-[#E04D3E] text-[#E04D3E]" : "text-white" }`} strokeWidth={1.8} />
+                          </button>
+                          {item.doodleText && (
+                            <div className="absolute bottom-3 right-3 text-right pointer-events-none z-10 drop-shadow-[0_2px_4px_rgba(0,0,0,0.8)]">
+                              <span className="text-xs font-serif italic text-white/95 leading-none block -rotate-6" style={{ fontFamily: "Georgia, serif" }}>{item.doodleText}</span>
+                            </div>
+                          )}
+                        </Link>
+                        <div className="flex flex-1 flex-col pt-4 px-1 pb-1">
+                          <div className="flex items-start justify-between gap-3">
+                            <div className="flex items-center gap-2 flex-1 min-w-0">
+                              {item.hasChefHat && <ChefHat className="w-4 h-4 text-[#85725A] shrink-0" />}
+                              <Link href={`/store/${slug}/product/${item.id}`} className="hover:text-[#A34B3D] transition-colors">
+                                <h3 className="font-serif text-base sm:text-[1.125rem] font-bold text-[#29251F] leading-snug">{item.name}</h3>
+                              </Link>
+                            </div>
+                            <div className="flex items-center gap-2 shrink-0">
+                              <span className="font-serif text-base sm:text-lg font-bold text-[#29251F] whitespace-nowrap">₹{item.price}</span>
+                              <VegSymbol className="w-4 h-4" />
+                            </div>
+                          </div>
+                          <p className="mt-1.5 text-xs sm:text-sm text-[#706657] leading-relaxed line-clamp-2">{item.description}</p>
+                          <div className="mt-3 flex flex-wrap gap-1.5">
+                            {item.tags.map((tag) => (<span key={tag} className="px-2.5 py-0.5 rounded-md bg-[#EFE8DC] text-[#695F52] text-[10px] sm:text-[11px] font-medium">{tag}</span>))}
+                          </div>
+                          <div className="mt-auto pt-4 flex items-center gap-2.5">
+                            <div className="flex items-center rounded-xl bg-[#EFE8DC] px-2 py-1.5 border border-[#E2D6C6]">
+                              <button onClick={() => handleDecrement(item.id)} className="p-1 text-[#695F52] hover:text-[#29251F] transition-colors cursor-pointer" aria-label="Decrease"><Minus className="w-3.5 h-3.5" strokeWidth={2} /></button>
+                              <span className="w-6 text-center text-xs font-bold text-[#29251F]">{inCartCount > 0 ? inCartCount : qty}</span>
+                              <button onClick={() => handleIncrement(item.id)} className="p-1 text-[#695F52] hover:text-[#29251F] transition-colors cursor-pointer" aria-label="Increase"><Plus className="w-3.5 h-3.5" strokeWidth={2} /></button>
+                            </div>
+                            <button
+                              onClick={(e) => handleAddToCart(item, e)}
+                              className={`flex-1 flex items-center justify-center gap-2 py-2.5 px-4 rounded-xl text-xs sm:text-sm font-semibold transition-all duration-200 cursor-pointer shadow-xs ${ isJustAdded ? "bg-[#4D7C47] text-white" : isAlreadyInCart ? "bg-[#5D6B3F] hover:bg-[#4E5B33] text-white" : "bg-[#A34B3D] hover:bg-[#8F3F32] text-white active:scale-[0.98]" }`}
+                            >
+                              {isJustAdded ? (<><Check className="w-4 h-4" strokeWidth={2.5} /><span>Added!</span></>) : isAlreadyInCart ? (<><Check className="w-4 h-4" strokeWidth={2.5} /><span>In Cart ({inCartCount}) • Add More</span></>) : (<><ShoppingCart className="w-4 h-4" strokeWidth={2} /><span>Add to Cart</span></>)}
+                            </button>
+                          </div>
+                        </div>
+                      </div>
+                    );
+                  })}
+                </div>
+              </section>
+            ))}
+          </div>
+        ) : (
+          <>
         {/* ══════════════════════════════════════════════════════ */}
         {/* ── MOBILE VIEW: HORIZONTAL CARD SPLIT (md:hidden) ── */}
         {/* ══════════════════════════════════════════════════════ */}
@@ -1289,29 +1647,28 @@ export function MenuSection({ slug = "the-indulgent-spoon" }: MenuSectionProps) 
               <p className="text-xs sm:text-[13px] text-[#706657] font-medium leading-relaxed">
                 Our chefs are constantly baking fresh experiments and seasonal treats. Stay tuned! ♡
               </p>
+              <Link
+                href="/full-menu"
+                className="mt-3.5 inline-flex items-center gap-2 text-xs font-semibold uppercase tracking-[0.18em] text-[#A34B3D] hover:text-[#82382D] transition-colors group cursor-pointer"
+              >
+                <span>Explore Complete Kitchen Menu</span>
+                <span className="transition-transform group-hover:translate-x-1">→</span>
+              </Link>
             </div>
           ) : (
-            <button
-              type="button"
-              onClick={() => {
-                setActiveCategory("all");
-                const el = document.getElementById("menu");
-                if (el) {
-                  el.scrollIntoView({ behavior: "smooth" });
-                }
-                if (scrollContainerRef.current) {
-                  scrollContainerRef.current.scrollTo({ left: 60, behavior: "smooth" });
-                }
-              }}
+            <Link
+              href="/full-menu"
               className="inline-flex items-center gap-2 text-xs sm:text-sm font-semibold uppercase tracking-[0.18em] text-[#A34B3D] hover:text-[#82382D] transition-colors group cursor-pointer"
             >
               <span>Explore Complete Kitchen Menu</span>
               <span className="transition-transform group-hover:translate-x-1">
                 →
               </span>
-            </button>
+            </Link>
           )}
         </div>
+        </>
+        )}
       </div>
 
       {/* ═══════════════════════════════════════════════════════════ */}

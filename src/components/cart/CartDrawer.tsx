@@ -187,16 +187,24 @@ export function CartDrawer() {
                         </span>
                       )}
 
-                      {/* Add-on chips */}
+                      {/* Add-on chips — rich pill style with price */}
                       {item.addons && item.addons.length > 0 && (
-                        <div className="flex flex-wrap gap-1 mt-1">
+                        <div className="flex flex-col gap-1 mt-1.5">
                           {item.addons.map((addon) => (
-                            <span
+                            <div
                               key={addon.id}
-                              className="text-[9.5px] font-medium bg-[#F5EBDD] text-[#696053] px-1.5 py-0.5 rounded border border-[#91885D]/20"
+                              className="flex items-center justify-between gap-1.5 bg-amber-50 border border-amber-200/80 rounded-lg px-2 py-1"
                             >
-                              + {addon.label} (₹{addon.price})
-                            </span>
+                              <div className="flex items-center gap-1 min-w-0">
+                                <Sparkles className="h-2.5 w-2.5 text-amber-500 shrink-0" />
+                                <span className="text-[10.5px] font-semibold text-amber-900 truncate">
+                                  {addon.label}
+                                </span>
+                              </div>
+                              <span className="text-[10px] font-bold text-amber-700 bg-amber-100 border border-amber-200 px-1.5 py-0.5 rounded-md shrink-0 whitespace-nowrap">
+                                +₹{addon.price}
+                              </span>
+                            </div>
                           ))}
                         </div>
                       )}

@@ -31,13 +31,9 @@ import {
   Calendar,
   Clock,
   CreditCard,
-  Copy,
-  ExternalLink,
-  QrCode,
   ShieldCheck,
   Sparkles,
 } from "lucide-react";
-import { submitPaymentConfirmation } from "../actions";
 import { createClient } from "@/lib/supabase/client";
 import {
   getCustomerDeliverySlots,
@@ -129,26 +125,7 @@ export default function CheckoutPage() {
   const [submitting, setSubmitting] = useState(false);
   const [errorMsg, setErrorMsg] = useState<string | null>(null);
 
-  // Manual UPI Payment Modal State
-  const [showPaymentModal, setShowPaymentModal] = useState(false);
-  const [createdOrderData, setCreatedOrderData] = useState<{
-    orderId: string;
-    orderNumber: string;
-    trackingToken: string;
-    whatsappUrl: string;
-    adminWhatsAppUrl?: string;
-    total: number;
-    orderType: "delivery" | "takeaway";
-    formattedSlotWindow?: string;
-    selectedDate?: string;
-  } | null>(null);
-  const [copiedUpi, setCopiedUpi] = useState(false);
-  const [submittingPaid, setSubmittingPaid] = useState(false);
-  const [paymentSubmitted, setPaymentSubmitted] = useState(false);
-  const [modalError, setModalError] = useState<string | null>(null);
 
-  const UPI_ID = "theindulgentspoon@okaxis";
-  const BAKERY_NAME = "The Indulgent Spoon";
 
   // Load restaurant details
   useEffect(() => {
@@ -457,17 +434,7 @@ export default function CheckoutPage() {
         throw new Error(result.error || "Failed to create order. Please try again.");
       }
 
-      // Save in state & session
-      setCreatedOrderData({
-        orderId: result.orderId,
-        orderNumber: result.orderNumber || "",
-        trackingToken: result.trackingToken || result.orderId,
-        whatsappUrl: result.whatsappUrl || "",
-        total,
-        orderType,
-        formattedSlotWindow,
-        selectedDate,
-      });
+
 
       // Save complete receipt snapshot for the digital receipt page
       const receiptData = {
@@ -595,7 +562,6 @@ export default function CheckoutPage() {
             modal: {
               ondismiss: function () {
                 setSubmitting(false);
-                setShowPaymentModal(true); // Fallback to UPI modal if user closes Razorpay
               },
             },
           };
@@ -604,77 +570,20 @@ export default function CheckoutPage() {
           rzpInstance.open();
           setSubmitting(false);
           return;
+        } else {
+          throw new Error("Unable to open Razorpay payment gateway. Please try again.");
         }
       } catch (rzpErr) {
-        console.warn("Razorpay direct modal launch notice:", rzpErr);
+        console.warn("Razorpay launch notice:", rzpErr);
+        setErrorMsg(rzpErr instanceof Error ? rzpErr.message : "Payment gateway could not be loaded. Please try again.");
+        setSubmitting(false);
+        return;
       }
-
-      // Fallback: Open UPI Payment Page / Modal
-      setShowPaymentModal(true);
-      setSubmitting(false);
     } catch (err: unknown) {
       console.error(err);
       setErrorMsg(err instanceof Error ? err.message : "Something went wrong. Please try again.");
       setSubmitting(false);
     }
-  };
-
-  const handleCopyUpi = () => {
-    navigator.clipboard.writeText(UPI_ID);
-    setCopiedUpi(true);
-    setTimeout(() => setCopiedUpi(false), 2000);
-  };
-
-  const handleCustomerPaid = async () => {
-    setModalError(null);
-    const orderIdToSubmit =
-      createdOrderData?.orderId ||
-      (typeof window !== "undefined" ? sessionStorage.getItem(`order-${slug}`) : "") ||
-      "";
-
-    // Use whichever token is available — prefer tracking token, fallback to orderId
-    let targetToken = (createdOrderData?.trackingToken && createdOrderData.trackingToken !== "")
-      ? createdOrderData.trackingToken
-      : orderIdToSubmit;
-    let adminWhatsAppUrl: string | null = null;
-
-    try {
-      setSubmittingPaid(true);
-      if (orderIdToSubmit) {
-        const res: any = await submitPaymentConfirmation({ orderId: orderIdToSubmit });
-        if (res?.trackingToken && res.trackingToken !== "") {
-          targetToken = res.trackingToken;
-        }
-        if (res?.adminWhatsAppUrl) {
-          adminWhatsAppUrl = res.adminWhatsAppUrl;
-        }
-      }
-    } catch (e: any) {
-      console.warn("Payment confirmation call notice:", e);
-    } finally {
-      setSubmittingPaid(false);
-    }
-
-    // Update receipt status in session
-    try {
-      const stored = sessionStorage.getItem(`receipt-${slug}`);
-      if (stored) {
-        const parsed = JSON.parse(stored);
-        parsed.paymentStatus = "PAID";
-        sessionStorage.setItem(`receipt-${slug}`, JSON.stringify(parsed));
-      }
-    } catch {}
-
-    // Clear the local cart
-    clearCart();
-
-    // Store the admin WhatsApp URL in state if needed
-    if (adminWhatsAppUrl) {
-      setCreatedOrderData((prev) => prev ? { ...prev, adminWhatsAppUrl } : prev);
-    }
-
-    // Navigate directly to generated digital receipt
-    router.push(`/store/${slug}/order-success`);
   };
 
   if (loadingRestaurant) {
@@ -685,7 +594,7 @@ export default function CheckoutPage() {
     );
   }
 
-  if (totalItems === 0 && !showPaymentModal && !paymentSubmitted && !submittingPaid) {
+  if (totalItems === 0) {
     return (
       <div className="min-h-screen bg-[#D9BC9E] flex flex-col items-center justify-center gap-4 px-6 text-center">
         <ShoppingBag className="h-12 w-12 text-[#696053]" />
@@ -1421,7 +1330,7 @@ export default function CheckoutPage() {
           <p className="font-bold text-[#29251F] text-xs">How it works</p>
           <p>1. Tap &ldquo;Place Order &amp; View Digital Receipt&rdquo; below.</p>
           <p>2. View your detailed artisanal digital receipt &amp; breakdown.</p>
-          <p>3. Pay securely via UPI (QR / Apps) or confirm via WhatsApp.</p>
+          <p>3. Pay securely online via Razorpay (UPI, Google Pay, PhonePe, Cards, Netbanking).</p>
           <p>4. Freshly handcrafted by The Indulgent Spoon.</p>
         </div>
       </form>
@@ -1452,211 +1361,11 @@ export default function CheckoutPage() {
             <p className="text-center text-[10px] text-[#696053] mt-2">
               {orderType === "delivery" && (!isDeliveryChecked || !isDeliveryAvailable)
                 ? "Please enter your address and click \"Check Delivery\" to proceed."
-                : "Proceed to scan UPI QR code or pay with UPI ID."}
+                : "Secure online payment powered by Razorpay (UPI, Cards, Netbanking)."}
             </p>
           )}
         </div>
       </div>
-
-      {/* ══════════════════════════════════════════════════════════════ */}
-      {/* ── UPI PAYMENT MODAL / PAGE (STEP 6 & 7) ── */}
-      {/* ══════════════════════════════════════════════════════════════ */}
-      {showPaymentModal && createdOrderData && (
-        <div className="fixed inset-0 z-50 flex items-center justify-center p-4 bg-[#29251F]/70 backdrop-blur-xs animate-in fade-in">
-          <div className="relative w-full max-w-md max-h-[90vh] overflow-y-auto rounded-3xl border border-[#91885D]/30 bg-[#FAF6EF] text-[#29251F] shadow-2xl p-5 sm:p-6 space-y-4">
-            {!paymentSubmitted ? (
-              <>
-                {/* Header */}
-                <div className="flex items-center justify-between border-b border-[#91885D]/20 pb-3">
-                  <div className="flex items-center gap-2">
-                    <div className="flex h-8 w-8 items-center justify-center rounded-xl bg-[#E8D5BC] text-[#C26B59]">
-                      <QrCode className="h-4.5 w-4.5" />
-                    </div>
-                    <div>
-                      <h3 className="font-serif text-base font-bold text-[#29251F]">
-                        Pay Using UPI
-                      </h3>
-                      <p className="text-[10px] text-[#696053]">
-                        Order #{createdOrderData.orderNumber}
-                      </p>
-                    </div>
-                  </div>
-
-                  <span className="font-serif font-bold text-base text-[#A34B3D]">
-                    {formatPrice(createdOrderData.total)}
-                  </span>
-                </div>
-
-                {modalError && (
-                  <div className="flex items-start gap-2 rounded-xl bg-rose-50 border border-rose-200 p-3 text-xs text-rose-800">
-                    <AlertCircle className="w-4 h-4 shrink-0 text-rose-600 mt-0.5" />
-                    <span>{modalError}</span>
-                  </div>
-                )}
-
-                {/* Order Summary Pill */}
-                <div className="rounded-2xl bg-[#F5EBDD] p-3 border border-[#91885D]/20 text-xs space-y-1">
-                  <div className="flex justify-between font-medium text-[#29251F]">
-                    <span>Fulfillment:</span>
-                    <span className="font-bold">
-                      {createdOrderData.orderType === "delivery" ? "🚚 Home Delivery" : "🛍️ Store Pickup"}
-                    </span>
-                  </div>
-                  {createdOrderData.selectedDate && (
-                    <div className="flex justify-between text-[#696053]">
-                      <span>Scheduled:</span>
-                      <span className="font-semibold text-[#29251F]">
-                        {new Date(createdOrderData.selectedDate + "T00:00:00").toLocaleDateString("en-IN", {
-                          weekday: "short",
-                          month: "short",
-                          day: "numeric",
-                        })}{" "}
-                        • {createdOrderData.formattedSlotWindow}
-                      </span>
-                    </div>
-                  )}
-                </div>
-
-                {/* QR Code Container */}
-                <div className="flex flex-col items-center justify-center rounded-2xl bg-white p-4 border border-[#91885D]/30 shadow-xs space-y-3">
-                  <div className="relative w-48 h-48 bg-white p-2 rounded-xl border border-[#91885D]/20">
-                    <Image
-                      src={`https://api.qrserver.com/v1/create-qr-code/?size=200x200&data=${encodeURIComponent(
-                        `upi://pay?pa=${UPI_ID}&pn=${encodeURIComponent(
-                          BAKERY_NAME
-                        )}&am=${createdOrderData.total}&cu=INR&tn=Order%20${createdOrderData.orderNumber}`
-                      )}&margin=4`}
-                      alt="UPI QR Code"
-                      width={200}
-                      height={200}
-                      className="w-full h-full object-contain"
-                      unoptimized
-                    />
-                  </div>
-
-                  <p className="text-center text-[11px] text-[#696053] max-w-[240px]">
-                    Scan with <strong>Google Pay</strong>, <strong>PhonePe</strong>, <strong>Paytm</strong>, or any UPI app.
-                  </p>
-                </div>
-
-                {/* UPI ID Copy Box */}
-                <div className="rounded-2xl bg-[#F5EBDD] p-3.5 border border-[#91885D]/25 flex items-center justify-between gap-2">
-                  <div className="min-w-0">
-                    <span className="text-[10px] font-bold uppercase tracking-wider text-[#696053] block">
-                      Bakery UPI ID
-                    </span>
-                    <span className="font-mono text-xs font-bold text-[#29251F] truncate block">
-                      {UPI_ID}
-                    </span>
-                  </div>
-
-                  <button
-                    type="button"
-                    onClick={handleCopyUpi}
-                    className="flex items-center gap-1 shrink-0 rounded-xl bg-[#634832] text-[#F5EBDD] px-3 py-1.5 text-xs font-bold hover:bg-[#523B28] transition-colors cursor-pointer"
-                  >
-                    {copiedUpi ? (
-                      <>
-                        <Check className="h-3.5 w-3.5" />
-                        <span>Copied</span>
-                      </>
-                    ) : (
-                      <>
-                        <Copy className="h-3.5 w-3.5" />
-                        <span>Copy ID</span>
-                      </>
-                    )}
-                  </button>
-                </div>
-
-                {/* I PAID Action Button */}
-                <div className="space-y-2 pt-1">
-                  <button
-                    type="button"
-                    onClick={handleCustomerPaid}
-                    disabled={submittingPaid}
-                    className="w-full flex items-center justify-center gap-2 rounded-2xl bg-[#3e683f] hover:bg-[#325633] active:bg-[#284529] text-white py-3.5 text-sm font-black shadow-md transition-all active:scale-[0.99] cursor-pointer disabled:opacity-50"
-                  >
-                    {submittingPaid ? (
-                      <>
-                        <Loader2 className="h-4 w-4 animate-spin" />
-                        <span>Submitting payment confirmation...</span>
-                      </>
-                    ) : (
-                      <>
-                        <CheckCircle2 className="h-4.5 w-4.5" />
-                        <span>✓ I PAID</span>
-                      </>
-                    )}
-                  </button>
-
-                  <p className="text-center text-[10.5px] text-[#696053]">
-                    Click after completing the transaction in your UPI app.
-                  </p>
-                </div>
-              </>
-            ) : (
-              <div className="text-center py-4 space-y-4 animate-in zoom-in-95">
-                {/* Payment Submitted State (fallback) */}
-                <div className="w-14 h-14 rounded-full bg-[#4D7C47]/15 border border-[#4D7C47]/30 flex items-center justify-center mx-auto text-[#4D7C47]">
-                  <CheckCircle2 className="w-8 h-8" />
-                </div>
-
-                <div className="space-y-1">
-                  <h3 className="font-serif text-lg font-bold text-[#29251F]">
-                    ✓ Payment submitted
-                  </h3>
-                  <p className="text-xs text-[#54483B] max-w-xs mx-auto leading-relaxed">
-                    Your payment is waiting for confirmation from the bakery.
-                  </p>
-                </div>
-
-                <div className="rounded-2xl bg-[#F5EBDD] p-3.5 border border-[#91885D]/25 text-left text-xs space-y-1">
-                  <div className="flex justify-between">
-                    <span className="text-[#696053]">Order Reference:</span>
-                    <span className="font-bold text-[#A34B3D]">#{createdOrderData.orderNumber}</span>
-                  </div>
-                  <div className="flex justify-between">
-                    <span className="text-[#696053]">Amount:</span>
-                    <span className="font-bold">{formatPrice(createdOrderData.total)}</span>
-                  </div>
-                  <div className="flex justify-between">
-                    <span className="text-[#696053]">Status:</span>
-                    <span className="font-bold text-amber-800">Verification Pending</span>
-                  </div>
-                </div>
-
-                {/* STEP: Notify Admin on WhatsApp — critical action */}
-                <div className="rounded-2xl bg-green-50 border border-green-200 p-3.5 space-y-2.5 text-left">
-                  <p className="text-xs font-bold text-green-900">
-                    📲 Step: Notify Bakery on WhatsApp
-                  </p>
-                  <p className="text-[11px] text-green-800">
-                    Click the button below to send your payment confirmation to the bakery admin (+91 9691639268).
-                  </p>
-                  <a
-                    href={createdOrderData.adminWhatsAppUrl || `https://wa.me/919691639268?text=${encodeURIComponent(`🔔 PAYMENT DONE for Order #${createdOrderData.orderNumber}. Amount: ₹${createdOrderData.total}. Please verify and confirm.`)}`}
-                    target="_blank"
-                    rel="noopener noreferrer"
-                    className="w-full flex items-center justify-center gap-2 rounded-xl bg-[#25D366] hover:bg-[#20bd5a] text-white py-3 text-xs font-bold shadow-xs transition-colors cursor-pointer"
-                  >
-                    <span>💬 Send Payment Alert to Bakery WhatsApp</span>
-                  </a>
-                </div>
-
-                <div className="space-y-2">
-                  <Link
-                    href={`/store/${slug}`}
-                    className="w-full flex items-center justify-center gap-2 rounded-2xl bg-[#C26B59] hover:bg-[#A95145] text-white py-3.5 text-xs font-bold shadow-md transition-colors"
-                  >
-                    <span>Back to Menu</span>
-                  </Link>
-                </div>
-              </div>
-            )}
-          </div>
-        </div>
-      )}
     </div>
   );
 }

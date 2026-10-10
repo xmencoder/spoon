@@ -150,7 +150,7 @@ export async function POST(req: NextRequest) {
     await admin
       .from("orders")
       .update({
-        payment_status: "paid",
+        payment_status: "verified",
         status: "confirmed",
         payment_method: payment.method || "Razorpay",
         payment_verified_at: nowIso,

@@ -77,7 +77,7 @@ export function generateOrderReceiptPdf(data: ReceiptData): jsPDF {
 
   doc.setFontSize(8);
   doc.text(
-    `${data.bakeryAddress || "DLF Phase 4, Gurugram"} • Phone: ${data.bakeryPhone || "+91 9691639268"}`,
+    `${data.bakeryAddress || "DLF Phase 4, Gurugram"} • Phone: ${data.bakeryPhone || "+91 9717123510"}`,
     pageWidth / 2,
     33,
     { align: "center" }

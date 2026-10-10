@@ -2,7 +2,7 @@ import nodemailer from "nodemailer";
 import { createClient } from "@/lib/supabase/server";
 import type { Order, OrderItem } from "@/types/database";
 
-export const ADMIN_WHATSAPP_NUMBER = process.env.ADMIN_WHATSAPP_NUMBER || "9691639268";
+export const ADMIN_WHATSAPP_NUMBER = process.env.ADMIN_WHATSAPP_NUMBER || "9717123510";
 export const BAKERY_NAME = "The Indulgent Spoon";
 export const SITE_URL =
   process.env.NEXT_PUBLIC_SITE_URL ||

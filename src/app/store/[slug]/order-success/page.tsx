@@ -10,8 +10,6 @@ import {
   CheckCircle2,
   Printer,
   Share2,
-  Copy,
-  Check,
   ArrowLeft,
   Utensils,
   Truck,
@@ -20,8 +18,6 @@ import {
   Phone,
   User,
   Mail,
-  QrCode,
-  CreditCard,
   MessageCircle,
   ExternalLink,
   Clock,
@@ -79,12 +75,6 @@ export default function OrderSuccessReceiptPage() {
 
   const [receipt, setReceipt] = useState<ReceiptData | null>(null);
   const [loading, setLoading] = useState(true);
-  const [copiedUpi, setCopiedUpi] = useState(false);
-  const [showPaymentModal, setShowPaymentModal] = useState(false);
-
-  // UPI configuration
-  const UPI_ID = "theindulgentspoon@okaxis"; // Bakery UPI VPA
-  const BAKERY_NAME = "The Indulgent Spoon";
 
   useEffect(() => {
     try {
@@ -98,28 +88,6 @@ export default function OrderSuccessReceiptPage() {
       setLoading(false);
     }
   }, [slug]);
-
-  const upiPayUrl = useMemo(() => {
-    if (!receipt) return "";
-    const amount = receipt.total;
-    const note = `Order ${receipt.orderId} - ${BAKERY_NAME}`;
-    return `upi://pay?pa=${encodeURIComponent(UPI_ID)}&pn=${encodeURIComponent(
-      BAKERY_NAME
-    )}&am=${amount}&cu=INR&tn=${encodeURIComponent(note)}`;
-  }, [receipt]);
-
-  const qrCodeUrl = useMemo(() => {
-    if (!upiPayUrl) return "";
-    return `https://api.qrserver.com/v1/create-qr-code/?size=220x220&data=${encodeURIComponent(
-      upiPayUrl
-    )}&margin=10`;
-  }, [upiPayUrl]);
-
-  const handleCopyUpi = () => {
-    navigator.clipboard.writeText(UPI_ID);
-    setCopiedUpi(true);
-    setTimeout(() => setCopiedUpi(false), 2000);
-  };
 
   const [downloadingPdf, setDownloadingPdf] = useState(false);
 
@@ -156,7 +124,7 @@ export default function OrderSuccessReceiptPage() {
         paymentStatus: (receipt.paymentStatus || "PAID").toUpperCase(),
         paymentVerifiedAt: new Date().toISOString(),
         bakeryName: receipt.restaurantName || "The Indulgent Spoon",
-        bakeryPhone: receipt.restaurantPhone || "+91 9691639268",
+        bakeryPhone: receipt.restaurantPhone || "+91 9717123510",
         bakeryAddress: "Mayfield Garden, Sector 51, Gurugram, Haryana",
       });
 
@@ -537,14 +505,15 @@ export default function OrderSuccessReceiptPage() {
               </p>
             </div>
           ) : (
-            <button
-              type="button"
-              onClick={() => setShowPaymentModal(true)}
-              className="w-full flex items-center justify-center gap-2.5 rounded-2xl bg-[#3e683f] hover:bg-[#325633] text-white py-4 text-sm font-bold shadow-warm-lg hover:shadow-warm-xl transition-all active:scale-[0.99] cursor-pointer"
-            >
-              <CreditCard className="w-5 h-5 text-white" />
-              <span>Complete Payment — {formatPrice(receipt.total)}</span>
-            </button>
+            <div className="rounded-2xl bg-amber-50 border border-amber-200 p-4 text-center space-y-2">
+              <div className="inline-flex items-center gap-1.5 text-xs font-bold text-amber-900">
+                <Clock className="w-4 h-4 text-amber-700" />
+                <span>Payment Verification Pending</span>
+              </div>
+              <p className="text-[11px] text-[#554D3F]">
+                Please confirm or verify your payment status with the bakery on WhatsApp.
+              </p>
+            </div>
           )}
 
           {/* Download PDF & Print buttons */}
@@ -594,105 +563,6 @@ export default function OrderSuccessReceiptPage() {
             </Link>
           </div>
         </div>
-
-        {/* ══════════════════════════════════════════════════════════════ */}
-        {/* ── UPI PAYMENT POPUP MODAL ── */}
-        {/* ══════════════════════════════════════════════════════════════ */}
-        {showPaymentModal && (
-          <div className="fixed inset-0 z-50 flex items-center justify-center p-4 bg-black/60 backdrop-blur-xs animate-in fade-in">
-            <div className="bg-[#FAF6EF] rounded-3xl border border-[#91885D]/35 max-w-sm w-full p-6 shadow-2xl space-y-4 relative animate-in zoom-in-95">
-              <button
-                type="button"
-                onClick={() => setShowPaymentModal(false)}
-                className="absolute top-4 right-4 p-2 rounded-full hover:bg-[#E8D5BC] text-[#696053] transition-colors cursor-pointer"
-                aria-label="Close"
-              >
-                ✕
-              </button>
-
-              <div className="text-center space-y-1">
-                <div className="w-10 h-10 rounded-full bg-[#4D7C47]/15 border border-[#4D7C47]/30 flex items-center justify-center mx-auto text-[#2D5A27]">
-                  <QrCode className="w-5 h-5 text-[#4D7C47]" />
-                </div>
-                <h3 className="font-serif text-lg font-bold text-[#29251F]">
-                  Scan &amp; Pay via UPI
-                </h3>
-                <p className="text-xs text-[#696053]">
-                  Amount Payable:{" "}
-                  <span className="font-bold text-[#A34B3D] text-sm">
-                    {formatPrice(receipt.total)}
-                  </span>
-                </p>
-              </div>
-
-              {/* Dynamic QR Code Image */}
-              <div className="flex flex-col items-center justify-center p-4 bg-white rounded-2xl border border-[#91885D]/30 shadow-inner">
-                {qrCodeUrl && (
-                  <div className="relative w-48 h-48">
-                    <Image
-                      src={qrCodeUrl}
-                      alt="UPI QR Code"
-                      fill
-                      className="object-contain"
-                      unoptimized
-                    />
-                  </div>
-                )}
-                <span className="text-[10px] font-bold text-[#696053] mt-2 uppercase tracking-wider">
-                  Scan with GPay, PhonePe, Paytm, BHIM
-                </span>
-              </div>
-
-              {/* UPI ID Copy Card */}
-              <div className="flex items-center justify-between p-3 rounded-xl bg-[#F5EBDD] border border-[#91885D]/30 text-xs">
-                <div>
-                  <span className="text-[10px] text-[#696053] block uppercase tracking-wider">
-                    UPI ID (VPA)
-                  </span>
-                  <span className="font-mono font-bold text-[#29251F]">
-                    {UPI_ID}
-                  </span>
-                </div>
-                <button
-                  type="button"
-                  onClick={handleCopyUpi}
-                  className="inline-flex items-center gap-1 px-2.5 py-1 rounded-lg bg-[#C26B59] hover:bg-[#A95145] text-white text-[11px] font-bold transition-colors cursor-pointer"
-                >
-                  {copiedUpi ? (
-                    <>
-                      <Check className="w-3 h-3" />
-                      <span>Copied</span>
-                    </>
-                  ) : (
-                    <>
-                      <Copy className="w-3 h-3" />
-                      <span>Copy</span>
-                    </>
-                  )}
-                </button>
-              </div>
-
-              {/* Direct UPI App Intent Pay Button for Mobile Devices */}
-              <div className="space-y-2 pt-1">
-                <a
-                  href={upiPayUrl}
-                  className="w-full flex items-center justify-center gap-2 rounded-xl bg-[#4D7C47] hover:bg-[#3D6638] text-white py-3 text-xs font-bold shadow-md transition-colors"
-                >
-                  <ShieldCheck className="w-4 h-4" />
-                  <span>Open Supported UPI App to Pay</span>
-                </a>
-
-                <button
-                  type="button"
-                  onClick={() => setShowPaymentModal(false)}
-                  className="w-full py-2.5 text-xs font-semibold text-[#696053] hover:text-[#29251F] transition-colors cursor-pointer"
-                >
-                  Done / Close
-                </button>
-              </div>
-            </div>
-          </div>
-        )}
       </main>
     </div>
   );

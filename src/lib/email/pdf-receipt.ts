@@ -275,7 +275,7 @@ export async function generateReceiptPdf(data: ReceiptData): Promise<Buffer> {
   doc.setFontSize(7.5);
   doc.setTextColor(105, 96, 83);
   doc.text(
-    "Thank you for ordering from The Indulgent Spoon! Questions? WhatsApp us on +91 96916 39268",
+    "Thank you for ordering from The Indulgent Spoon! Questions? WhatsApp us on +91 97171 23510",
     pageW / 2, footerY + 5, { align: "center" }
   );
   doc.text(

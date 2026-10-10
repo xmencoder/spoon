@@ -381,7 +381,7 @@ export async function approveOrderPaymentAction(payload: {
     paymentStatus: "VERIFIED",
     paymentVerifiedAt: now,
     bakeryName: BAKERY_NAME,
-    bakeryPhone: "+91 9691639268",
+    bakeryPhone: "+91 9717123510",
     bakeryAddress: "The Indulgent Spoon, DLF Phase 4, Gurugram",
   });
 
@@ -518,7 +518,7 @@ export async function rejectOrderPaymentAction(payload: {
     `⚠️ *Payment Update on Order ${orderNum}*\n\n` +
     `Hi ${order.customer_name},\n\n` +
     `We could not verify your UPI payment for Order ${orderNum}. ` +
-    `Please contact us at +91 9691639268 or retry the payment.\n\n` +
+    `Please contact us at +91 9717123510 or retry the payment.\n\n` +
     `— ${BAKERY_NAME}`;
 
   await sendWhatsAppMessage({
