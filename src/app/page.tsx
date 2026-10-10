@@ -5,12 +5,9 @@ import { Clock, Star, Award } from "lucide-react";
 import { MenuSection } from "@/components/home/MenuSection";
 import { FounderNoteSection } from "@/components/home/FounderNoteSection";
 import { OrderNowButton } from "@/components/home/OrderNowButton";
-import { getDefaultRestaurant } from "@/lib/supabase/queries";
 
-export default async function Home() {
-  const restaurant = await getDefaultRestaurant();
+export default function Home() {
   const slug =
-    restaurant?.slug ||
     process.env.NEXT_PUBLIC_DEFAULT_RESTAURANT_SLUG ||
     "the-indulgent-spoon";
 
@@ -26,9 +23,10 @@ export default async function Home() {
           alt="Artisanal bakery spread with fresh breads, cakes, muffins, cookies and chocolate spreads"
           fill
           priority
-          className="object-cover object-[50%_45%] sm:object-[center_40%] contrast-[1.06] saturate-[1.12] brightness-[0.96] transition-transform duration-1000 scale-[1.01]"
+          fetchPriority="high"
+          className="object-cover object-[50%_45%] sm:object-[center_40%] contrast-[1.06] saturate-[1.12] brightness-[0.96]"
           sizes="100vw"
-          quality={85}
+          quality={75}
         />
 
         {/* Dynamic HD Photographic Lighting & Gradients */}
@@ -106,12 +104,14 @@ export default async function Home() {
 
         </div>
 
-        {/* ── Scroll indicator ── */}
-        <div className="absolute bottom-6 left-1/2 -translate-x-1/2 z-10 flex flex-col items-center gap-1.5 animate-bounce">
-          <span className="text-[9px] font-semibold uppercase tracking-[0.25em] text-[#F5EBDD]/50">Scroll</span>
-          <svg width="16" height="10" viewBox="0 0 16 10" fill="none" className="text-[#F5EBDD]/40">
-            <path d="M1 1L8 8L15 1" stroke="currentColor" strokeWidth="1.5" strokeLinecap="round" strokeLinejoin="round" />
-          </svg>
+        {/* ── Scroll indicator (GPU-composited bounce) ── */}
+        <div className="absolute bottom-6 left-1/2 -translate-x-1/2 z-10 pointer-events-none">
+          <div className="flex flex-col items-center gap-1.5 animate-bounce will-change-transform">
+            <span className="text-[9px] font-semibold uppercase tracking-[0.25em] text-[#F5EBDD]/80">Scroll</span>
+            <svg width="16" height="10" viewBox="0 0 16 10" fill="none" className="text-[#F5EBDD]/70">
+              <path d="M1 1L8 8L15 1" stroke="currentColor" strokeWidth="1.5" strokeLinecap="round" strokeLinejoin="round" />
+            </svg>
+          </div>
         </div>
       </section>
 

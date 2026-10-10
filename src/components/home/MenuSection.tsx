@@ -875,7 +875,7 @@ export function MenuSection({ slug = "the-indulgent-spoon" }: MenuSectionProps) 
                     </div>
 
                     {/* Category Name */}
-                    <h4
+                    <h3
                       className={`font-serif text-[12.5px] sm:text-sm font-semibold tracking-tight transition-colors leading-tight text-center ${
                         isActive
                           ? "text-[#29251F] font-bold"
@@ -883,7 +883,7 @@ export function MenuSection({ slug = "the-indulgent-spoon" }: MenuSectionProps) 
                       }`}
                     >
                       {cat.name}
-                    </h4>
+                    </h3>
 
                     {/* Leaf Divider */}
                     <LeafDivider active={isActive} />

@@ -68,7 +68,7 @@ export function Header({ cartCount: initialCartCount }: HeaderProps) {
               className={`transition-colors duration-200 ${
                 pathname === "/"
                   ? "text-[#F8F2E8] hover:text-white"
-                  : "text-[#E6DBC9] hover:text-white"
+                  : "text-[#F0E7D8] hover:text-white"
               }`}
             >
               Home
@@ -84,7 +84,7 @@ export function Header({ cartCount: initialCartCount }: HeaderProps) {
 
             <Link
               href="/#founders-note"
-              className="text-[#E6DBC9] hover:text-white transition-colors duration-200 hidden sm:inline"
+              className="text-[#F0E7D8] hover:text-white transition-colors duration-200 hidden sm:inline"
             >
               Our Story
             </Link>
@@ -100,7 +100,6 @@ export function Header({ cartCount: initialCartCount }: HeaderProps) {
                   src="/logo-brand.png"
                   alt="The Indulgent Spoon"
                   fill
-                  priority
                   className="object-contain"
                   sizes="(max-width: 640px) 72px, (max-width: 768px) 84px, 96px"
                 />

@@ -18,6 +18,7 @@ const caveat = Caveat({
   variable: "--font-caveat",
   subsets: ["latin"],
   display: "swap",
+  preload: false,
 });
 
 export const metadata: Metadata = {
@@ -44,8 +45,12 @@ export const metadata: Metadata = {
   },
 };
 
+import dynamic from "next/dynamic";
 import { CartProvider } from "@/lib/store/CartContext";
-import { CartDrawer } from "@/components/cart/CartDrawer";
+
+const CartDrawer = dynamic(
+  () => import("@/components/cart/CartDrawer").then((mod) => mod.CartDrawer)
+);
 
 export default function RootLayout({
   children,

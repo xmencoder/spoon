@@ -31,7 +31,7 @@ const nextConfig: NextConfig = {
     ],
   },
   experimental: {
-    optimizePackageImports: ["lucide-react"],
+    optimizePackageImports: ["lucide-react", "@supabase/supabase-js", "clsx", "tailwind-merge"],
   },
   async headers() {
     return [
