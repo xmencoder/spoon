@@ -1473,7 +1473,7 @@ export default function CheckoutPage() {
               </span>
             </div>
             <div className="flex justify-between text-[#696053]">
-              <span>Packing &amp; Handling (4%)</span>
+              <span>Transaction Fees (4%)</span>
               <span>+{formatPrice(packagingFee)}</span>
             </div>
             {hasGiftNote && (

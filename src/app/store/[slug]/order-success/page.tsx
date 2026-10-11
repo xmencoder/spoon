@@ -422,7 +422,7 @@ export default function OrderSuccessReceiptPage() {
               </div>
 
               <div className="flex justify-between text-[#554D3F]">
-                <span>Packing &amp; Handling (4%)</span>
+                <span>Transaction Fees (4%)</span>
                 <span className="font-bold text-[#29251F]">
                   +{formatPrice(receipt.packagingFee)}
                 </span>
