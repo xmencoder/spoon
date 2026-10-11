@@ -92,7 +92,7 @@ export function FounderNoteSection() {
                 <div className="relative w-[260px] sm:w-[300px] aspect-[3/4] overflow-hidden rounded-[1px]">
                   <Image
                     src="/founder-image.jpeg"
-                    alt="Vasvi — Founder of The Indulgent Spoon, decorating a cake in her bakery kitchen"
+                    alt="Vasvi Jain — Founder of The Indulgent Spoon, decorating a cake in her bakery kitchen"
                     fill
                     className="object-cover object-center"
                     sizes="(max-width: 640px) 260px, 300px"
@@ -169,7 +169,7 @@ export function FounderNoteSection() {
                 className="text-3xl sm:text-4xl text-[#3d3225] inline-flex items-center gap-2"
                 style={{ fontFamily: "var(--font-caveat)" }}
               >
-                Vasvi
+                Vasvi Jain
                 <span className="text-[#C26B59] text-2xl">♡</span>
               </p>
               <p className="text-xs font-semibold uppercase tracking-[0.15em] text-[#91885D] mt-1">
