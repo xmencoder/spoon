@@ -947,20 +947,19 @@ export default function AdminNewProductPage() {
                         </div>
                       )}
 
-                      {/* Overlay Controls */}
-                      <div className="absolute inset-0 bg-black/40 opacity-0 group-hover:opacity-100 transition-opacity flex flex-col justify-between p-2">
-                        <div className="flex justify-end">
-                          <button
-                            type="button"
-                            onClick={() => handleRemoveImage(index)}
-                            className="h-7 w-7 rounded-full bg-black/75 text-white hover:bg-rose-600 transition-colors flex items-center justify-center shadow-sm"
-                            title="Remove photo"
-                          >
-                            <X className="w-3.5 h-3.5" />
-                          </button>
-                        </div>
+                      {/* Always-visible Remove Button */}
+                      <button
+                        type="button"
+                        onClick={() => handleRemoveImage(index)}
+                        className="absolute top-2 right-2 z-10 h-6 w-6 rounded-full bg-black/70 text-white hover:bg-rose-600 transition-colors flex items-center justify-center shadow-md"
+                        title="Remove photo"
+                      >
+                        <X className="w-3 h-3" />
+                      </button>
 
-                        {!isCover && (
+                      {/* Hover Overlay – Make Cover only */}
+                      {!isCover && (
+                        <div className="absolute inset-0 bg-black/40 opacity-0 group-hover:opacity-100 transition-opacity flex flex-col justify-end p-2">
                           <button
                             type="button"
                             onClick={() => handleSetCover(index)}
@@ -968,8 +967,8 @@ export default function AdminNewProductPage() {
                           >
                             Make Cover
                           </button>
-                        )}
-                      </div>
+                        </div>
+                      )}
                     </div>
                   );
                 })}

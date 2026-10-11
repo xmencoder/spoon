@@ -62,7 +62,7 @@ export function Footer() {
         <div className="mt-16 flex items-center justify-center gap-4">
           <div className="h-[1px] flex-1 bg-gradient-to-r from-transparent via-[#91885D]/40 to-[#91885D]/40" />
           <div className="flex items-center gap-3 text-[#91885D]">
-            <span className="text-[10px] tracking-[0.3em] uppercase font-bold text-[#696053]">Est. 2024</span>
+            <span className="text-[10px] tracking-[0.3em] uppercase font-bold text-[#696053]">Est. 2025</span>
             <div className="relative w-8 h-8 shrink-0">
               <Image
                 src="/logo_stamp.png"
@@ -79,7 +79,7 @@ export function Footer() {
 
         {/* Copyright */}
         <div className="mt-6 text-center text-xs text-[#696053]">
-          &copy; {new Date().getFullYear()} The Indulgent Spoon. All rights reserved.
+          &copy; 2025 The Indulgent Spoon. All rights reserved.
         </div>
       </div>
     </footer>
