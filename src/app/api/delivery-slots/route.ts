@@ -26,7 +26,10 @@ export async function GET(req: NextRequest) {
     const day = String(now.getDate()).padStart(2, "0");
     const todayStr = `${year}-${month}-${day}`;
 
-    const endDate = new Date(now.getTime() + daysAhead * 24 * 60 * 60 * 1000);
+    const leadTimeDays = Math.ceil(bakingPeriodMinutes / 1440);
+    const searchDaysAhead = Math.max(14, leadTimeDays + daysAhead + 3);
+
+    const endDate = new Date(now.getTime() + searchDaysAhead * 24 * 60 * 60 * 1000);
     const endYear = endDate.getFullYear();
     const endMonth = String(endDate.getMonth() + 1).padStart(2, "0");
     const endDay = String(endDate.getDate()).padStart(2, "0");

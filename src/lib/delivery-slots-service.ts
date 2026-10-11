@@ -39,46 +39,52 @@ export function formatSlotWindow(start: string, end: string): string {
 }
 
 /**
- * Check if a slot on a given date is in the past or past cutoff relative to "now"
+ * Check if a slot on a given date is in the past or past cutoff relative to "now".
+ * Correctly handles multi-hour or multi-day baking/preparation lead times.
  */
 export function isSlotInPastOrCutoff(
   slotDate: string,
   startTime: string,
   leadTimeMinutes: number = 60
 ): boolean {
+  if (!slotDate || !startTime) return true;
+
   const now = new Date();
-  
+
   // Format today's date in local YYYY-MM-DD
   const year = now.getFullYear();
   const month = String(now.getMonth() + 1).padStart(2, "0");
   const day = String(now.getDate()).padStart(2, "0");
   const todayStr = `${year}-${month}-${day}`;
 
-  // If slot date is before today, it's in the past
+  // If slot date is strictly before today, it's definitely in the past
   if (slotDate < todayStr) {
     return true;
   }
 
-  // If slot date is after today, it is valid
-  if (slotDate > todayStr) {
-    return false;
-  }
+  // Parse slotDate "YYYY-MM-DD" and startTime "HH:mm"
+  const [sYearStr, sMonthStr, sDayStr] = slotDate.split("-");
+  const [sHourStr, sMinStr] = startTime.split(":");
+  const sYear = parseInt(sYearStr, 10);
+  const sMonth = parseInt(sMonthStr, 10);
+  const sDay = parseInt(sDayStr, 10);
+  const sHour = parseInt(sHourStr, 10);
+  const sMin = parseInt(sMinStr || "0", 10);
 
-  // If slot is today, check start_time with lead time
-  const [slotHourStr, slotMinStr] = startTime.split(":");
-  const slotHour = parseInt(slotHourStr, 10);
-  const slotMin = parseInt(slotMinStr || "0", 10);
+  // Exact slot start timestamp
+  const slotStartDateTime = new Date(sYear, sMonth - 1, sDay, sHour, sMin, 0);
 
-  const slotStartDate = new Date(now.getFullYear(), now.getMonth(), now.getDate(), slotHour, slotMin, 0);
+  // Cutoff threshold = now + required baking / preparation lead time
   const cutoffThreshold = new Date(now.getTime() + leadTimeMinutes * 60 * 1000);
 
-  return slotStartDate <= cutoffThreshold;
+  // If the slot starts before or at the cutoff threshold, it is NOT available
+  return slotStartDateTime.getTime() <= cutoffThreshold.getTime();
 }
 
 /**
  * Customer query: Fetch available delivery dates and valid slots for a cart
- * Handles multi-category cart intersection and store-wide slots
- * Only returns the next 5 days of available dates.
+ * Handles multi-category cart intersection, store-wide slots, and max baking time
+ * Only returns the next available dates starting AFTER the required baking period.
  */
 export async function getCustomerDeliverySlots(
   restaurantId: string,
@@ -97,7 +103,11 @@ export async function getCustomerDeliverySlots(
   const day = String(now.getDate()).padStart(2, "0");
   const todayStr = `${year}-${month}-${day}`;
 
-  const endDate = new Date(now.getTime() + daysAhead * 24 * 60 * 60 * 1000);
+  // Search ahead far enough to find `daysAhead` available dates even with 1-3 days baking time
+  const leadTimeDays = Math.ceil(bakingPeriodMinutes / 1440);
+  const searchDaysAhead = Math.max(14, leadTimeDays + daysAhead + 3);
+
+  const endDate = new Date(now.getTime() + searchDaysAhead * 24 * 60 * 60 * 1000);
   const endYear = endDate.getFullYear();
   const endMonth = String(endDate.getMonth() + 1).padStart(2, "0");
   const endDay = String(endDate.getDate()).padStart(2, "0");
@@ -116,7 +126,7 @@ export async function getCustomerDeliverySlots(
     .order("start_time", { ascending: true });
 
   if (error || !rawSlots || rawSlots.length === 0) {
-    // If no slots configured in DB, generate standard fallback virtual slots for next 5 days
+    // If no slots configured in DB, generate standard fallback virtual slots for available days
     return generateFallbackCustomerSlots(daysAhead, bakingPeriodMinutes);
   }
 
@@ -127,7 +137,7 @@ export async function getCustomerDeliverySlots(
   const dateMap: Record<string, DeliverySlot[]> = {};
 
   for (const slot of allSlots) {
-    // 1. Filter out past slots / cutoff (respects baking period lead time)
+    // 1. Filter out slots that start before the required baking / prep lead time
     if (isSlotInPastOrCutoff(slot.date, slot.start_time, bakingPeriodMinutes)) {
       continue;
     }
@@ -159,13 +169,13 @@ export async function getCustomerDeliverySlots(
     }
   }
 
-  // If after category filtering some dates have no slots, check if store-wide fallback needed
+  // If after filtering some dates have no slots, check if store-wide fallback needed
   const availableDates = Object.keys(dateMap).sort();
   if (availableDates.length === 0) {
     return generateFallbackCustomerSlots(daysAhead, bakingPeriodMinutes);
   }
 
-  // Limit to next `daysAhead` dates (already bounded by the query but apply here too)
+  // Limit to next `daysAhead` available dates (starting after baking period)
   const limitedDates = availableDates.slice(0, daysAhead);
   const limitedSlotsByDate: Record<string, DeliverySlot[]> = {};
   for (const d of limitedDates) {
@@ -179,8 +189,8 @@ export async function getCustomerDeliverySlots(
 }
 
 /**
- * Generate standard fallback slots (e.g. 11am-2pm, 2pm-6pm, 6pm-9pm) if none in DB yet
- * Limited to `daysAhead` days (default 5).
+ * Generate standard fallback slots if none in DB yet
+ * Strictly honors leadTimeMinutes so no slots appear before baking is complete.
  */
 function generateFallbackCustomerSlots(daysAhead: number = 5, leadTimeMinutes: number = 60): {
   dates: string[];
@@ -196,8 +206,10 @@ function generateFallbackCustomerSlots(daysAhead: number = 5, leadTimeMinutes: n
   ];
 
   const now = new Date();
+  const leadTimeDays = Math.ceil(leadTimeMinutes / 1440);
+  const maxSearchDays = Math.max(14, leadTimeDays + daysAhead + 3);
 
-  for (let i = 0; i < daysAhead; i++) {
+  for (let i = 0; i < maxSearchDays && dates.length < daysAhead; i++) {
     const d = new Date(now.getTime() + i * 24 * 60 * 60 * 1000);
     const y = d.getFullYear();
     const m = String(d.getMonth() + 1).padStart(2, "0");

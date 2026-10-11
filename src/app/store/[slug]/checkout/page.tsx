@@ -33,6 +33,7 @@ import {
   CreditCard,
   ShieldCheck,
   Sparkles,
+  Timer,
 } from "lucide-react";
 import { createClient } from "@/lib/supabase/client";
 import {
@@ -41,6 +42,19 @@ import {
   formatSlotWindow,
 } from "@/lib/delivery-slots-service";
 import type { DeliverySlot } from "@/types/database";
+
+/**
+ * Format a baking period in hours to a human-friendly string (e.g. 2 days, 4 hrs, 12 hrs)
+ */
+function formatBakingPeriod(hours: number | null | undefined): string {
+  if (hours == null || hours <= 0) return "";
+  if (hours < 1) return `${Math.round(hours * 60)} min`;
+  if (hours === 1) return "1 hr";
+  if (hours < 24) return `${hours} hrs`;
+  const days = hours / 24;
+  if (Number.isInteger(days)) return `${days} day${days !== 1 ? "s" : ""}`;
+  return `${hours} hrs`;
+}
 
 interface AddressSuggestion {
   title: string;
@@ -105,6 +119,11 @@ export default function CheckoutPage() {
   const [selectedDate, setSelectedDate] = useState<string>("");
   const [selectedSlot, setSelectedSlot] = useState<DeliverySlot | null>(null);
   const [loadingSlots, setLoadingSlots] = useState(false);
+  const [cartBakingInfo, setCartBakingInfo] = useState<{
+    maxHours: number;
+    maxCategoryName: string;
+    categoryList: { name: string; hours: number }[];
+  } | null>(null);
 
   // Autocomplete Suggestions State
   const [suggestions, setSuggestions] = useState<AddressSuggestion[]>([]);
@@ -142,40 +161,86 @@ export default function CheckoutPage() {
     fetchRestaurant();
   }, [slug]);
 
-  // Load available delivery slots for cart categories
+  // Load available delivery slots for cart categories with MAX baking time calculation
   useEffect(() => {
     async function fetchSlots() {
       if (!restaurant?.id) return;
       try {
         setLoadingSlots(true);
-        const categoryIds = items.map((i) => i.product.category_id).filter(Boolean) as string[];
 
-        // Look up baking_period_hours for each category in the cart
-        let bakingPeriodMinutes = 60; // default 1 hr lead time
+        // 1. Resolve all unique category IDs from cart items
+        let categoryIds = Array.from(
+          new Set(items.map((i) => i.product.category_id).filter(Boolean))
+        ) as string[];
+
+        const supabase = createClient();
+
+        // Fallback: If any cart product is missing category_id, fetch from products table
+        const productIds = items.map((i) => i.product.id).filter(Boolean);
+        if (productIds.length > 0 && categoryIds.length < items.length) {
+          try {
+            const { data: prods } = await supabase
+              .from("products")
+              .select("id, category_id")
+              .in("id", productIds);
+            if (prods) {
+              const extraCatIds = prods.map((p) => p.category_id).filter(Boolean) as string[];
+              categoryIds = Array.from(new Set([...categoryIds, ...extraCatIds]));
+            }
+          } catch {}
+        }
+
+        // 2. Fetch category details (name and baking_period_hours)
+        let maxBakingHours = 0;
+        let maxCategoryName = "";
+        const categoryBakingList: { name: string; hours: number }[] = [];
+
         if (categoryIds.length > 0) {
           try {
-            const supabase = createClient();
             const { data: cats } = await supabase
               .from("categories")
-              .select("id, baking_period_hours")
+              .select("id, name, baking_period_hours")
               .in("id", categoryIds);
+
             if (cats && cats.length > 0) {
-              // Use the maximum baking period across all cart categories
-              const maxHours = Math.max(
-                ...cats
-                  .filter((c) => c.baking_period_hours != null)
-                  .map((c) => Number(c.baking_period_hours))
-              );
-              if (isFinite(maxHours) && maxHours > 0) {
-                bakingPeriodMinutes = Math.round(maxHours * 60);
+              for (const cat of cats) {
+                const hours = Number(cat.baking_period_hours) || 0;
+                if (hours > 0) {
+                  categoryBakingList.push({ name: cat.name, hours });
+                  if (hours > maxBakingHours) {
+                    maxBakingHours = hours;
+                    maxCategoryName = cat.name;
+                  }
+                }
               }
             }
-          } catch {
-            // ignore – fall back to 60 min
+          } catch (e) {
+            console.warn("Failed to fetch category baking times:", e);
           }
         }
 
-        const slotData = await getCustomerDeliverySlots(restaurant.id, categoryIds, 5, bakingPeriodMinutes);
+        // 3. Update cart baking info for frontend display
+        if (maxBakingHours > 0) {
+          setCartBakingInfo({
+            maxHours: maxBakingHours,
+            maxCategoryName,
+            categoryList: categoryBakingList,
+          });
+        } else {
+          setCartBakingInfo(null);
+        }
+
+        // 4. Calculate baking lead time in minutes (default 60 min if no special baking period)
+        const bakingPeriodMinutes = maxBakingHours > 0 ? Math.round(maxBakingHours * 60) : 60;
+
+        // 5. Query delivery slots strictly starting after max baking time has elapsed
+        const slotData = await getCustomerDeliverySlots(
+          restaurant.id,
+          categoryIds,
+          5,
+          bakingPeriodMinutes
+        );
+
         setAvailableDates(slotData.dates);
         setSlotsByDate(slotData.slotsByDate);
 
@@ -185,7 +250,12 @@ export default function CheckoutPage() {
           const firstDaySlots = slotData.slotsByDate[firstDate] || [];
           if (firstDaySlots.length > 0) {
             setSelectedSlot(firstDaySlots[0]);
+          } else {
+            setSelectedSlot(null);
           }
+        } else {
+          setSelectedDate("");
+          setSelectedSlot(null);
         }
       } catch (err) {
         console.error("Error loading delivery slots:", err);
@@ -1082,6 +1152,97 @@ export default function CheckoutPage() {
                 </div>
               )}
             </div>
+
+            {/* Baking & Preparation Lead Time Notice */}
+            {cartBakingInfo && cartBakingInfo.maxHours > 0 && (
+              <div className="rounded-2xl border border-amber-300/80 bg-amber-50/90 p-4 text-xs space-y-2.5 animate-in fade-in shadow-2xs">
+                <div className="flex items-start gap-3">
+                  <div className="flex h-8 w-8 items-center justify-center rounded-xl bg-amber-100 text-amber-800 shrink-0 mt-0.5 border border-amber-200">
+                    <Timer className="h-4.5 w-4.5 text-[#C26B59]" />
+                  </div>
+                  <div className="flex-1 min-w-0">
+                    <div className="flex flex-wrap items-center gap-2">
+                      <span className="font-bold text-xs sm:text-sm text-[#29251F]">
+                        Baking &amp; Preparation Lead Time:
+                      </span>
+                      <span className="inline-flex items-center gap-1 text-[11px] font-bold text-amber-900 bg-amber-200/80 border border-amber-300 px-2.5 py-0.5 rounded-full shadow-2xs">
+                        <Timer className="h-3 w-3" />
+                        {formatBakingPeriod(cartBakingInfo.maxHours)} baking
+                      </span>
+                    </div>
+
+                    <p className="text-[11.5px] text-[#696053] mt-1.5 leading-relaxed">
+                      {cartBakingInfo.categoryList.length > 1 ? (
+                        <>
+                          Your cart has items from different categories with different baking times. Delivery slots are scheduled after the longest baking period (
+                          <strong className="text-[#29251F]">
+                            {cartBakingInfo.maxCategoryName} &bull; {formatBakingPeriod(cartBakingInfo.maxHours)}
+                          </strong>
+                          ) so everything arrives freshly baked.
+                        </>
+                      ) : (
+                        <>
+                          Freshly handcrafted on order. Available delivery slots start after{" "}
+                          <strong className="text-[#29251F]">
+                            {formatBakingPeriod(cartBakingInfo.maxHours)}
+                          </strong>{" "}
+                          to guarantee peak oven-fresh quality.
+                        </>
+                      )}
+                    </p>
+
+                    {/* Multiple Categories Breakdown */}
+                    {cartBakingInfo.categoryList.length > 1 && (
+                      <div className="flex flex-wrap items-center gap-1.5 pt-2 mt-2 border-t border-amber-200/80">
+                        <span className="text-[10px] font-bold text-[#696053] uppercase tracking-wider">
+                          Baking times in cart:
+                        </span>
+                        {cartBakingInfo.categoryList.map((cat, idx) => {
+                          const isMax = cat.hours === cartBakingInfo.maxHours;
+                          return (
+                            <span
+                              key={idx}
+                              className={`inline-flex items-center gap-1 text-[11px] px-2.5 py-1 rounded-xl border font-medium ${
+                                isMax
+                                  ? "bg-amber-200/90 text-amber-950 border-amber-400 font-bold shadow-2xs"
+                                  : "bg-white text-[#696053] border-amber-200/80"
+                              }`}
+                            >
+                              <span>{cat.name}:</span>
+                              <span className={isMax ? "font-bold text-amber-950" : "font-semibold"}>
+                                {formatBakingPeriod(cat.hours)}
+                              </span>
+                              {isMax && (
+                                <span className="text-[9px] bg-amber-300 text-amber-950 px-1 py-0.2 rounded font-bold">
+                                  Determines Slot
+                                </span>
+                              )}
+                            </span>
+                          );
+                        })}
+                      </div>
+                    )}
+
+                    {/* Earliest Available Date Badge */}
+                    {availableDates.length > 0 && (
+                      <div className="flex items-center gap-1.5 pt-2 text-[11.5px] font-semibold text-emerald-800">
+                        <CheckCircle2 className="h-4 w-4 text-emerald-600 shrink-0" />
+                        <span>
+                          Earliest available slot:{" "}
+                          <strong className="text-emerald-950 font-bold underline decoration-emerald-500/40">
+                            {new Date(availableDates[0] + "T00:00:00").toLocaleDateString("en-IN", {
+                              weekday: "short",
+                              day: "numeric",
+                              month: "short",
+                            })}
+                          </strong>
+                        </span>
+                      </div>
+                    )}
+                  </div>
+                </div>
+              </div>
+            )}
 
             {availableDates.length === 0 && !loadingSlots ? (
               <div className="rounded-2xl border border-amber-200 bg-amber-50 p-4 text-xs text-amber-900">
