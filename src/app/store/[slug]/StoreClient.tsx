@@ -187,7 +187,7 @@ export default function StoreClient({
       {/* ── CATEGORY FILTER (Soft Pastry #E8D5BC) ── */}
       <div
         ref={categoryBarRef}
-        className="sticky top-14 sm:top-16 md:top-20 z-30 bg-[#E8D5BC]/95 backdrop-blur-sm border-y border-[#91885D]/30"
+        className="sticky top-[112px] sm:top-[124px] z-30 bg-[#E8D5BC]/95 backdrop-blur-sm border-y border-[#91885D]/30"
       >
         <div className="max-w-5xl mx-auto px-4">
           <div className="flex gap-2 overflow-x-auto py-3 scrollbar-none no-scrollbar">

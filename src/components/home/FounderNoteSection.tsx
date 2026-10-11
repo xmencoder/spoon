@@ -5,7 +5,7 @@ import Image from "next/image";
 
 export function FounderNoteSection() {
   return (
-    <section id="founders-note" className="relative overflow-hidden bg-[#F5EBDD] py-20 sm:py-28 lg:py-32">
+    <section id="founders-note" className="relative overflow-hidden bg-[#F5EBDD] py-20 sm:py-28 lg:py-32 scroll-mt-28 sm:scroll-mt-32">
       {/* ── Subtle background texture / organic shapes ── */}
       {/* Top-right decorative botanical SVG */}
       <svg

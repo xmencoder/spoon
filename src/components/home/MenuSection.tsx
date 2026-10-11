@@ -795,7 +795,7 @@ export function MenuSection({
     const el = document.getElementById(`section-${id}`);
     if (el) {
       const isMobile = typeof window !== "undefined" && window.innerWidth < 768;
-      const yOffset = isMobile ? -195 : -215;
+      const yOffset = isMobile ? -231 : -251;
       const y = el.getBoundingClientRect().top + window.pageYOffset + yOffset;
       window.scrollTo({ top: Math.max(0, y), behavior: "smooth" });
     }
@@ -827,7 +827,7 @@ export function MenuSection({
       if (isManualScrolling.current) return;
 
       const isMobile = window.innerWidth < 768;
-      const scrollPosition = window.scrollY + (isMobile ? 215 : 235);
+      const scrollPosition = window.scrollY + (isMobile ? 251 : 271);
 
       let currentId = categorySections[0].id;
       for (const sec of categorySections) {
@@ -987,7 +987,7 @@ export function MenuSection({
         {/* ══════════════════════════════════════════════════════ */}
         {isFullMenu ? (
           /* ─── FULL MENU: STICKY CIRCULAR CARD BAR (Mobile & Desktop) ─── */
-          <div className="sticky top-[76px] sm:top-[88px] z-30 -mx-3.5 sm:-mx-6 lg:-mx-8 px-3.5 sm:px-6 lg:px-8 py-2.5 sm:py-3 bg-[#F4E9DC]/97 backdrop-blur-md border-b border-[#E2D3C0] shadow-[0_4px_16px_rgba(41,37,31,0.06)] mb-4 sm:mb-6">
+          <div className="sticky top-[112px] sm:top-[124px] z-30 -mx-3.5 sm:-mx-6 lg:-mx-8 px-3.5 sm:px-6 lg:px-8 py-2.5 sm:py-3 bg-[#F4E9DC]/97 backdrop-blur-md border-b border-[#E2D3C0] shadow-[0_4px_16px_rgba(41,37,31,0.06)] mb-4 sm:mb-6">
             <div
               ref={tabsContainerRef}
               className="flex items-stretch gap-2.5 sm:gap-3.5 overflow-x-auto pb-1 pt-0.5 px-0.5 scrollbar-none scroll-smooth"
@@ -1115,7 +1115,7 @@ export function MenuSection({
               <section
                 key={sec.id}
                 id={`section-${sec.id}`}
-                className="scroll-mt-[195px] sm:scroll-mt-[215px]"
+                className="scroll-mt-[231px] sm:scroll-mt-[251px]"
               >
                 {/* ── Category Section Heading ── */}
                 <div className="relative mb-5 pt-2">
