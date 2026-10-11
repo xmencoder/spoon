@@ -476,17 +476,17 @@ export default function AdminOrdersPage() {
   }, [orders]);
 
   return (
-    <div className="max-w-7xl space-y-6">
+    <div className="max-w-7xl space-y-4 sm:space-y-6">
       {/* ── HEADER & QUICK TABS ── */}
-      <div className="flex flex-col sm:flex-row sm:items-center justify-between gap-4 pb-2 border-b border-spoon-border/60">
+      <div className="flex flex-col sm:flex-row sm:items-center justify-between gap-3 pb-2 border-b border-spoon-border/60">
         <div>
-          <h1 className="font-serif text-3xl font-bold text-spoon-dark flex items-center gap-2.5">
-            <span>Orders Management</span>
+          <h1 className="font-serif text-2xl sm:text-3xl font-bold text-spoon-dark flex items-center gap-2.5">
+            <span>Orders</span>
             <span className="text-xs font-sans font-bold bg-spoon-sand border border-spoon-border text-spoon-dark px-3 py-0.5 rounded-full">
-              {filteredOrders.length} {filteredOrders.length === 1 ? "Order" : "Orders"}
+              {filteredOrders.length}
             </span>
           </h1>
-          <p className="text-xs text-spoon-muted mt-1">
+          <p className="text-xs text-spoon-muted mt-1 hidden sm:block">
             Real-time bakery order pipeline with live payment verification, preparation tracking & email updates.
           </p>
         </div>
@@ -496,7 +496,7 @@ export default function AdminOrdersPage() {
           <div className="inline-flex rounded-xl bg-spoon-sand/40 border border-spoon-border p-1">
             <button
               onClick={() => setPaymentFilter("all")}
-              className={`px-3 py-1.5 rounded-lg text-xs font-bold transition-all cursor-pointer ${
+              className={`px-2.5 py-1.5 rounded-lg text-xs font-bold transition-all cursor-pointer ${
                 paymentFilter === "all"
                   ? "bg-white text-spoon-dark shadow-2xs"
                   : "text-spoon-muted hover:text-spoon-dark"
@@ -506,7 +506,7 @@ export default function AdminOrdersPage() {
             </button>
             <button
               onClick={() => setPaymentFilter("paid")}
-              className={`px-3 py-1.5 rounded-lg text-xs font-bold transition-all cursor-pointer flex items-center gap-1.5 ${
+              className={`px-2.5 py-1.5 rounded-lg text-xs font-bold transition-all cursor-pointer flex items-center gap-1 ${
                 paymentFilter === "paid"
                   ? "bg-emerald-600 text-white shadow-2xs"
                   : "text-emerald-800 hover:text-emerald-950"
@@ -517,7 +517,7 @@ export default function AdminOrdersPage() {
             </button>
             <button
               onClick={() => setPaymentFilter("unpaid")}
-              className={`px-3 py-1.5 rounded-lg text-xs font-bold transition-all cursor-pointer flex items-center gap-1.5 ${
+              className={`px-2.5 py-1.5 rounded-lg text-xs font-bold transition-all cursor-pointer flex items-center gap-1 ${
                 paymentFilter === "unpaid"
                   ? "bg-amber-600 text-white shadow-2xs"
                   : "text-amber-800 hover:text-amber-950"
@@ -531,10 +531,10 @@ export default function AdminOrdersPage() {
           <button
             onClick={fetchOrders}
             disabled={loading}
-            className="flex items-center gap-2 px-3.5 py-2 rounded-xl border border-spoon-border bg-white text-xs font-bold text-spoon-dark hover:bg-spoon-sand transition-colors cursor-pointer"
+            className="flex items-center gap-1.5 px-3 py-2 rounded-xl border border-spoon-border bg-white text-xs font-bold text-spoon-dark hover:bg-spoon-sand transition-colors cursor-pointer"
           >
             <RefreshCw className={`h-3.5 w-3.5 ${loading ? "animate-spin" : ""}`} />
-            <span>Refresh</span>
+            <span className="hidden sm:inline">Refresh</span>
           </button>
         </div>
       </div>
@@ -613,8 +613,8 @@ export default function AdminOrdersPage() {
       </div>
 
       {/* ── SEARCH & FILTERS CONTROLS ── */}
-      <div className="rounded-2xl border border-spoon-border bg-white p-3.5 sm:p-4 shadow-warm-sm space-y-3">
-        <div className="flex flex-col sm:flex-row gap-2.5">
+      <div className="rounded-2xl border border-spoon-border bg-white p-3 sm:p-4 shadow-warm-sm space-y-3">
+        <div className="flex flex-col gap-2.5">
           {/* Search Input */}
           <div className="relative flex-1">
             <span className="absolute left-3.5 top-1/2 -translate-y-1/2 text-spoon-muted">
@@ -624,7 +624,7 @@ export default function AdminOrdersPage() {
               type="text"
               value={searchQuery}
               onChange={(e) => setSearchQuery(e.target.value)}
-              placeholder="Search by Order #, Customer Name, Phone, or Delivery Address..."
+              placeholder="Search by name, phone, order #..."
               className="w-full h-10 rounded-xl border border-spoon-border bg-spoon-sand/20 pl-10 pr-4 text-xs text-spoon-dark placeholder:text-spoon-muted focus:outline-none focus:ring-2 focus:ring-spoon-caramel/30 transition-all"
             />
             {searchQuery && (
@@ -638,98 +638,78 @@ export default function AdminOrdersPage() {
           </div>
 
           {/* Filter Dropdowns */}
-          <div className="flex flex-wrap gap-2">
+          <div className="grid grid-cols-3 sm:flex sm:flex-wrap gap-2">
             {/* Payment Filter Dropdown */}
             <select
               value={paymentFilter}
               onChange={(e) => setPaymentFilter(e.target.value as any)}
-              className="h-10 rounded-xl border border-spoon-border bg-spoon-sand/20 px-3 text-xs font-bold text-spoon-dark focus:outline-none cursor-pointer"
+              className="h-9 rounded-xl border border-spoon-border bg-spoon-sand/20 px-2 text-[11px] font-bold text-spoon-dark focus:outline-none cursor-pointer"
             >
-              <option value="all">Payment: All Orders</option>
-              <option value="paid">✓ Paid & Verified</option>
-              <option value="unpaid">⏳ Pending Verification</option>
+              <option value="all">All Payment</option>
+              <option value="paid">✓ Paid</option>
+              <option value="unpaid">⏳ Pending</option>
             </select>
 
             {/* Fulfillment Filter */}
             <select
               value={fulfillmentFilter}
               onChange={(e) => setFulfillmentFilter(e.target.value as any)}
-              className="h-10 rounded-xl border border-spoon-border bg-spoon-sand/20 px-3 text-xs font-bold text-spoon-dark focus:outline-none cursor-pointer"
+              className="h-9 rounded-xl border border-spoon-border bg-spoon-sand/20 px-2 text-[11px] font-bold text-spoon-dark focus:outline-none cursor-pointer"
             >
-              <option value="all">Fulfillment: All</option>
-              <option value="delivery">🛵 Home Delivery</option>
-              <option value="takeaway">🛍️ Takeaway / Pickup</option>
+              <option value="all">All Type</option>
+              <option value="delivery">🛵 Delivery</option>
+              <option value="takeaway">🛍️ Takeaway</option>
             </select>
 
             {/* Status Filter */}
             <select
               value={statusFilter}
               onChange={(e) => setStatusFilter(e.target.value)}
-              className="h-10 rounded-xl border border-spoon-border bg-spoon-sand/20 px-3 text-xs font-bold text-spoon-dark focus:outline-none cursor-pointer"
+              className="h-9 rounded-xl border border-spoon-border bg-spoon-sand/20 px-2 text-[11px] font-bold text-spoon-dark focus:outline-none cursor-pointer"
             >
-              <option value="all">Status: All</option>
-              <option value="confirmed">✓ Step 1: Confirmed</option>
-              <option value="completed">🎉 Step 2: Completed</option>
-              <option value="payment_verification_pending">⏳ Payment Pending</option>
+              <option value="all">All Status</option>
+              <option value="confirmed">✓ Confirmed</option>
+              <option value="completed">🎉 Completed</option>
+              <option value="payment_verification_pending">⏳ Pending</option>
             </select>
           </div>
         </div>
       </div>
 
-      {/* ── ORDERS TABULAR VIEW (DIRECTLY SHOWING PAID ORDERS) ── */}
+      {/* ── ORDERS VIEW ── */}
       <div className="overflow-hidden rounded-2xl border border-spoon-border bg-white shadow-warm-sm">
         {loading ? (
           <div className="flex h-56 flex-col items-center justify-center gap-3">
             <Loader2 className="h-7 w-7 animate-spin text-spoon-caramel" />
-            <span className="text-xs font-semibold text-spoon-muted">
-              Loading paid orders...
-            </span>
+            <span className="text-xs font-semibold text-spoon-muted">Loading orders...</span>
           </div>
         ) : filteredOrders.length === 0 ? (
           <div className="flex flex-col items-center justify-center py-16 px-4 text-center">
             <div className="flex h-14 w-14 items-center justify-center rounded-2xl bg-spoon-sand text-spoon-muted mb-3 border border-spoon-border">
               <ShoppingBag className="h-7 w-7" />
             </div>
-            <h3 className="font-serif text-lg font-bold text-spoon-dark">
-              No paid orders found
-            </h3>
+            <h3 className="font-serif text-lg font-bold text-spoon-dark">No orders found</h3>
             <p className="text-xs text-spoon-muted max-w-sm mt-1">
-              Only verified paid orders via Razorpay appear here. When customers complete checkout and payment, their orders will automatically show in this section.
+              When customers complete checkout and payment, their orders will appear here.
             </p>
           </div>
         ) : (
-          <div className="overflow-x-auto">
-            <table className="w-full text-left text-xs text-spoon-dark">
-              <thead className="border-b border-spoon-border bg-spoon-sand/30 font-bold uppercase tracking-wider text-spoon-muted text-[10px]">
-                <tr>
-                  <th className="px-4 py-3.5">Order # & Date</th>
-                  <th className="px-4 py-3.5">Customer</th>
-                  <th className="px-4 py-3.5">Products / Items</th>
-                  <th className="px-4 py-3.5">Fulfillment</th>
-                  <th className="px-4 py-3.5">Payment (Razorpay)</th>
-                  <th className="px-4 py-3.5">Kitchen Progress</th>
-                  <th className="px-4 py-3.5">Total</th>
-                  <th className="px-4 py-3.5 text-right">Manage</th>
-                </tr>
-              </thead>
-              <tbody className="divide-y divide-spoon-border/60">
-                {filteredOrders.map((order) => {
-                  const statusInfo =
-                    STATUS_CONFIG[order.status] || STATUS_CONFIG.confirmed;
-                  const orderNum = order.order_number || `#${order.id.slice(0, 8).toUpperCase()}`;
-                  const itemsList = order.order_items || [];
+          <>
+            {/* ── MOBILE CARD VIEW (hidden on md+) ── */}
+            <div className="md:hidden divide-y divide-spoon-border/60">
+              {filteredOrders.map((order) => {
+                const statusInfo = STATUS_CONFIG[order.status] || STATUS_CONFIG.confirmed;
+                const orderNum = order.order_number || `#${order.id.slice(0, 8).toUpperCase()}`;
+                const itemsList = order.order_items || [];
+                const paid = isOrderPaid(order);
 
-                  return (
-                    <tr
-                      key={order.id}
-                      className="hover:bg-spoon-sand/20 transition-colors group"
-                    >
-                      {/* 1. Order Number & Date */}
-                      <td className="px-4 py-3.5">
-                        <span className="font-mono font-bold text-xs text-[#A34B3D] block">
-                          #{orderNum}
-                        </span>
-                        <span className="text-[10.5px] text-spoon-muted block mt-0.5">
+                return (
+                  <div key={order.id} className="p-4 space-y-3">
+                    {/* Row 1: Order # + date + total */}
+                    <div className="flex items-start justify-between">
+                      <div>
+                        <span className="font-mono font-bold text-xs text-[#A34B3D] block">#{orderNum}</span>
+                        <span className="text-[10.5px] text-spoon-muted block">
                           {order.created_at
                             ? new Date(order.created_at).toLocaleDateString("en-IN", {
                                 month: "short",
@@ -739,160 +719,245 @@ export default function AdminOrdersPage() {
                               })
                             : "Recent"}
                         </span>
-                      </td>
+                      </div>
+                      <span className="font-bold text-sm text-spoon-dark">{formatPrice(order.total)}</span>
+                    </div>
 
-                      {/* 2. Customer */}
-                      <td className="px-4 py-3.5">
-                        <span className="font-serif font-bold text-sm block text-spoon-dark leading-tight">
-                          {order.customer_name}
-                        </span>
-                        <div className="flex items-center gap-1.5 mt-1">
-                          <a
-                            href={`https://wa.me/${order.customer_phone.replace(/\D/g, "")}`}
-                            target="_blank"
-                            rel="noreferrer"
-                            className="inline-flex items-center gap-1 text-[11px] text-emerald-700 hover:text-emerald-800 font-semibold"
-                            title="Chat on WhatsApp"
-                          >
-                            <MessageCircle className="h-3 w-3 text-emerald-600" />
-                            <span>{order.customer_phone}</span>
-                          </a>
-                        </div>
-                      </td>
+                    {/* Row 2: Customer */}
+                    <div className="flex items-center justify-between">
+                      <div>
+                        <span className="font-serif font-bold text-sm text-spoon-dark block">{order.customer_name}</span>
+                        <a
+                          href={`https://wa.me/${order.customer_phone.replace(/\D/g, "")}`}
+                          target="_blank"
+                          rel="noreferrer"
+                          className="inline-flex items-center gap-1 text-[11px] text-emerald-700 font-semibold"
+                        >
+                          <MessageCircle className="h-3 w-3 text-emerald-600" />
+                          <span>{order.customer_phone}</span>
+                        </a>
+                      </div>
+                      <span className="inline-flex items-center gap-1 rounded-md bg-spoon-sand/70 border border-spoon-border/80 px-2 py-0.5 text-[10.5px] font-semibold text-spoon-dark capitalize">
+                        {order.order_type === "delivery" ? <Truck className="h-3 w-3 text-spoon-caramel" /> : <ShoppingBag className="h-3 w-3 text-spoon-caramel" />}
+                        <span>{order.order_type === "delivery" ? "Delivery" : "Takeaway"}</span>
+                      </span>
+                    </div>
 
-                      {/* 3. Products Ordered */}
-                      <td className="px-4 py-3.5 max-w-[220px]">
-                        {itemsList.length > 0 ? (
-                          <div className="space-y-1">
-                            {itemsList.slice(0, 2).map((item, idx) => (
-                              <div
-                                key={idx}
-                                className="text-[11.5px] text-spoon-dark leading-tight truncate flex items-center gap-1.5"
-                              >
-                                <span className="font-bold text-spoon-caramel shrink-0">
-                                  {item.quantity}×
-                                </span>
-                                <span className="truncate">{item.product_name}</span>
-                              </div>
-                            ))}
-                            {itemsList.length > 2 && (
-                              <span className="text-[10px] font-bold text-spoon-muted block">
-                                +{itemsList.length - 2} more item(s)
-                              </span>
-                            )}
+                    {/* Row 3: Items summary */}
+                    {itemsList.length > 0 && (
+                      <div className="text-[11.5px] text-spoon-dark space-y-0.5">
+                        {itemsList.slice(0, 2).map((item, idx) => (
+                          <div key={idx} className="flex items-center gap-1.5 truncate">
+                            <span className="font-bold text-spoon-caramel shrink-0">{item.quantity}×</span>
+                            <span className="truncate">{item.product_name}</span>
                           </div>
-                        ) : (
-                          <span className="text-[11px] text-spoon-muted italic">
-                            Click Manage to view items
-                          </span>
+                        ))}
+                        {itemsList.length > 2 && (
+                          <span className="text-[10px] font-bold text-spoon-muted">+{itemsList.length - 2} more item(s)</span>
                         )}
-                      </td>
+                      </div>
+                    )}
 
-                      {/* 4. Fulfillment & Slot */}
-                      <td className="px-4 py-3.5">
-                        <div className="space-y-1">
-                          <span className="inline-flex items-center gap-1 rounded-md bg-spoon-sand/70 border border-spoon-border/80 px-2 py-0.5 text-[10.5px] font-semibold text-spoon-dark capitalize">
-                            {order.order_type === "delivery" ? (
-                              <Truck className="h-3 w-3 text-spoon-caramel" />
-                            ) : (
-                              <ShoppingBag className="h-3 w-3 text-spoon-caramel" />
-                            )}
-                            <span>{order.order_type === "delivery" ? "Delivery" : "Takeaway"}</span>
+                    {/* Row 4: Status + Payment + Manage */}
+                    <div className="flex items-center gap-2 flex-wrap">
+                      <span className={`inline-flex items-center gap-1 px-2.5 py-0.5 rounded-full text-[10.5px] font-bold border ${statusInfo.bg} ${statusInfo.text}`}>
+                        <span className={`h-1.5 w-1.5 rounded-full ${statusInfo.dot}`} />
+                        <span>{statusInfo.label}</span>
+                      </span>
+
+                      {paid ? (
+                        <span className="inline-flex items-center gap-1 px-2.5 py-0.5 rounded-full text-[10.5px] font-bold bg-emerald-50 text-emerald-800 border border-emerald-300">
+                          <Check className="w-3 h-3 text-emerald-600 stroke-[3]" />
+                          Paid
+                        </span>
+                      ) : (
+                        <button
+                          onClick={(e) => { e.stopPropagation(); handleVerifyPayment(order.id); }}
+                          disabled={actionInProgressId === order.id}
+                          className="inline-flex items-center gap-1 px-2.5 py-0.5 rounded-full bg-emerald-700 text-white text-[10px] font-bold"
+                        >
+                          <Check className="w-2.5 h-2.5" />
+                          Mark Paid
+                        </button>
+                      )}
+
+                      <button
+                        onClick={() => openOrderDetails(order)}
+                        className="ml-auto inline-flex items-center gap-1.5 rounded-xl bg-spoon-sand/80 hover:bg-spoon-sand px-3 py-1.5 text-xs font-bold text-spoon-dark border border-spoon-border/70 shadow-2xs transition-all cursor-pointer"
+                      >
+                        <SlidersHorizontal className="h-3.5 w-3.5 text-spoon-caramel" />
+                        <span>Manage</span>
+                      </button>
+                    </div>
+
+                    {/* Delivery date/slot if present */}
+                    {(order.delivery_date || order.delivery_time_slot) && (
+                      <div className="text-[10.5px] font-semibold text-spoon-dark flex flex-wrap gap-3">
+                        {order.delivery_date && <span>📅 {new Date(order.delivery_date + "T00:00:00").toLocaleDateString("en-IN", { month: "short", day: "numeric" })}</span>}
+                        {order.delivery_time_slot && <span className="text-spoon-caramel">⏰ {order.delivery_time_slot}</span>}
+                      </div>
+                    )}
+                  </div>
+                );
+              })}
+            </div>
+
+            {/* ── DESKTOP TABLE VIEW (hidden on mobile) ── */}
+            <div className="hidden md:block overflow-x-auto">
+              <table className="w-full text-left text-xs text-spoon-dark">
+                <thead className="border-b border-spoon-border bg-spoon-sand/30 font-bold uppercase tracking-wider text-spoon-muted text-[10px]">
+                  <tr>
+                    <th className="px-4 py-3.5">Order # & Date</th>
+                    <th className="px-4 py-3.5">Customer</th>
+                    <th className="px-4 py-3.5">Products / Items</th>
+                    <th className="px-4 py-3.5">Fulfillment</th>
+                    <th className="px-4 py-3.5">Payment (Razorpay)</th>
+                    <th className="px-4 py-3.5">Kitchen Progress</th>
+                    <th className="px-4 py-3.5">Total</th>
+                    <th className="px-4 py-3.5 text-right">Manage</th>
+                  </tr>
+                </thead>
+                <tbody className="divide-y divide-spoon-border/60">
+                  {filteredOrders.map((order) => {
+                    const statusInfo =
+                      STATUS_CONFIG[order.status] || STATUS_CONFIG.confirmed;
+                    const orderNum = order.order_number || `#${order.id.slice(0, 8).toUpperCase()}`;
+                    const itemsList = order.order_items || [];
+
+                    return (
+                      <tr
+                        key={order.id}
+                        className="hover:bg-spoon-sand/20 transition-colors group"
+                      >
+                        {/* 1. Order Number & Date */}
+                        <td className="px-4 py-3.5">
+                          <span className="font-mono font-bold text-xs text-[#A34B3D] block">#{orderNum}</span>
+                          <span className="text-[10.5px] text-spoon-muted block mt-0.5">
+                            {order.created_at
+                              ? new Date(order.created_at).toLocaleDateString("en-IN", {
+                                  month: "short",
+                                  day: "numeric",
+                                  hour: "2-digit",
+                                  minute: "2-digit",
+                                })
+                              : "Recent"}
                           </span>
+                        </td>
 
-                          {(order.delivery_date || order.delivery_time_slot) && (
-                            <div className="text-[10px] font-semibold text-spoon-dark">
-                              {order.delivery_date && (
-                                <span className="block truncate">
-                                  📅 {new Date(order.delivery_date + "T00:00:00").toLocaleDateString("en-IN", {
-                                    month: "short",
-                                    day: "numeric",
-                                  })}
-                                </span>
-                              )}
-                              {order.delivery_time_slot && (
-                                <span className="block truncate text-spoon-caramel font-bold">
-                                  ⏰ {order.delivery_time_slot}
-                                </span>
+                        {/* 2. Customer */}
+                        <td className="px-4 py-3.5">
+                          <span className="font-serif font-bold text-sm block text-spoon-dark leading-tight">{order.customer_name}</span>
+                          <div className="flex items-center gap-1.5 mt-1">
+                            <a
+                              href={`https://wa.me/${order.customer_phone.replace(/\D/g, "")}`}
+                              target="_blank"
+                              rel="noreferrer"
+                              className="inline-flex items-center gap-1 text-[11px] text-emerald-700 hover:text-emerald-800 font-semibold"
+                            >
+                              <MessageCircle className="h-3 w-3 text-emerald-600" />
+                              <span>{order.customer_phone}</span>
+                            </a>
+                          </div>
+                        </td>
+
+                        {/* 3. Products Ordered */}
+                        <td className="px-4 py-3.5 max-w-[220px]">
+                          {itemsList.length > 0 ? (
+                            <div className="space-y-1">
+                              {itemsList.slice(0, 2).map((item, idx) => (
+                                <div key={idx} className="text-[11.5px] text-spoon-dark leading-tight truncate flex items-center gap-1.5">
+                                  <span className="font-bold text-spoon-caramel shrink-0">{item.quantity}×</span>
+                                  <span className="truncate">{item.product_name}</span>
+                                </div>
+                              ))}
+                              {itemsList.length > 2 && (
+                                <span className="text-[10px] font-bold text-spoon-muted block">+{itemsList.length - 2} more item(s)</span>
                               )}
                             </div>
+                          ) : (
+                            <span className="text-[11px] text-spoon-muted italic">Click Manage to view items</span>
                           )}
-                        </div>
-                      </td>
+                        </td>
 
-                      {/* 5. Payment Status */}
-                      <td className="px-4 py-3.5">
-                        {isOrderPaid(order) ? (
+                        {/* 4. Fulfillment & Slot */}
+                        <td className="px-4 py-3.5">
                           <div className="space-y-1">
-                            <span className="inline-flex items-center gap-1 px-2.5 py-1 rounded-full text-[10.5px] font-bold bg-emerald-50 text-emerald-800 border border-emerald-300">
-                              <Check className="w-3 h-3 text-emerald-600 stroke-[3]" />
-                              <span>Paid ({order.payment_method || "Razorpay"})</span>
+                            <span className="inline-flex items-center gap-1 rounded-md bg-spoon-sand/70 border border-spoon-border/80 px-2 py-0.5 text-[10.5px] font-semibold text-spoon-dark capitalize">
+                              {order.order_type === "delivery" ? <Truck className="h-3 w-3 text-spoon-caramel" /> : <ShoppingBag className="h-3 w-3 text-spoon-caramel" />}
+                              <span>{order.order_type === "delivery" ? "Delivery" : "Takeaway"}</span>
                             </span>
-                            <span className="block text-[9.5px] text-spoon-muted">
-                              {order.approval_source === "RAZORPAY" ? "Auto-verified online" : "Verified & Logged"}
-                            </span>
+                            {(order.delivery_date || order.delivery_time_slot) && (
+                              <div className="text-[10px] font-semibold text-spoon-dark">
+                                {order.delivery_date && <span className="block truncate">📅 {new Date(order.delivery_date + "T00:00:00").toLocaleDateString("en-IN", { month: "short", day: "numeric" })}</span>}
+                                {order.delivery_time_slot && <span className="block truncate text-spoon-caramel font-bold">⏰ {order.delivery_time_slot}</span>}
+                              </div>
+                            )}
                           </div>
-                        ) : (
+                        </td>
+
+                        {/* 5. Payment Status */}
+                        <td className="px-4 py-3.5">
+                          {isOrderPaid(order) ? (
+                            <div className="space-y-1">
+                              <span className="inline-flex items-center gap-1 px-2.5 py-1 rounded-full text-[10.5px] font-bold bg-emerald-50 text-emerald-800 border border-emerald-300">
+                                <Check className="w-3 h-3 text-emerald-600 stroke-[3]" />
+                                <span>Paid ({order.payment_method || "Razorpay"})</span>
+                              </span>
+                              <span className="block text-[9.5px] text-spoon-muted">
+                                {order.approval_source === "RAZORPAY" ? "Auto-verified online" : "Verified & Logged"}
+                              </span>
+                            </div>
+                          ) : (
+                            <div className="space-y-1.5">
+                              <span className="inline-flex items-center gap-1 px-2.5 py-1 rounded-full text-[10.5px] font-bold bg-amber-50 text-amber-800 border border-amber-300">
+                                <Clock className="w-3 h-3 text-amber-600" />
+                                <span>Verification Pending</span>
+                              </span>
+                              <button
+                                onClick={(e) => { e.stopPropagation(); handleVerifyPayment(order.id); }}
+                                disabled={actionInProgressId === order.id}
+                                className="inline-flex items-center gap-1 px-2 py-0.5 rounded-lg bg-emerald-700 hover:bg-emerald-800 text-white text-[10px] font-bold shadow-2xs transition-all cursor-pointer"
+                              >
+                                <Check className="w-2.5 h-2.5" />
+                                <span>Mark as Paid</span>
+                              </button>
+                            </div>
+                          )}
+                        </td>
+
+                        {/* 6. Kitchen Progress */}
+                        <td className="px-4 py-3.5">
                           <div className="space-y-1.5">
-                            <span className="inline-flex items-center gap-1 px-2.5 py-1 rounded-full text-[10.5px] font-bold bg-amber-50 text-amber-800 border border-amber-300">
-                              <Clock className="w-3 h-3 text-amber-600" />
-                              <span>Verification Pending</span>
+                            <span className={`inline-flex items-center gap-1 px-2.5 py-0.5 rounded-full text-[10.5px] font-bold border ${statusInfo.bg} ${statusInfo.text}`}>
+                              <span className={`h-1.5 w-1.5 rounded-full ${statusInfo.dot}`} />
+                              <span>{statusInfo.label}</span>
                             </span>
-                            <button
-                              onClick={(e) => {
-                                e.stopPropagation();
-                                handleVerifyPayment(order.id);
-                              }}
-                              disabled={actionInProgressId === order.id}
-                              className="inline-flex items-center gap-1 px-2 py-0.5 rounded-lg bg-emerald-700 hover:bg-emerald-800 text-white text-[10px] font-bold shadow-2xs transition-all cursor-pointer"
-                              title="Confirm you have received customer payment"
-                            >
-                              <Check className="w-2.5 h-2.5" />
-                              <span>Mark as Paid</span>
-                            </button>
+                            <div className="w-20 h-1.5 bg-spoon-sand rounded-full overflow-hidden">
+                              <div className="h-full bg-spoon-caramel transition-all duration-300" style={{ width: `${statusInfo.progress}%` }} />
+                            </div>
                           </div>
-                        )}
-                      </td>
+                        </td>
 
-                      {/* 6. Kitchen Progress */}
-                      <td className="px-4 py-3.5">
-                        <div className="space-y-1.5">
-                          <span className={`inline-flex items-center gap-1 px-2.5 py-0.5 rounded-full text-[10.5px] font-bold border ${statusInfo.bg} ${statusInfo.text}`}>
-                            <span className={`h-1.5 w-1.5 rounded-full ${statusInfo.dot}`} />
-                            <span>{statusInfo.label}</span>
-                          </span>
+                        {/* 7. Total */}
+                        <td className="px-4 py-3.5 font-bold text-sm text-spoon-dark whitespace-nowrap">{formatPrice(order.total)}</td>
 
-                          {/* Progress Mini Bar */}
-                          <div className="w-20 h-1.5 bg-spoon-sand rounded-full overflow-hidden">
-                            <div
-                              className="h-full bg-spoon-caramel transition-all duration-300"
-                              style={{ width: `${statusInfo.progress}%` }}
-                            />
-                          </div>
-                        </div>
-                      </td>
-
-                      {/* 7. Total */}
-                      <td className="px-4 py-3.5 font-bold text-sm text-spoon-dark whitespace-nowrap">
-                        {formatPrice(order.total)}
-                      </td>
-
-                      {/* 8. Manage Button */}
-                      <td className="px-4 py-3.5 text-right whitespace-nowrap">
-                        <button
-                          onClick={() => openOrderDetails(order)}
-                          className="inline-flex items-center gap-1.5 rounded-xl bg-spoon-sand/80 hover:bg-spoon-sand px-3 py-1.5 text-xs font-bold text-spoon-dark border border-spoon-border/70 shadow-2xs transition-all hover:scale-105 cursor-pointer"
-                        >
-                          <SlidersHorizontal className="h-3.5 w-3.5 text-spoon-caramel" />
-                          <span>Manage</span>
-                        </button>
-                      </td>
-                    </tr>
-                  );
-                })}
-              </tbody>
-            </table>
-          </div>
+                        {/* 8. Manage Button */}
+                        <td className="px-4 py-3.5 text-right whitespace-nowrap">
+                          <button
+                            onClick={() => openOrderDetails(order)}
+                            className="inline-flex items-center gap-1.5 rounded-xl bg-spoon-sand/80 hover:bg-spoon-sand px-3 py-1.5 text-xs font-bold text-spoon-dark border border-spoon-border/70 shadow-2xs transition-all hover:scale-105 cursor-pointer"
+                          >
+                            <SlidersHorizontal className="h-3.5 w-3.5 text-spoon-caramel" />
+                            <span>Manage</span>
+                          </button>
+                        </td>
+                      </tr>
+                    );
+                  })}
+                </tbody>
+              </table>
+            </div>
+          </>
         )}
       </div>
 

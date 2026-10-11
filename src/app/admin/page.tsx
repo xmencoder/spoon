@@ -75,65 +75,52 @@ export default function AdminDashboardPage() {
   }
 
   return (
-    <div className="max-w-6xl space-y-8">
+    <div className="max-w-6xl space-y-6 sm:space-y-8">
       {/* Top Banner & Quick Actions */}
       <div className="flex flex-col sm:flex-row sm:items-center justify-between gap-4 pb-2 border-b border-spoon-border/60">
         <div>
-          <h1 className="font-serif text-3xl font-bold text-spoon-dark">
-            Kitchen Overview Dashboard
+          <h1 className="font-serif text-2xl sm:text-3xl font-bold text-spoon-dark">
+            Kitchen Overview
           </h1>
           <p className="text-xs text-spoon-muted mt-1">
-            Real-time analytics and management for{" "}
+            Real-time analytics for{" "}
             <span className="font-semibold text-spoon-dark">
               {restaurant?.name || "The Indulgent Spoon"}
             </span>
           </p>
         </div>
 
-        <div className="flex flex-wrap items-center gap-2.5">
+        <div className="flex items-center gap-2 overflow-x-auto pb-1 scrollbar-none">
           <button
             onClick={() => restaurant?.id && loadMetrics(restaurant.id)}
-            className="flex h-9 w-9 items-center justify-center rounded-xl border border-spoon-border bg-white text-spoon-dark hover:bg-spoon-sand transition-colors"
+            className="flex h-9 w-9 items-center justify-center shrink-0 rounded-xl border border-spoon-border bg-white text-spoon-dark hover:bg-spoon-sand transition-colors"
             title="Refresh metrics"
           >
-            <RefreshCw
-              className={`h-4 w-4 ${metricsLoading ? "animate-spin" : ""}`}
-            />
+            <RefreshCw className={`h-4 w-4 ${metricsLoading ? "animate-spin" : ""}`} />
           </button>
           <Link href="/admin/products/new">
-            <Button size="sm" className="gap-1.5 font-bold text-xs uppercase tracking-wider">
+            <Button size="sm" className="gap-1.5 font-bold text-xs uppercase tracking-wider whitespace-nowrap">
               <Plus className="h-4 w-4" />
               <span>Add Product</span>
             </Button>
           </Link>
           <Link href="/admin/categories">
-            <Button
-              size="sm"
-              variant="outline"
-              className="gap-1.5 font-bold text-xs uppercase tracking-wider"
-            >
+            <Button size="sm" variant="outline" className="gap-1.5 font-bold text-xs uppercase tracking-wider whitespace-nowrap">
               <Plus className="h-4 w-4" />
               <span>Add Category</span>
             </Button>
           </Link>
           <Link href="/admin/delivery">
-            <Button
-              size="sm"
-              variant="outline"
-              className="gap-1.5 font-bold text-xs uppercase tracking-wider text-spoon-caramel border-spoon-caramel/40 hover:bg-spoon-caramel/10"
-            >
+            <Button size="sm" variant="outline" className="gap-1.5 font-bold text-xs uppercase tracking-wider text-spoon-caramel border-spoon-caramel/40 hover:bg-spoon-caramel/10 whitespace-nowrap">
               <CalendarClock className="h-4 w-4" />
-              <span>Delivery Slots</span>
+              <span className="hidden sm:inline">Delivery Slots</span>
+              <span className="sm:hidden">Slots</span>
             </Button>
           </Link>
           <Link href="/" target="_blank">
-            <Button
-              size="sm"
-              variant="secondary"
-              className="gap-1.5 font-bold text-xs uppercase tracking-wider"
-            >
+            <Button size="sm" variant="secondary" className="gap-1.5 font-bold text-xs uppercase tracking-wider whitespace-nowrap">
               <ExternalLink className="h-4 w-4" />
-              <span>View Store</span>
+              <span className="hidden sm:inline">View Store</span>
             </Button>
           </Link>
         </div>

@@ -200,10 +200,8 @@ export default function AdminProductsPage() {
       {/* Top Bar */}
       <div className="flex flex-col sm:flex-row sm:items-center justify-between gap-4 pb-2 border-b border-spoon-border/60">
         <div>
-          <h1 className="font-serif text-2xl sm:text-3xl font-bold text-spoon-dark">
-            Product Management
-          </h1>
-          <p className="text-xs text-spoon-muted mt-1">
+          <h1 className="font-serif text-2xl sm:text-3xl font-bold text-spoon-dark">Product Management</h1>
+          <p className="text-xs text-spoon-muted mt-1 hidden sm:block">
             Manage your artisanal bakery catalog, pricing, variants, add-ons, and stock availability.
           </p>
         </div>
@@ -341,13 +339,11 @@ export default function AdminProductsPage() {
             <div className="mx-auto mb-3 flex h-14 w-14 items-center justify-center rounded-2xl bg-spoon-sand text-spoon-caramel">
               <Cake className="h-7 w-7" />
             </div>
-            <h3 className="font-serif text-lg font-bold text-spoon-dark">
-              No products found
-            </h3>
+            <h3 className="font-serif text-lg font-bold text-spoon-dark">No products found</h3>
             <p className="mt-1 text-xs text-spoon-muted max-w-sm mx-auto">
               {searchQuery
                 ? `No dishes matched "${searchQuery}". Try a different keyword.`
-                : "No products added in this category yet. Click below to create one or run the seed script."}
+                : "No products added in this category yet."}
             </p>
             <div className="mt-6">
               <Link href="/admin/products/new">
@@ -359,250 +355,348 @@ export default function AdminProductsPage() {
             </div>
           </div>
         ) : (
-          <div className="overflow-x-auto">
-            <table className="w-full text-left text-xs text-spoon-dark">
-              <thead className="border-b border-spoon-border bg-spoon-sand/30 font-bold uppercase tracking-wider text-spoon-muted text-[10px]">
-                <tr>
-                  <th className="px-4 py-4 text-center w-20">Popular</th>
-                  <th className="px-6 py-4">Item & Photography</th>
-                  <th className="px-6 py-4">Category</th>
-                  <th className="px-6 py-4">Base Price</th>
-                  <th className="px-6 py-4">Variants & Add-ons</th>
-                  <th className="px-6 py-4">Availability</th>
-                  <th className="px-6 py-4 text-right">Actions</th>
-                </tr>
-              </thead>
-              <tbody className="divide-y divide-spoon-border/60">
-                {products.map((item) => {
-                  const categoryName =
-                    categories.find((c) => c.id === item.category_id)?.name ||
-                    "General";
+          <>
+            {/* ── MOBILE CARD VIEW (hidden on md+) ── */}
+            <div className="md:hidden divide-y divide-spoon-border/60">
+              {products.map((item) => {
+                const categoryName = categories.find((c) => c.id === item.category_id)?.name || "General";
+                const sizeCount = item.sizes?.length || 0;
+                const addonCount = item.addons?.length || 0;
 
-                  const sizeCount = item.sizes?.length || 0;
-                  const addonCount = item.addons?.length || 0;
+                return (
+                  <div key={item.id} className="p-4 space-y-3">
+                    {/* Row 1: Image + Name + Price */}
+                    <div className="flex items-center gap-3">
+                      {/* Popular star */}
+                      <div className="shrink-0">
+                        {item.featured ? (
+                          <button
+                            onClick={() => handleRemovePopular(item)}
+                            className="flex h-7 w-7 items-center justify-center rounded-full bg-amber-400 text-white shadow-sm"
+                            title="Click to remove from Popular"
+                          >
+                            <Trophy className="h-3.5 w-3.5" />
+                          </button>
+                        ) : (
+                          <button
+                            onClick={() => openPopularModal(item)}
+                            className="flex h-7 w-7 items-center justify-center rounded-full border-2 border-dashed border-spoon-border text-spoon-muted hover:border-amber-400 hover:text-amber-500 transition-all"
+                            title="Add to Popular"
+                          >
+                            <Star className="h-3.5 w-3.5" />
+                          </button>
+                        )}
+                      </div>
 
-                  return (
-                    <tr
-                      key={item.id}
-                      className="hover:bg-spoon-sand/15 transition-colors group"
-                    >
-                      {/* Popular toggle cell */}
-                      <td className="px-4 py-4">
-                        <div className="flex flex-col items-center gap-1">
-                          {item.featured ? (
-                            <>
-                              {/* Ranked badge — click to remove */}
-                              <button
-                                onClick={() => handleRemovePopular(item)}
-                                className="group/pop flex flex-col items-center gap-0.5"
-                                title="Click to remove from Popular"
-                              >
-                                <span className="flex h-7 w-7 items-center justify-center rounded-full bg-amber-400 text-white shadow-sm group-hover/pop:bg-rose-500 transition-colors">
-                                  <Trophy className="h-3.5 w-3.5" />
-                                </span>
-                                <span className="text-[10px] font-bold text-amber-700 group-hover/pop:text-rose-600 transition-colors">
-                                  #{item.popular_rank ?? "–"}
-                                </span>
-                              </button>
-                            </>
-                          ) : (
-                            <button
-                              onClick={() => openPopularModal(item)}
-                              className="flex h-7 w-7 items-center justify-center rounded-full border-2 border-dashed border-spoon-border text-spoon-muted hover:border-amber-400 hover:text-amber-500 transition-all"
-                              title="Add to Popular Categories"
-                            >
-                              <Star className="h-3.5 w-3.5" />
-                            </button>
-                          )}
+                      {/* Thumbnail */}
+                      <div className="relative h-12 w-12 shrink-0 overflow-hidden rounded-xl bg-spoon-sand border border-spoon-border/70">
+                        {item.image_url ? (
+                          <ProductImage src={item.image_url} alt={item.name} fill className="object-cover" sizes="48px" />
+                        ) : (
+                          <div className="flex h-full w-full items-center justify-center text-spoon-muted">
+                            <Cake className="h-5 w-5" />
+                          </div>
+                        )}
+                      </div>
+
+                      {/* Name + category + price */}
+                      <div className="flex-1 min-w-0">
+                        <div className="flex items-center gap-1.5 flex-wrap">
+                          <div className="w-3 h-3 border border-[#238234] bg-white flex items-center justify-center p-0.5 rounded-[3px] shrink-0">
+                            <span className={`w-1.5 h-1.5 rounded-full ${item.is_veg !== false ? "bg-[#238234]" : "bg-rose-600"}`} />
+                          </div>
+                          <span className="font-serif font-bold text-sm text-spoon-dark truncate">{item.name}</span>
                         </div>
-                      </td>
+                        <div className="flex items-center gap-2 mt-0.5">
+                          <span className="rounded-md bg-spoon-sand/70 px-1.5 py-0.5 text-[10px] border border-spoon-border/60 text-spoon-dark font-medium">{categoryName}</span>
+                          <span className="font-bold text-sm text-spoon-dark">{formatPrice(item.price)}</span>
+                        </div>
+                        {sizeCount > 0 && (
+                          <span className="text-[10px] text-spoon-muted">{sizeCount} sizes • {addonCount > 0 ? `${addonCount} add-ons` : "no add-ons"}</span>
+                        )}
+                      </div>
+                    </div>
 
-                      {/* Product details with image */}
-                      <td className="px-6 py-4">
-                        <div className="flex items-center gap-3.5">
-                          <div className="relative h-14 w-14 shrink-0 overflow-hidden rounded-2xl bg-spoon-sand border border-spoon-border/70 shadow-2xs">
-                            {item.image_url ? (
-                              <ProductImage
-                                src={item.image_url}
-                                alt={item.name}
-                                fill
-                                className="object-cover"
-                                sizes="56px"
-                              />
+                    {/* Row 2: Actions */}
+                    <div className="flex items-center gap-2">
+                      {/* Availability toggle */}
+                      <button
+                        onClick={() => handleToggleAvailability(item)}
+                        className={`flex-1 inline-flex items-center justify-center gap-1.5 rounded-full px-3 py-1.5 text-[11px] font-bold uppercase tracking-wider transition-all cursor-pointer ${
+                          item.available
+                            ? "bg-emerald-100 text-emerald-800 hover:bg-emerald-200"
+                            : "bg-rose-100 text-rose-800 hover:bg-rose-200"
+                        }`}
+                      >
+                        <span className={`h-2 w-2 rounded-full ${item.available ? "bg-emerald-600" : "bg-rose-600"}`} />
+                        <span>{item.available ? "Available" : "Sold Out"}</span>
+                      </button>
+
+                      <Link href={`/admin/products/${item.id}`}>
+                        <button className="rounded-xl p-2 text-spoon-muted hover:text-spoon-dark hover:bg-spoon-sand transition-colors" title="Edit">
+                          <Edit2 className="h-4 w-4" />
+                        </button>
+                      </Link>
+
+                      <button
+                        onClick={() => setDeleteModalProduct(item)}
+                        className="rounded-xl p-2 text-rose-600 hover:bg-rose-50 transition-colors"
+                        title="Delete"
+                      >
+                        <Trash2 className="h-4 w-4" />
+                      </button>
+                    </div>
+                  </div>
+                );
+              })}
+            </div>
+
+            {/* ── DESKTOP TABLE VIEW (hidden on mobile) ── */}
+            <div className="hidden md:block overflow-x-auto">
+              <table className="w-full text-left text-xs text-spoon-dark">
+                <thead className="border-b border-spoon-border bg-spoon-sand/30 font-bold uppercase tracking-wider text-spoon-muted text-[10px]">
+                  <tr>
+                    <th className="px-4 py-4 text-center w-20">Popular</th>
+                    <th className="px-6 py-4">Item & Photography</th>
+                    <th className="px-6 py-4">Category</th>
+                    <th className="px-6 py-4">Base Price</th>
+                    <th className="px-6 py-4">Variants & Add-ons</th>
+                    <th className="px-6 py-4">Availability</th>
+                    <th className="px-6 py-4 text-right">Actions</th>
+                  </tr>
+                </thead>
+                <tbody className="divide-y divide-spoon-border/60">
+                  {products.map((item) => {
+                    const categoryName =
+                      categories.find((c) => c.id === item.category_id)?.name ||
+                      "General";
+
+                    const sizeCount = item.sizes?.length || 0;
+                    const addonCount = item.addons?.length || 0;
+
+                    return (
+                      <tr
+                        key={item.id}
+                        className="hover:bg-spoon-sand/15 transition-colors group"
+                      >
+                        {/* Popular toggle cell */}
+                        <td className="px-4 py-4">
+                          <div className="flex flex-col items-center gap-1">
+                            {item.featured ? (
+                              <>
+                                {/* Ranked badge — click to remove */}
+                                <button
+                                  onClick={() => handleRemovePopular(item)}
+                                  className="group/pop flex flex-col items-center gap-0.5"
+                                  title="Click to remove from Popular"
+                                >
+                                  <span className="flex h-7 w-7 items-center justify-center rounded-full bg-amber-400 text-white shadow-sm group-hover/pop:bg-rose-500 transition-colors">
+                                    <Trophy className="h-3.5 w-3.5" />
+                                  </span>
+                                  <span className="text-[10px] font-bold text-amber-700 group-hover/pop:text-rose-600 transition-colors">
+                                    #{item.popular_rank ?? "–"}
+                                  </span>
+                                </button>
+                              </>
                             ) : (
-                              <div className="flex h-full w-full items-center justify-center text-spoon-muted">
-                                <Cake className="h-6 w-6" />
-                              </div>
+                              <button
+                                onClick={() => openPopularModal(item)}
+                                className="flex h-7 w-7 items-center justify-center rounded-full border-2 border-dashed border-spoon-border text-spoon-muted hover:border-amber-400 hover:text-amber-500 transition-all"
+                                title="Add to Popular Categories"
+                              >
+                                <Star className="h-3.5 w-3.5" />
+                              </button>
                             )}
                           </div>
-                          <div>
-                            <div className="flex flex-wrap items-center gap-1.5">
-                              {/* Pure Veg Green Icon */}
-                              <div
-                                className="w-3.5 h-3.5 border border-[#238234] bg-white flex items-center justify-center p-0.5 rounded-[3px] shrink-0"
-                                title={item.is_veg !== false ? "100% Eggless / Veg" : "Contains Egg"}
-                              >
-                                <span
-                                  className={`w-1.5 h-1.5 rounded-full ${
-                                    item.is_veg !== false ? "bg-[#238234]" : "bg-rose-600"
-                                  }`}
+                        </td>
+
+                        {/* Product details with image */}
+                        <td className="px-6 py-4">
+                          <div className="flex items-center gap-3.5">
+                            <div className="relative h-14 w-14 shrink-0 overflow-hidden rounded-2xl bg-spoon-sand border border-spoon-border/70 shadow-2xs">
+                              {item.image_url ? (
+                                <ProductImage
+                                  src={item.image_url}
+                                  alt={item.name}
+                                  fill
+                                  className="object-cover"
+                                  sizes="56px"
                                 />
-                              </div>
-
-                              <span className="font-serif font-bold text-sm text-spoon-dark block group-hover:text-spoon-caramel transition-colors">
-                                {item.name}
-                              </span>
-
-                              {item.badge &&
-                                item.badge !== "NONE" &&
-                                item.badge
-                                  .split(",")
-                                  .map((b) => b.trim())
-                                  .filter((b) => b && b !== "NONE")
-                                  .map((b, bIdx) => (
-                                    <span
-                                      key={bIdx}
-                                      className={`inline-block px-1.5 py-0.5 rounded text-[8.5px] font-bold uppercase tracking-wider text-white shadow-2xs ${
-                                        b === "BESTSELLER"
-                                          ? "bg-[#8E2822]"
-                                          : b === "POPULAR"
-                                          ? "bg-[#A33D31]"
-                                          : b === "CHEF'S PICK"
-                                          ? "bg-[#B4832E]"
-                                          : b === "SUGAR FREE"
-                                          ? "bg-[#0E7490]"
-                                          : b === "GLUTEN FREE"
-                                          ? "bg-[#15803D]"
-                                          : "bg-[#B04336]"
-                                      }`}
-                                    >
-                                      {b}
-                                    </span>
-                                  ))}
-
-                              {item.featured && (
-                                <span className="inline-flex items-center gap-1 rounded bg-amber-100 text-amber-900 px-1.5 py-0.5 text-[8.5px] font-bold uppercase tracking-wider">
-                                  <Star className="h-2.5 w-2.5 fill-amber-500 text-amber-500" />
-                                  <span>Featured</span>
-                                </span>
+                              ) : (
+                                <div className="flex h-full w-full items-center justify-center text-spoon-muted">
+                                  <Cake className="h-6 w-6" />
+                                </div>
                               )}
                             </div>
-
-                            <p className="text-[11px] text-spoon-muted line-clamp-1 max-w-sm mt-0.5">
-                              {item.description || "No description provided."}
-                            </p>
-
-                            {/* Allergen Information Badges */}
-                            {item.allergen_info && item.allergen_info.length > 0 && (
-                              <div className="flex flex-wrap items-center gap-1 mt-1.5">
-                                {item.allergen_info.map((al, idx) => (
+                            <div>
+                              <div className="flex flex-wrap items-center gap-1.5">
+                                {/* Pure Veg Green Icon */}
+                                <div
+                                  className="w-3.5 h-3.5 border border-[#238234] bg-white flex items-center justify-center p-0.5 rounded-[3px] shrink-0"
+                                  title={item.is_veg !== false ? "100% Eggless / Veg" : "Contains Egg"}
+                                >
                                   <span
-                                    key={idx}
-                                    className="inline-flex items-center gap-1 rounded-md bg-[#FFF7EB] text-[#7A4016] border border-[#E9D4BE] px-2 py-0.5 text-[10px] font-medium shadow-2xs"
-                                    title={al}
-                                  >
-                                    <ShieldAlert className="w-2.5 h-2.5 text-spoon-caramel shrink-0" />
-                                    <span className="max-w-[220px] truncate">{al}</span>
+                                    className={`w-1.5 h-1.5 rounded-full ${
+                                      item.is_veg !== false ? "bg-[#238234]" : "bg-rose-600"
+                                    }`}
+                                  />
+                                </div>
+
+                                <span className="font-serif font-bold text-sm text-spoon-dark block group-hover:text-spoon-caramel transition-colors">
+                                  {item.name}
+                                </span>
+
+                                {item.badge &&
+                                  item.badge !== "NONE" &&
+                                  item.badge
+                                    .split(",")
+                                    .map((b) => b.trim())
+                                    .filter((b) => b && b !== "NONE")
+                                    .map((b, bIdx) => (
+                                      <span
+                                        key={bIdx}
+                                        className={`inline-block px-1.5 py-0.5 rounded text-[8.5px] font-bold uppercase tracking-wider text-white shadow-2xs ${
+                                          b === "BESTSELLER"
+                                            ? "bg-[#8E2822]"
+                                            : b === "POPULAR"
+                                            ? "bg-[#A33D31]"
+                                            : b === "CHEF'S PICK"
+                                            ? "bg-[#B4832E]"
+                                            : b === "SUGAR FREE"
+                                            ? "bg-[#0E7490]"
+                                            : b === "GLUTEN FREE"
+                                            ? "bg-[#15803D]"
+                                            : "bg-[#B04336]"
+                                        }`}
+                                      >
+                                        {b}
+                                      </span>
+                                    ))}
+
+                                {item.featured && (
+                                  <span className="inline-flex items-center gap-1 rounded bg-amber-100 text-amber-900 px-1.5 py-0.5 text-[8.5px] font-bold uppercase tracking-wider">
+                                    <Star className="h-2.5 w-2.5 fill-amber-500 text-amber-500" />
+                                    <span>Featured</span>
                                   </span>
-                                ))}
+                                )}
                               </div>
-                            )}
+
+                              <p className="text-[11px] text-spoon-muted line-clamp-1 max-w-sm mt-0.5">
+                                {item.description || "No description provided."}
+                              </p>
+
+                              {/* Allergen Information Badges */}
+                              {item.allergen_info && item.allergen_info.length > 0 && (
+                                <div className="flex flex-wrap items-center gap-1 mt-1.5">
+                                  {item.allergen_info.map((al, idx) => (
+                                    <span
+                                      key={idx}
+                                      className="inline-flex items-center gap-1 rounded-md bg-[#FFF7EB] text-[#7A4016] border border-[#E9D4BE] px-2 py-0.5 text-[10px] font-medium shadow-2xs"
+                                      title={al}
+                                    >
+                                      <ShieldAlert className="w-2.5 h-2.5 text-spoon-caramel shrink-0" />
+                                      <span className="max-w-[220px] truncate">{al}</span>
+                                    </span>
+                                  ))}
+                                </div>
+                              )}
+                            </div>
                           </div>
-                        </div>
-                      </td>
+                        </td>
 
-                      {/* Category */}
-                      <td className="px-6 py-4 font-semibold text-spoon-dark">
-                        <span className="rounded-lg bg-spoon-sand/70 px-2.5 py-1 text-[11px] border border-spoon-border/60">
-                          {categoryName}
-                        </span>
-                      </td>
-
-                      {/* Price */}
-                      <td className="px-6 py-4 font-bold text-sm text-spoon-dark">
-                        {formatPrice(item.price)}
-                      </td>
-
-                      {/* Variants & Addons info */}
-                      <td className="px-6 py-4">
-                        <div className="flex flex-col gap-1 text-[11px]">
-                          <span className="inline-flex items-center gap-1 text-spoon-dark font-medium">
-                            <Layers className="w-3 h-3 text-spoon-caramel" />
-                            <span>
-                              {sizeCount > 0
-                                ? `${sizeCount} Size Options`
-                                : "1 Default Size"}
-                            </span>
+                        {/* Category */}
+                        <td className="px-6 py-4 font-semibold text-spoon-dark">
+                          <span className="rounded-lg bg-spoon-sand/70 px-2.5 py-1 text-[11px] border border-spoon-border/60">
+                            {categoryName}
                           </span>
-                          <span className="inline-flex items-center gap-1 text-spoon-muted">
-                            <ShoppingBag className="w-3 h-3 text-spoon-muted" />
-                            <span>
-                              {addonCount > 0
-                                ? `${addonCount} Custom Add-ons`
-                                : "No Add-ons"}
+                        </td>
+
+                        {/* Price */}
+                        <td className="px-6 py-4 font-bold text-sm text-spoon-dark">
+                          {formatPrice(item.price)}
+                        </td>
+
+                        {/* Variants & Addons info */}
+                        <td className="px-6 py-4">
+                          <div className="flex flex-col gap-1 text-[11px]">
+                            <span className="inline-flex items-center gap-1 text-spoon-dark font-medium">
+                              <Layers className="w-3 h-3 text-spoon-caramel" />
+                              <span>
+                                {sizeCount > 0
+                                  ? `${sizeCount} Size Options`
+                                  : "1 Default Size"}
+                              </span>
                             </span>
-                          </span>
-                          <span className="inline-flex items-center gap-1 text-spoon-muted">
-                            <ShieldAlert className="w-3 h-3 text-spoon-caramel" />
-                            <span>
-                              {item.allergen_info && item.allergen_info.length > 0
-                                ? `${item.allergen_info.length} Allergen Note${item.allergen_info.length > 1 ? "s" : ""}`
-                                : "No Allergens"}
-                              {item.storage_care && item.storage_care.length > 0
-                                ? ` • ${item.storage_care.length} Care`
-                                : ""}
+                            <span className="inline-flex items-center gap-1 text-spoon-muted">
+                              <ShoppingBag className="w-3 h-3 text-spoon-muted" />
+                              <span>
+                                {addonCount > 0
+                                  ? `${addonCount} Custom Add-ons`
+                                  : "No Add-ons"}
+                              </span>
                             </span>
-                          </span>
-                        </div>
-                      </td>
+                            <span className="inline-flex items-center gap-1 text-spoon-muted">
+                              <ShieldAlert className="w-3 h-3 text-spoon-caramel" />
+                              <span>
+                                {item.allergen_info && item.allergen_info.length > 0
+                                  ? `${item.allergen_info.length} Allergen Note${item.allergen_info.length > 1 ? "s" : ""}`
+                                  : "No Allergens"}
+                                {item.storage_care && item.storage_care.length > 0
+                                  ? ` • ${item.storage_care.length} Care`
+                                  : ""}
+                              </span>
+                            </span>
+                          </div>
+                        </td>
 
-                      {/* Availability toggle */}
-                      <td className="px-6 py-4">
-                        <button
-                          onClick={() => handleToggleAvailability(item)}
-                          className={`inline-flex items-center gap-1.5 rounded-full px-3 py-1 text-[11px] font-bold uppercase tracking-wider transition-all cursor-pointer ${
-                            item.available
-                              ? "bg-emerald-100 text-emerald-800 hover:bg-emerald-200"
-                              : "bg-rose-100 text-rose-800 hover:bg-rose-200"
-                          }`}
-                          title="Click to toggle live availability"
-                        >
-                          <span
-                            className={`h-2 w-2 rounded-full ${
-                              item.available ? "bg-emerald-600" : "bg-rose-600"
-                            }`}
-                          />
-                          <span>{item.available ? "Available" : "Sold Out"}</span>
-                        </button>
-                      </td>
-
-                      {/* Actions */}
-                      <td className="px-6 py-4 text-right">
-                        <div className="inline-flex items-center gap-2">
-                          <Link href={`/admin/products/${item.id}`}>
-                            <button
-                              className="rounded-xl p-2 text-spoon-muted hover:text-spoon-dark hover:bg-spoon-sand transition-colors"
-                              title="Edit product details"
-                            >
-                              <Edit2 className="h-4 w-4" />
-                            </button>
-                          </Link>
-
+                        {/* Availability toggle */}
+                        <td className="px-6 py-4">
                           <button
-                            onClick={() => setDeleteModalProduct(item)}
-                            className="rounded-xl p-2 text-rose-600 hover:bg-rose-50 transition-colors"
-                            title="Delete product"
+                            onClick={() => handleToggleAvailability(item)}
+                            className={`inline-flex items-center gap-1.5 rounded-full px-3 py-1 text-[11px] font-bold uppercase tracking-wider transition-all cursor-pointer ${
+                              item.available
+                                ? "bg-emerald-100 text-emerald-800 hover:bg-emerald-200"
+                                : "bg-rose-100 text-rose-800 hover:bg-rose-200"
+                            }`}
+                            title="Click to toggle live availability"
                           >
-                            <Trash2 className="h-4 w-4" />
+                            <span
+                              className={`h-2 w-2 rounded-full ${
+                                item.available ? "bg-emerald-600" : "bg-rose-600"
+                              }`}
+                            />
+                            <span>{item.available ? "Available" : "Sold Out"}</span>
                           </button>
-                        </div>
-                      </td>
-                    </tr>
-                  );
-                })}
-              </tbody>
-            </table>
-          </div>
+                        </td>
+
+                        {/* Actions */}
+                        <td className="px-6 py-4 text-right">
+                          <div className="inline-flex items-center gap-2">
+                            <Link href={`/admin/products/${item.id}`}>
+                              <button
+                                className="rounded-xl p-2 text-spoon-muted hover:text-spoon-dark hover:bg-spoon-sand transition-colors"
+                                title="Edit product details"
+                              >
+                                <Edit2 className="h-4 w-4" />
+                              </button>
+                            </Link>
+
+                            <button
+                              onClick={() => setDeleteModalProduct(item)}
+                              className="rounded-xl p-2 text-rose-600 hover:bg-rose-50 transition-colors"
+                              title="Delete product"
+                            >
+                              <Trash2 className="h-4 w-4" />
+                            </button>
+                          </div>
+                        </td>
+                      </tr>
+                    );
+                  })}
+                </tbody>
+              </table>
+            </div>
+          </>
         )}
       </div>
 
