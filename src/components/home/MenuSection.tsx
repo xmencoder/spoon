@@ -366,6 +366,8 @@ export function MenuSection({
   const tabRefs = useRef<Record<string, HTMLButtonElement | null>>({});
   const isManualScrolling = useRef(false);
   const manualScrollTimeout = useRef<NodeJS.Timeout | null>(null);
+  // Ensures the initial hash/query scroll happens only once per page load
+  const hasScrolledToInitialTarget = useRef(false);
 
   // ── LIVE DATA FROM SUPABASE (with fallback to hardcoded) ──
   const [liveCategories, setLiveCategories] = useState<CategoryCard[]>([]);
@@ -800,9 +802,21 @@ export function MenuSection({
 
     scrollTabIntoView(id);
 
+    // Unlock scroll after smooth scroll completes — 800ms is enough for the animation
     manualScrollTimeout.current = setTimeout(() => {
       isManualScrolling.current = false;
     }, 800);
+  };
+
+  // Allow user touch/wheel to instantly cancel programmatic scrolling
+  const cancelProgrammaticScroll = () => {
+    if (isManualScrolling.current) {
+      isManualScrolling.current = false;
+      if (manualScrollTimeout.current) {
+        clearTimeout(manualScrollTimeout.current);
+        manualScrollTimeout.current = null;
+      }
+    }
   };
 
   // Scroll Spy for Full Menu: auto update active category when scrolling (Mobile & Desktop)
@@ -834,38 +848,45 @@ export function MenuSection({
       });
     };
 
+    // Cancel programmatic scroll when user manually scrolls or touches
     window.addEventListener("scroll", handleScroll, { passive: true });
+    window.addEventListener("wheel", cancelProgrammaticScroll, { passive: true });
+    window.addEventListener("touchmove", cancelProgrammaticScroll, { passive: true });
     return () => {
       window.removeEventListener("scroll", handleScroll);
+      window.removeEventListener("wheel", cancelProgrammaticScroll);
+      window.removeEventListener("touchmove", cancelProgrammaticScroll);
       if (manualScrollTimeout.current) clearTimeout(manualScrollTimeout.current);
     };
   }, [isFullMenu, categorySections]);
 
-  // Handle initial category target from URL hash or query param when navigating to Full Menu
+  // Handle initial category target from URL hash or query param — fires only ONCE per page load
   useEffect(() => {
     if (!isFullMenu || categorySections.length === 0) return;
+    // Guard: only execute the initial scroll once, even if categorySections updates later
+    if (hasScrolledToInitialTarget.current) return;
 
-    const handleHashOrQuery = () => {
-      const hash = window.location.hash?.replace("#section-", "").replace("#", "");
-      const params = new URLSearchParams(window.location.search);
-      const targetId = params.get("category") || hash;
-      if (!targetId) return;
+    const hash = window.location.hash?.replace("#section-", "").replace("#", "");
+    const params = new URLSearchParams(window.location.search);
+    const targetId = params.get("category") || hash;
+    if (!targetId) return;
 
-      const match = categorySections.find(
-        (s) =>
-          s.id.toLowerCase() === targetId.toLowerCase() ||
-          s.name.toLowerCase().replace(/\s+/g, "-") === targetId.toLowerCase()
-      );
-      if (match) {
-        setTimeout(() => {
-          scrollToCategorySection(match.id);
-        }, 200);
-      }
-    };
-
-    handleHashOrQuery();
-    window.addEventListener("hashchange", handleHashOrQuery);
-    return () => window.removeEventListener("hashchange", handleHashOrQuery);
+    const match = categorySections.find(
+      (s) =>
+        s.id.toLowerCase() === targetId.toLowerCase() ||
+        s.name.toLowerCase().replace(/\s+/g, "-") === targetId.toLowerCase()
+    );
+    if (match) {
+      // Mark as done BEFORE scrolling so any re-render of categorySections won't re-trigger
+      hasScrolledToInitialTarget.current = true;
+      setTimeout(() => {
+        scrollToCategorySection(match.id);
+        // Remove hash from URL after scrolling so it won't fight native anchor behavior
+        if (window.location.hash) {
+          history.replaceState(null, "", window.location.pathname + window.location.search);
+        }
+      }, 300);
+    }
   }, [isFullMenu, categorySections]);
 
   const handleSelectCategoryFromDrawer = (catId: string) => {
