@@ -8,7 +8,7 @@ export function Footer() {
       <div className="mx-auto max-w-7xl px-4 sm:px-6 lg:px-8">
         <div className="grid grid-cols-1 gap-10 md:grid-cols-12">
           {/* Brand Col */}
-          <div className="md:col-span-5 space-y-4 pr-0 md:pr-8">
+          <div className="md:col-span-7 space-y-4 pr-0 md:pr-12">
             <div className="flex items-center gap-3">
               <div className="flex h-10 w-10 items-center justify-center rounded-xl bg-[#F5EBDD] border border-[#91885D]/40 text-[#C26B59] shadow-2xs">
                 <UtensilsCrossed className="h-5 w-5" strokeWidth={1.75} />
@@ -22,7 +22,7 @@ export function Footer() {
                 </span>
               </div>
             </div>
-            <p className="text-sm text-[#29251F]/85 leading-relaxed">
+            <p className="text-sm text-[#29251F]/85 leading-relaxed max-w-lg">
               Where wholesome and indulgent come together. From slow-fermented sourdough to healthier desserts and little treats worth craving, everything is made in small batches with plenty of care.
             </p>
           </div>
@@ -31,7 +31,7 @@ export function Footer() {
           <div className="hidden md:block md:col-span-1 border-r border-[#91885D]/30 h-full" />
 
           {/* Nav Col */}
-          <div className="md:col-span-3 space-y-4">
+          <div className="md:col-span-4 space-y-4">
             <h4 className="font-serif text-sm font-bold uppercase tracking-[0.18em] text-[#29251F]">
               Explore
             </h4>
@@ -55,18 +55,6 @@ export function Footer() {
                 </Link>
               </li>
             </ul>
-          </div>
-
-          {/* Inquiries Col */}
-          <div className="md:col-span-3 space-y-4">
-            <h4 className="font-serif text-sm font-bold uppercase tracking-[0.18em] text-[#29251F]">
-              Kitchen Inquiries
-            </h4>
-            <div className="space-y-2.5 text-sm text-[#29251F]/80">
-              <p className="leading-relaxed text-xs">
-                Fresh batches prepared daily using slow-cooking traditions and premium spices.
-              </p>
-            </div>
           </div>
         </div>
 
