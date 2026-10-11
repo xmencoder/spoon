@@ -1748,7 +1748,7 @@ export default function AdminDeliveryPage() {
               <div>
                 <div className="flex items-center justify-between mb-2">
                   <label className="text-[10px] font-bold uppercase tracking-wider text-spoon-muted">
-                    4. Time Windows &amp; Order Capacity
+                    4. Time Windows
                   </label>
                   <button
                     type="button"
@@ -1766,7 +1766,7 @@ export default function AdminDeliveryPage() {
                       key={idx}
                       className="flex items-center gap-2 p-2.5 rounded-2xl border border-spoon-border bg-spoon-cream/30"
                     >
-                      <div className="flex-1 grid grid-cols-3 gap-2">
+                      <div className="flex-1 grid grid-cols-2 gap-2">
                         <div>
                           <span className="text-[9px] text-spoon-muted font-semibold block">
                             Start Time
@@ -1807,27 +1807,7 @@ export default function AdminDeliveryPage() {
                           />
                         </div>
 
-                        <div>
-                          <span className="text-[9px] text-spoon-muted font-semibold block">
-                            Max Capacity
-                          </span>
-                          <input
-                            type="number"
-                            min="1"
-                            max="500"
-                            value={tw.capacity}
-                            onChange={(e) => {
-                              const v = parseInt(e.target.value, 10) || 1;
-                              setBulkTimeWindows((prev) =>
-                                prev.map((item, i) =>
-                                  i === idx ? { ...item, capacity: v } : item
-                                )
-                              );
-                            }}
-                            required
-                            className="w-full h-8 rounded-xl border border-spoon-border bg-white px-2 text-xs font-bold text-spoon-dark"
-                          />
-                        </div>
+
                       </div>
 
                       {bulkTimeWindows.length > 1 && (
