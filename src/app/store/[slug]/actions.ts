@@ -52,6 +52,12 @@ export async function createOrder(
   try {
     const supabase = await createClient();
 
+    // 0. Validate compulsory customer email
+    const trimmedEmail = data.customerEmail?.trim();
+    if (!trimmedEmail || !/^[^\s@]+@[^\s@]+\.[^\s@]+$/.test(trimmedEmail)) {
+      throw new Error("A valid email address is required for order updates and receipt delivery.");
+    }
+
     // 1. Build order items from payload
     // Pre‑check product order limits before creating the order
     const productIds = data.cartItems.map((ci) => ci.productId);

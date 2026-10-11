@@ -123,15 +123,23 @@ export async function POST(req: NextRequest) {
           .select("product_name, quantity, unit_price, subtotal")
           .eq("order_id", orderId);
 
-        const orderData: any = updatedOrder || {};
+        let orderData: any = updatedOrder;
+        if (!orderData || !orderData.customer_email) {
+          const { data: refetched } = await admin
+            .from("orders")
+            .select("*")
+            .eq("id", orderId)
+            .maybeSingle();
+          orderData = { ...(refetched || {}), ...(orderData || {}) };
+        }
 
         const receiptData: ReceiptData = {
           orderId,
-          orderNumber: orderData.order_number || String(orderId).slice(0, 8).toUpperCase(),
-          createdAt: orderData.created_at || nowIso,
-          customerName: orderData.customer_name || "Valued Customer",
-          customerPhone: orderData.customer_phone || "",
-          customerEmail: orderData.customer_email || undefined,
+          orderNumber: orderData?.order_number || String(orderId).slice(0, 8).toUpperCase(),
+          createdAt: orderData?.created_at || nowIso,
+          customerName: orderData?.customer_name || "Valued Customer",
+          customerPhone: orderData?.customer_phone || "",
+          customerEmail: orderData?.customer_email || undefined,
           orderType: (orderData.order_type as any) || "delivery",
           deliveryAddress: orderData.delivery_address || undefined,
           deliveryDate: orderData.delivery_date || undefined,

@@ -439,7 +439,11 @@ export default function CheckoutPage() {
   // Validation
   const isBelowMinimum = minimumOrder > 0 && subtotal < minimumOrder;
   const isClosed = restaurant && !restaurant.is_open;
-  const isContactValid = name.trim().length >= 2 && phone.trim().replace(/\D/g, "").length >= 10;
+  const isEmailValid = /^[^\s@]+@[^\s@]+\.[^\s@]+$/.test(email.trim());
+  const isContactValid =
+    name.trim().length >= 2 &&
+    phone.trim().replace(/\D/g, "").length >= 10 &&
+    isEmailValid;
   const isAddressValid =
     orderType === "takeaway" ||
     (flatBuilding.trim().length >= 2 &&
@@ -459,6 +463,12 @@ export default function CheckoutPage() {
 
     setSubmitting(true);
     setErrorMsg(null);
+
+    if (!isEmailValid) {
+      setErrorMsg("Please enter a valid email address. Order confirmation and receipts will be sent to your email.");
+      setSubmitting(false);
+      return;
+    }
 
     const fullAddr = getFullAddress();
     const formattedCustomerName = `${salutation} ${name.trim()}`;
@@ -563,6 +573,7 @@ export default function CheckoutPage() {
             orderId: result.orderId,
             customerName: formattedCustomerName,
             customerPhone: phone.trim(),
+            customerEmail: email.trim(),
           }),
         });
 
@@ -596,7 +607,7 @@ export default function CheckoutPage() {
           prefill: {
             name: formattedCustomerName,
             contact: phone.trim(),
-            email: email.trim() || undefined,
+            email: email.trim(),
           },
           theme: {
             color: "#3e683f",
@@ -838,11 +849,16 @@ export default function CheckoutPage() {
             </div>
           </div>
 
-          {/* Email ID */}
+          {/* Email ID (Compulsory) */}
           <div>
-            <label className="text-[10px] font-bold uppercase tracking-wider text-[#696053] block mb-1.5">
-              Email ID (Optional)
-            </label>
+            <div className="flex items-center justify-between mb-1.5">
+              <label className="text-[10px] font-bold uppercase tracking-wider text-[#696053]">
+                Email Address *
+              </label>
+              <span className="text-[9px] font-semibold text-[#C26B59]">
+                Compulsory (Receipt & updates sent here)
+              </span>
+            </div>
             <div className="relative flex items-center">
               <span className="absolute left-3.5 text-[#696053]">
                 <Mail className="h-3.5 w-3.5" />
@@ -851,6 +867,7 @@ export default function CheckoutPage() {
                 type="email"
                 value={email}
                 onChange={(e) => setEmail(e.target.value)}
+                required
                 placeholder="e.g. yourname@email.com"
                 className="w-full h-10 rounded-2xl border border-[#91885D]/35 bg-[#FAF6EF] pl-9 pr-4 text-xs text-[#29251F] placeholder:text-[#696053]/60 focus:outline-none focus:ring-2 focus:ring-[#C26B59]/30 transition"
               />

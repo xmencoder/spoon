@@ -5,7 +5,7 @@ import { createAdminClient } from "@/lib/supabase/admin";
 export async function POST(req: NextRequest) {
   try {
     const body = await req.json();
-    const { amount, orderId, customerName, customerPhone } = body;
+    const { amount, orderId, customerName, customerPhone, customerEmail } = body;
 
     if (!amount || amount <= 0) {
       return NextResponse.json(
@@ -58,6 +58,7 @@ export async function POST(req: NextRequest) {
       notes: {
         customer_name: customerName || "",
         customer_phone: customerPhone || "",
+        customer_email: customerEmail || "",
         order_id: orderId || "",
       },
     };

@@ -323,28 +323,54 @@ export async function sendCustomerConfirmationEmail(
     return { success: false, error: "No customer email address provided" };
   }
 
+  // Pre-generate PDF receipt for either SMTP or Resend
+  let pdfBuffer: Buffer | null = null;
+  try {
+    pdfBuffer = await generateReceiptPdf(data);
+  } catch (pdfErr) {
+    console.error("[Email] PDF generation failed:", pdfErr);
+    // Continue without PDF rather than blocking the email
+  }
+
+  const attachments = pdfBuffer
+    ? [{ filename: `receipt-${data.orderNumber}.pdf`, content: pdfBuffer }]
+    : [];
+
+  // 1. Try Gmail / SMTP first if configured (delivers to ANY customer email without sandbox restrictions)
+  const smtp = getSmtpTransporter();
+  if (smtp) {
+    try {
+      const fromUser =
+        process.env.SMTP_USER ||
+        process.env.GMAIL_USER ||
+        process.env.KITCHEN_OWNER_EMAIL ||
+        "theindulgentspoonbyvasvi@gmail.com";
+
+      const info = await smtp.sendMail({
+        from: `"The Indulgent Spoon" <${fromUser}>`,
+        to: data.customerEmail,
+        subject: `✓ Order Confirmed! — Order #${data.orderNumber} — The Indulgent Spoon`,
+        html: buildCustomerHtml(data),
+        attachments,
+      });
+
+      console.log(`[Email] Customer confirmation email delivered via SMTP to ${data.customerEmail}:`, info.messageId);
+      return { success: true, messageId: info.messageId };
+    } catch (smtpErr: any) {
+      console.error("[Email] SMTP sending error for customer email, falling back to Resend:", smtpErr);
+    }
+  }
+
+  // 2. Resend provider
   const resend = getResendClient();
   if (!resend) {
-    console.warn("[Email] RESEND_API_KEY not configured — skipping customer email");
-    return { success: false, error: "RESEND_API_KEY not configured" };
+    console.warn("[Email] Neither SMTP nor RESEND configured — skipping customer email");
+    return { success: false, error: "Email provider not configured" };
   }
 
   const from = process.env.EMAIL_FROM || "The Indulgent Spoon <onboarding@resend.dev>";
 
   try {
-    // Generate PDF receipt
-    let pdfBuffer: Buffer | null = null;
-    try {
-      pdfBuffer = await generateReceiptPdf(data);
-    } catch (pdfErr) {
-      console.error("[Email] PDF generation failed:", pdfErr);
-      // Continue without PDF rather than blocking the email
-    }
-
-    const attachments = pdfBuffer
-      ? [{ filename: `receipt-${data.orderNumber}.pdf`, content: pdfBuffer }]
-      : [];
-
     const { data: res, error } = await resend.emails.send({
       from,
       to: data.customerEmail,
@@ -355,9 +381,12 @@ export async function sendCustomerConfirmationEmail(
 
     if (error) {
       console.error("[Email] Resend customer email error:", error);
-      // In Resend sandbox mode, if email cannot be delivered to an unverified address, route to sandbox owner
+      // In Resend sandbox mode, if email cannot be delivered to an unverified address, route copy to owner
       if (error.message && error.message.includes("only send testing emails to your own email address")) {
-        const ownerEmail = "aadirao123i@gmail.com";
+        const ownerEmail =
+          process.env.KITCHEN_OWNER_EMAIL ||
+          process.env.ADMIN_EMAIL ||
+          "theindulgentspoonbyvasvi@gmail.com";
         console.log(`[Email] Sandbox mode: Forwarding customer confirmation email to ${ownerEmail}`);
         const retryRes = await resend.emails.send({
           from,
@@ -485,12 +514,6 @@ export interface OrderCompletedEmailData {
 }
 
 export async function sendOrderCompletedEmail(data: OrderCompletedEmailData): Promise<EmailResult> {
-  const resend = getResendClient();
-  if (!resend) {
-    console.warn("[Email] RESEND_API_KEY not configured — skipping completion email");
-    return { success: false, error: "RESEND_API_KEY not configured" };
-  }
-
   if (!data.customerEmail || !data.customerEmail.includes("@")) {
     console.warn("[Email] No valid customer email provided for order completion alert");
     return { success: false, error: "No valid email" };
@@ -600,6 +623,37 @@ export async function sendOrderCompletedEmail(data: OrderCompletedEmailData): Pr
 </html>
   `;
 
+  // 1. Try Gmail / SMTP first if configured (delivers to ANY customer inbox)
+  const smtp = getSmtpTransporter();
+  if (smtp) {
+    try {
+      const fromUser =
+        process.env.SMTP_USER ||
+        process.env.GMAIL_USER ||
+        process.env.KITCHEN_OWNER_EMAIL ||
+        "theindulgentspoonbyvasvi@gmail.com";
+
+      const info = await smtp.sendMail({
+        from: `"The Indulgent Spoon" <${fromUser}>`,
+        to: data.customerEmail,
+        subject: `🎉 Your Order #${data.orderNumber} is Completed! — The Indulgent Spoon`,
+        html,
+      });
+
+      console.log(`[Email] Order completed email delivered via SMTP to ${data.customerEmail}:`, info.messageId);
+      return { success: true, messageId: info.messageId };
+    } catch (smtpErr: any) {
+      console.error("[Email] SMTP error delivering order completed email, falling back to Resend:", smtpErr);
+    }
+  }
+
+  // 2. Resend provider
+  const resend = getResendClient();
+  if (!resend) {
+    console.warn("[Email] Neither SMTP nor RESEND configured — skipping completion email");
+    return { success: false, error: "Email provider not configured" };
+  }
+
   try {
     const { data: res, error } = await resend.emails.send({
       from,
@@ -611,7 +665,10 @@ export async function sendOrderCompletedEmail(data: OrderCompletedEmailData): Pr
     if (error) {
       console.error("[Email] Resend order completed email error:", error);
       if (error.message && error.message.includes("only send testing emails to your own email address")) {
-        const ownerEmail = "aadirao123i@gmail.com";
+        const ownerEmail =
+          process.env.KITCHEN_OWNER_EMAIL ||
+          process.env.ADMIN_EMAIL ||
+          "theindulgentspoonbyvasvi@gmail.com";
         console.log(`[Email] Sandbox mode: Forwarding order completion email to ${ownerEmail}`);
         const retryRes = await resend.emails.send({
           from,

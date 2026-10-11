@@ -358,11 +358,11 @@ export async function advanceOrderStatusServerAction(
             subtotal: Number(i.subtotal) || 0,
           }));
 
-          await sendOrderCompletedEmail({
+          const res = await sendOrderCompletedEmail({
             orderNumber: order.order_number || String(order.id).slice(0, 8).toUpperCase(),
             orderId: order.id,
             customerName: order.customer_name || "Valued Customer",
-            customerEmail: order.customer_email,
+            customerEmail: order.customer_email.trim(),
             orderType: order.order_type || "delivery",
             total: Number(order.total) || 0,
             deliveryAddress: order.delivery_address,
@@ -370,6 +370,9 @@ export async function advanceOrderStatusServerAction(
             deliveryTimeSlot: order.delivery_time_slot,
             items,
           });
+          console.log(`[Email] Order completed notification result for #${order.order_number}:`, res);
+        } else {
+          console.warn(`[Email] Order ${orderId} does not have a customer email saved; skipping completed email.`);
         }
       } catch (emailErr) {
         console.error("Failed to send order completion email:", emailErr);
