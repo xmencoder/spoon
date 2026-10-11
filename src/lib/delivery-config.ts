@@ -92,21 +92,20 @@ export function buildGeocodingCandidates(input: string | StructuredAddress): str
   let pincode = typeof input === "object" ? input.pincode || "" : "";
   let city = typeof input === "object" ? input.city || "Gurugram" : "Gurugram";
 
-  // If input was a raw string, extract components
-  if (typeof input === "string") {
-    // Extract 6-digit Indian pincode
-    const pinMatch = fullStr.match(/\b([1-9][0-9]{5})\b/);
-    if (pinMatch) {
-      pincode = pinMatch[1];
-    }
-    // Extract city if present
-    const cityMatch = fullStr.match(/\b(Gurugram|Gurgaon|Delhi|New Delhi|Noida|Faridabad|Ghaziabad)\b/i);
-    if (cityMatch) {
-      city = cityMatch[1];
-    }
+  const allText = `${area} ${fullStr} ${landmark}`.toLowerCase();
+
+  // Intelligent city detection for 40km NCR delivery radius
+  let detectedCity = city.trim() || "Gurugram";
+  if (allText.includes("delhi") || allText.includes("new delhi") || (pincode && pincode.startsWith("11"))) {
+    detectedCity = "Delhi";
+  } else if (allText.includes("faridabad") || (pincode && pincode.startsWith("121"))) {
+    detectedCity = "Faridabad";
+  } else if (allText.includes("noida") || (pincode && (pincode.startsWith("201301") || pincode.startsWith("201303")))) {
+    detectedCity = "Noida";
+  } else if (allText.includes("gurugram") || allText.includes("gurgaon") || (pincode && pincode.startsWith("122"))) {
+    detectedCity = "Gurugram";
   }
 
-  const defaultCity = city.trim() || "Gurugram";
   const queries: string[] = [];
 
   // 1. Clean area string by stripping apartment/unit prefixes if present
@@ -120,51 +119,54 @@ export function buildGeocodingCandidates(input: string | StructuredAddress): str
 
   const cleanedArea = cleanFlatPrefix(area || fullStr);
 
-  // 2. Comma subparts from areaStreet (e.g. "Sector 47, Malibu Towne" -> ["Sector 47", "Malibu Towne"])
+  // 2. Add raw cleaned area directly (e.g. "sultanpur delhi", "sultanpur delhi, India")
+  if (cleanedArea && cleanedArea.length >= 3) {
+    queries.push(cleanedArea);
+    queries.push(`${cleanedArea}, India`);
+    queries.push(`${cleanedArea}, ${detectedCity}`);
+    if (pincode && pincode.length === 6 && pincode !== "122001") {
+      queries.push(`${cleanedArea}, ${pincode}, ${detectedCity}`);
+      queries.push(`${cleanedArea}, ${pincode}`);
+    }
+  }
+
+  // 3. Comma subparts from areaStreet (e.g. "Sector 47, Malibu Towne" -> ["Sector 47", "Malibu Towne"])
   const areaParts = (area || fullStr)
     .split(",")
     .map((p) => cleanFlatPrefix(p.trim()))
     .filter((p) => p.length >= 3);
 
-  // Add individual subparts with city (e.g. "Malibu Towne, Gurugram", "Sector 47, Gurugram")
   for (const part of areaParts) {
-    queries.push(`${part}, ${defaultCity}`);
-    if (pincode) {
-      queries.push(`${part}, ${pincode}, ${defaultCity}`);
+    queries.push(`${part}, ${detectedCity}`);
+    queries.push(`${part}, India`);
+    if (pincode && pincode.length === 6 && pincode !== "122001") {
+      queries.push(`${part}, ${pincode}, ${detectedCity}`);
     }
   }
 
-  // 3. Cleaned area + city
-  if (cleanedArea && cleanedArea.length >= 3) {
-    queries.push(`${cleanedArea}, ${defaultCity}`);
-    if (pincode) {
-      queries.push(`${cleanedArea}, ${pincode}, ${defaultCity}`);
-    }
-  }
-
-  // 4. Sector extraction (e.g. "Sector 47, Gurugram")
+  // 4. Sector extraction (e.g. "Sector 47, Gurugram" or "Dwarka Sector 10")
   const sectorMatch = (area || fullStr).match(/(?:Sector|Sec\.?)\s*(\d+[a-zA-Z]?)/i);
   if (sectorMatch) {
-    queries.push(`Sector ${sectorMatch[1]}, ${defaultCity}`);
-    if (pincode) {
-      queries.push(`Sector ${sectorMatch[1]}, ${pincode}, ${defaultCity}`);
+    queries.push(`Sector ${sectorMatch[1]}, ${detectedCity}`);
+    if (pincode && pincode.length === 6) {
+      queries.push(`Sector ${sectorMatch[1]}, ${pincode}, ${detectedCity}`);
     }
   }
 
-  // 5. DLF Phase extraction (e.g. "DLF Phase 5, Gurugram")
+  // 5. DLF Phase extraction
   const phaseMatch = (area || fullStr).match(/(?:DLF Phase|Phase)\s*(\d+[a-zA-Z]?)/i);
   if (phaseMatch) {
-    queries.push(`DLF Phase ${phaseMatch[1]}, ${defaultCity}`);
-    queries.push(`Phase ${phaseMatch[1]}, ${defaultCity}`);
+    queries.push(`DLF Phase ${phaseMatch[1]}, Gurugram`);
   }
 
-  // 6. Landmark + City (e.g. "Artemis Hospital, Gurugram")
+  // 6. Landmark + City
   if (landmark && landmark.trim().length >= 3) {
     const cleanLandmark = landmark.replace(/^(?:near|opp|opposite|behind)\s+/i, "").trim();
-    queries.push(`${cleanLandmark}, ${defaultCity}`);
+    queries.push(`${cleanLandmark}, ${detectedCity}`);
+    queries.push(`${cleanLandmark}, India`);
   }
 
-  // 7. Full raw string with India
+  // 7. Full raw string
   if (fullStr && fullStr.length >= 3) {
     queries.push(fullStr);
     if (!fullStr.toLowerCase().includes("india")) {
@@ -172,14 +174,14 @@ export function buildGeocodingCandidates(input: string | StructuredAddress): str
     }
   }
 
-  // 8. Pincode + City + India (Guaranteed fallback for all Indian postal codes)
+  // 8. Pincode + City + India
   if (pincode && /^[1-9][0-9]{5}$/.test(pincode.trim())) {
-    queries.push(`${pincode.trim()}, ${defaultCity}, India`);
+    queries.push(`${pincode.trim()}, ${detectedCity}, India`);
     queries.push(`${pincode.trim()}, India`);
   }
 
-  // Fallback to city center if nothing else
-  queries.push(`${defaultCity}, Haryana, India`);
+  // Fallback to detected city center if nothing else
+  queries.push(`${detectedCity}, India`);
 
   return [...new Set(queries.filter((q) => q && q.trim().length >= 3))];
 }
@@ -227,7 +229,7 @@ export async function calculateRoadDistanceAndCharge(
     try {
       const nominatimUrl = `https://nominatim.openstreetmap.org/search?q=${encodeURIComponent(
         query
-      )}&format=json&limit=1`;
+      )}&format=json&limit=1&countrycodes=in&viewbox=76.60,28.85,77.52,28.00&bounded=0`;
 
       const controller = new AbortController();
       const timeout = setTimeout(() => controller.abort(), 3500);

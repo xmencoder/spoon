@@ -301,6 +301,17 @@ export default function CheckoutPage() {
       return;
     }
 
+    const lower = query.toLowerCase();
+    if ((lower.includes("delhi") || lower.includes("new delhi")) && city !== "Delhi") {
+      setCity("Delhi");
+    } else if ((lower.includes("gurugram") || lower.includes("gurgaon")) && city !== "Gurugram") {
+      setCity("Gurugram");
+    } else if (lower.includes("faridabad") && city !== "Faridabad") {
+      setCity("Faridabad");
+    } else if (lower.includes("noida") && city !== "Noida") {
+      setCity("Noida");
+    }
+
     const timer = setTimeout(async () => {
       try {
         setIsSearchingSuggestions(true);
@@ -322,7 +333,7 @@ export default function CheckoutPage() {
     }, 250);
 
     return () => clearTimeout(timer);
-  }, [areaStreet]);
+  }, [areaStreet, city]);
 
   // Combined full address string for distance calculation & order
   const getFullAddress = () => {
@@ -359,7 +370,26 @@ export default function CheckoutPage() {
 
   // Handle Delivery Availability Check
   const handleCheckDelivery = async () => {
-    const fullAddr = getFullAddress();
+    let effectiveCity = city.trim();
+    let effectivePincode = pincode.trim();
+    const areaLower = areaStreet.toLowerCase();
+
+    // Auto-align city if area is in Delhi or pincode is a Delhi code
+    if (areaLower.includes("delhi") || areaLower.includes("new delhi") || effectivePincode.startsWith("11")) {
+      effectiveCity = "Delhi";
+      if (city !== "Delhi") setCity("Delhi");
+    }
+
+    const fullAddr = [
+      flatBuilding.trim(),
+      areaStreet.trim(),
+      landmark.trim() ? `Near ${landmark.trim()}` : null,
+      effectiveCity,
+      effectivePincode,
+    ]
+      .filter(Boolean)
+      .join(", ");
+
     if (!flatBuilding.trim()) {
       setDeliveryCheckError("Please enter your Apartment / Flat / House / Building details.");
       return;
@@ -368,7 +398,7 @@ export default function CheckoutPage() {
       setDeliveryCheckError("Please enter your Area, Street, or Sector.");
       return;
     }
-    if (!pincode.trim() || pincode.trim().length < 5) {
+    if (!effectivePincode || effectivePincode.length < 5) {
       setDeliveryCheckError("Please enter a valid Pincode.");
       return;
     }
@@ -385,8 +415,8 @@ export default function CheckoutPage() {
           flatBuilding: flatBuilding.trim(),
           areaStreet: areaStreet.trim(),
           landmark: landmark.trim(),
-          pincode: pincode.trim(),
-          city: city.trim(),
+          pincode: effectivePincode,
+          city: effectiveCity,
         }),
       });
 
@@ -984,7 +1014,7 @@ export default function CheckoutPage() {
                     if (suggestions.length > 0) setShowSuggestions(true);
                   }}
                   required
-                  placeholder="e.g. Sector 51 / DLF Phase 4 / Golf Course Rd"
+                  placeholder="e.g. Sultanpur / Sector 51 / Vasant Kunj / DLF Phase 4"
                   className="w-full h-10 rounded-2xl border border-[#91885D]/35 bg-[#FAF6EF] pl-4 pr-9 text-xs text-[#29251F] placeholder:text-[#696053]/60 focus:outline-none focus:ring-2 focus:ring-[#C26B59]/30 transition font-medium"
                 />
                 <span className="absolute right-3 text-[#696053]">
