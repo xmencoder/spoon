@@ -497,82 +497,85 @@ export default function CheckoutPage() {
         });
 
         const rzpData = await rzpRes.json();
+
+        if (!rzpRes.ok || !rzpData.success) {
+          throw new Error(
+            rzpData?.error || "Failed to initialize Razorpay payment order. Please try again."
+          );
+        }
+
         const isScriptLoaded = await loadRazorpayScript();
 
-        if (
-          rzpRes.ok &&
-          rzpData.success &&
-          isScriptLoaded &&
-          typeof window !== "undefined" &&
-          (window as any).Razorpay
-        ) {
-          const rzpOptions = {
-            key: rzpData.keyId,
-            amount: rzpData.amount,
-            currency: rzpData.currency || "INR",
-            name: "The Indulgent Spoon",
-            description: `Order #${result.orderNumber || result.orderId}`,
-            image: "/logo-m.png",
-            order_id:
-              rzpData.orderId && !rzpData.orderId.startsWith("order_sim_")
-                ? rzpData.orderId
-                : undefined,
-            prefill: {
-              name: formattedCustomerName,
-              contact: phone.trim(),
-              email: email.trim() || undefined,
-            },
-            theme: {
-              color: "#3e683f",
-            },
-            handler: async function (response: any) {
-              try {
-                setSubmitting(true);
-                // Verify payment on server
-                await fetch("/api/razorpay/verify-payment", {
-                  method: "POST",
-                  headers: { "Content-Type": "application/json" },
-                  body: JSON.stringify({
-                    razorpay_order_id: response?.razorpay_order_id || rzpData.orderId,
-                    razorpay_payment_id:
-                      response?.razorpay_payment_id || `pay_${Date.now()}`,
-                    razorpay_signature:
-                      response?.razorpay_signature || "simulated_sig",
-                    orderId: result.orderId,
-                    trackingToken: result.trackingToken,
-                  }),
-                });
-
-                // Update receipt with verified payment status
-                receiptData.paymentStatus = "PAID";
-                try {
-                  sessionStorage.setItem(`receipt-${slug}`, JSON.stringify(receiptData));
-                } catch {}
-
-                clearCart();
-
-                // Navigate directly to generated digital receipt
-                router.push(`/store/${slug}/order-success`);
-              } catch (e) {
-                console.error("Razorpay post-payment handler error:", e);
-                clearCart();
-                router.push(`/store/${slug}/order-success`);
-              }
-            },
-            modal: {
-              ondismiss: function () {
-                setSubmitting(false);
-              },
-            },
-          };
-
-          const rzpInstance = new (window as any).Razorpay(rzpOptions);
-          rzpInstance.open();
-          setSubmitting(false);
-          return;
-        } else {
-          throw new Error("Unable to open Razorpay payment gateway. Please try again.");
+        if (!isScriptLoaded || typeof window === "undefined" || !(window as any).Razorpay) {
+          throw new Error(
+            "Razorpay checkout failed to load. Please check your internet connection or disable ad-blockers and try again."
+          );
         }
+
+        const rzpOptions = {
+          key: rzpData.keyId,
+          amount: rzpData.amount,
+          currency: rzpData.currency || "INR",
+          name: "The Indulgent Spoon",
+          description: `Order #${result.orderNumber || result.orderId}`,
+          image: "/logo-m.png",
+          order_id:
+            rzpData.orderId && !rzpData.orderId.startsWith("order_sim_")
+              ? rzpData.orderId
+              : undefined,
+          prefill: {
+            name: formattedCustomerName,
+            contact: phone.trim(),
+            email: email.trim() || undefined,
+          },
+          theme: {
+            color: "#3e683f",
+          },
+          handler: async function (response: any) {
+            try {
+              setSubmitting(true);
+              // Verify payment on server
+              await fetch("/api/razorpay/verify-payment", {
+                method: "POST",
+                headers: { "Content-Type": "application/json" },
+                body: JSON.stringify({
+                  razorpay_order_id: response?.razorpay_order_id || rzpData.orderId,
+                  razorpay_payment_id:
+                    response?.razorpay_payment_id || `pay_${Date.now()}`,
+                  razorpay_signature:
+                    response?.razorpay_signature || "simulated_sig",
+                  orderId: result.orderId,
+                  trackingToken: result.trackingToken,
+                }),
+              });
+
+              // Update receipt with verified payment status
+              receiptData.paymentStatus = "PAID";
+              try {
+                sessionStorage.setItem(`receipt-${slug}`, JSON.stringify(receiptData));
+              } catch {}
+
+              clearCart();
+
+              // Navigate directly to generated digital receipt
+              router.push(`/store/${slug}/order-success`);
+            } catch (e) {
+              console.error("Razorpay post-payment handler error:", e);
+              clearCart();
+              router.push(`/store/${slug}/order-success`);
+            }
+          },
+          modal: {
+            ondismiss: function () {
+              setSubmitting(false);
+            },
+          },
+        };
+
+        const rzpInstance = new (window as any).Razorpay(rzpOptions);
+        rzpInstance.open();
+        setSubmitting(false);
+        return;
       } catch (rzpErr) {
         console.warn("Razorpay launch notice:", rzpErr);
         setErrorMsg(rzpErr instanceof Error ? rzpErr.message : "Payment gateway could not be loaded. Please try again.");
