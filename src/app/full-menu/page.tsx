@@ -3,6 +3,8 @@ import { Footer } from "@/components/layout/Footer";
 import { MenuSection } from "@/components/home/MenuSection";
 import { getDefaultRestaurant, getCategories, getProducts } from "@/lib/supabase/queries";
 
+export const dynamic = 'force-dynamic';
+
 export const metadata = {
   title: "Full Menu | The Indulgent Spoon",
   description:

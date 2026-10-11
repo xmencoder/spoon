@@ -341,6 +341,13 @@ export function MenuSection({
       }
     }
 
+    // Skip network fetch if cache is already populated from SSR initial props.
+    // The SSR data is already filtered (available=true) and is the ground truth.
+    // This prevents a visible re-render flash caused by a redundant client fetch.
+    if (globalDbLoaded && globalCachedMenuItems.length > 0) {
+      return () => { cancelled = true; };
+    }
+
     fetchLiveData();
     return () => {
       cancelled = true;

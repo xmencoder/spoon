@@ -164,3 +164,53 @@ export async function deleteCategoryServerAction(categoryId: string) {
     };
   }
 }
+/**
+ * Server Action to update a category's sort_order (rank) directly
+ */
+export async function updateCategoryRankServerAction(
+  categoryId: string,
+  newRank: number,
+  restaurantId: string
+) {
+  try {
+    const supabase = await createClient();
+
+    // Fetch all other categories for this restaurant, sorted
+    const { data: others } = await supabase
+      .from("categories")
+      .select("id, sort_order")
+      .eq("restaurant_id", restaurantId)
+      .neq("id", categoryId)
+      .order("sort_order", { ascending: true });
+
+    const siblings = (others || []) as { id: string; sort_order: number }[];
+
+    // Clamp rank to valid range [1, total]
+    const clampedRank = Math.max(1, Math.min(newRank, siblings.length + 1));
+
+    // Insert the current category at clampedRank, shift others
+    const sorted = [...siblings];
+    sorted.splice(clampedRank - 1, 0, { id: categoryId, sort_order: clampedRank });
+
+    // Build bulk update payload
+    const updates = sorted.map((item, idx) => ({
+      id: item.id,
+      sort_order: idx + 1,
+    }));
+
+    // Apply all updates
+    for (const u of updates) {
+      await supabase
+        .from("categories")
+        .update({ sort_order: u.sort_order })
+        .eq("id", u.id);
+    }
+
+    return { success: true };
+  } catch (err: unknown) {
+    return {
+      success: false,
+      error: err instanceof Error ? err.message : "Failed to update rank",
+    };
+  }
+}

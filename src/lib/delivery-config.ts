@@ -14,7 +14,7 @@ export const DELIVERY_CONFIG = {
   BASE_DELIVERY_FARE: 50,
   BASE_DISTANCE_KM: 1,
   PER_KM_RATE: 10,
-  MAX_DELIVERY_DISTANCE_KM: 15,
+  MAX_DELIVERY_DISTANCE_KM: 40,
   ROUND_TO: 1,
 };
 
@@ -307,7 +307,7 @@ export async function calculateRoadDistanceAndCharge(
     distanceKm = parseFloat((straightLineKm * 1.28).toFixed(1));
   }
 
-  // 3. Check 15 km limit
+  // 3. Check 40 km limit
   if (distanceKm > DELIVERY_CONFIG.MAX_DELIVERY_DISTANCE_KM) {
     const result: DeliveryCalculationResult = {
       success: true,
@@ -315,7 +315,7 @@ export async function calculateRoadDistanceAndCharge(
       distanceKm,
       deliveryCharge: null,
       formattedAddress: displayName,
-      error: `Sorry, we currently deliver only within 15 km (Your location is ${distanceKm} km away).`,
+      error: `Sorry, we currently deliver only within 40 km (Your location is ${distanceKm} km away).`,
     };
     distanceCache.set(cacheKey, { result, timestamp: Date.now() });
     return result;

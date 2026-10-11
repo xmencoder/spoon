@@ -127,6 +127,7 @@ export const getProducts = cache(
       .from("products")
       .select("*")
       .eq("restaurant_id", restaurantId)
+      .eq("available", true)
       .order("sort_order", { ascending: true });
 
     if (categoryId && categoryId !== "all") {

@@ -11,6 +11,7 @@ import {
   createCategoryServerAction,
   updateCategoryServerAction,
   deleteCategoryServerAction,
+  updateCategoryRankServerAction,
 } from "./actions";
 import Link from "next/link";
 import { uploadCategoryImage } from "@/lib/supabase/storage";
@@ -35,6 +36,7 @@ import {
   ImageIcon,
   CalendarClock,
   Timer,
+  Hash,
 } from "lucide-react";
 
 /** Format a baking period in hours to a human-friendly string */
@@ -83,6 +85,11 @@ export default function AdminCategoriesPage() {
 
   // Reordering State
   const [reordering, setReordering] = useState(false);
+
+  // Rank editing state
+  const [rankEditingId, setRankEditingId] = useState<string | null>(null);
+  const [rankEditValue, setRankEditValue] = useState<string>("");
+  const [savingRank, setSavingRank] = useState(false);
 
   // Helper to safely resolve restaurant ID from context or DB fallback
   const getActiveRestaurantId = useCallback(async (): Promise<string> => {
@@ -375,6 +382,39 @@ export default function AdminCategoriesPage() {
     }
   };
 
+  // Direct rank edit
+  const startRankEdit = (cat: CategoryWithCount) => {
+    setRankEditingId(cat.id);
+    setRankEditValue(String(cat.sort_order));
+  };
+
+  const saveRank = async (cat: CategoryWithCount) => {
+    const newRank = parseInt(rankEditValue, 10);
+    if (isNaN(newRank) || newRank < 1) {
+      setRankEditingId(null);
+      return;
+    }
+    if (newRank === cat.sort_order) {
+      setRankEditingId(null);
+      return;
+    }
+    try {
+      setSavingRank(true);
+      const restId = await getActiveRestaurantId();
+      const res = await updateCategoryRankServerAction(cat.id, newRank, restId);
+      if (!res.success) throw new Error(res.error || "Failed to update rank");
+      setSuccessMsg(`"${cat.name}" moved to rank ${newRank}!`);
+      setTimeout(() => setSuccessMsg(null), 2500);
+      await fetchCategories();
+    } catch (err: unknown) {
+      setErrorMsg(err instanceof Error ? err.message : "Failed to update rank");
+    } finally {
+      setSavingRank(false);
+      setRankEditingId(null);
+    }
+  };
+
+
   return (
     <div className="max-w-4xl space-y-6">
       {/* Header */}
@@ -385,6 +425,7 @@ export default function AdminCategoriesPage() {
           </h1>
           <p className="text-xs text-spoon-muted mt-0.5">
             Organize menu categories, cover photos, hierarchy, and customer ordering tabs.
+            <span className="ml-1 font-semibold text-spoon-caramel">Tap the rank badge (#) to directly set a category&apos;s position.</span>
           </p>
         </div>
       </div>
@@ -712,9 +753,39 @@ export default function AdminCategoriesPage() {
                           <h3 className="font-serif font-bold text-sm sm:text-base text-spoon-dark truncate">
                             {cat.name}
                           </h3>
-                          <span className="text-[10px] font-mono text-spoon-muted/80 bg-spoon-sand px-1.5 py-0.5 rounded shrink-0">
-                            #{cat.sort_order}
-                          </span>
+
+                          {/* Rank Badge — clickable to edit */}
+                          {rankEditingId === cat.id ? (
+                            <div className="flex items-center gap-1">
+                              <input
+                                type="number"
+                                min={1}
+                                max={categories.length}
+                                value={rankEditValue}
+                                onChange={(e) => setRankEditValue(e.target.value)}
+                                onKeyDown={(e) => {
+                                  if (e.key === "Enter") saveRank(cat);
+                                  if (e.key === "Escape") setRankEditingId(null);
+                                }}
+                                onBlur={() => saveRank(cat)}
+                                autoFocus
+                                disabled={savingRank}
+                                className="w-14 h-6 text-[11px] font-mono text-center border border-spoon-caramel rounded-md px-1 focus:outline-none focus:ring-1 focus:ring-spoon-caramel bg-white"
+                                title="Type a rank number and press Enter"
+                              />
+                              {savingRank && <Loader2 className="h-3 w-3 animate-spin text-spoon-caramel" />}
+                            </div>
+                          ) : (
+                            <button
+                              type="button"
+                              onClick={() => startRankEdit(cat)}
+                              title="Click to change rank position"
+                              className="inline-flex items-center gap-0.5 text-[10px] font-mono text-spoon-muted/80 bg-spoon-sand hover:bg-spoon-caramel/20 hover:text-spoon-caramel border border-spoon-border/60 hover:border-spoon-caramel/40 px-1.5 py-0.5 rounded transition-colors cursor-pointer"
+                            >
+                              <Hash className="h-2.5 w-2.5" />
+                              {cat.sort_order}
+                            </button>
+                          )}
                         </div>
                         <div className="flex items-center gap-2 flex-wrap mt-0.5">
                           <span className="text-[11px] text-spoon-muted">

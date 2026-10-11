@@ -406,7 +406,7 @@ export default function CheckoutPage() {
         setDistanceKm(data.distanceKm);
         setDeliveryCharge(null);
         setDeliveryCheckError(
-          data.error || "Sorry, we currently deliver only within 15 km."
+          data.error || "Sorry, we currently deliver only within 40 km."
         );
       } else {
         setIsDeliveryChecked(true);

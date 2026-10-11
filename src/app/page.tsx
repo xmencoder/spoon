@@ -7,6 +7,8 @@ import { FounderNoteSection } from "@/components/home/FounderNoteSection";
 import { OrderNowButton } from "@/components/home/OrderNowButton";
 import { getDefaultRestaurant, getCategories, getProducts } from "@/lib/supabase/queries";
 
+export const dynamic = 'force-dynamic';
+
 export default async function Home() {
   const slug =
     process.env.NEXT_PUBLIC_DEFAULT_RESTAURANT_SLUG ||
