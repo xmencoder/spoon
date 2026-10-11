@@ -668,18 +668,6 @@ export default function ProductDetailClient({
                 <div className="grid grid-cols-1 sm:grid-cols-2 gap-3">
                   {detail.addons.map((addon) => {
                     const isSelected = selectedAddonIds.includes(addon.id);
-                    const subtitle =
-                      addon.id === "wholewheat"
-                        ? "100% stoneground whole grain"
-                        : addon.id === "birthday"
-                        ? "Gold celebration topper"
-                        : addon.id === "message-card"
-                        ? "Handwritten calligraphy card"
-                        : addon.id === "candles" || addon.id === "candle"
-                        ? "Celebration taper candle"
-                        : addon.id === "gift-box"
-                        ? "Ribbon gift packaging"
-                        : "Handcrafted addition";
 
                     return (
                       <button
@@ -693,16 +681,13 @@ export default function ProductDetailClient({
                         }`}
                       >
                         <div className="min-w-0 flex-1 pr-1.5">
-                          {/* Label & Description (Fully visible, no ellipsis) */}
+                          {/* Label (Name configured in admin page) */}
                           <span
                             className={`text-xs sm:text-[13px] font-bold block leading-snug transition-colors ${
                               isSelected ? "text-[#29251F]" : "text-[#3D3529]"
                             }`}
                           >
                             {addon.label}
-                          </span>
-                          <span className="text-[10.5px] sm:text-[11px] text-[#7A6D5A] mt-0.5 block leading-tight">
-                            {subtitle}
                           </span>
                         </div>
 
