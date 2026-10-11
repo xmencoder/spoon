@@ -1,6 +1,6 @@
 import Image from "next/image";
 import Link from "next/link";
-import { UtensilsCrossed, MessageCircle } from "lucide-react";
+import { UtensilsCrossed } from "lucide-react";
 
 export function Footer() {
   return (
@@ -23,16 +23,8 @@ export function Footer() {
               </div>
             </div>
             <p className="text-sm text-[#29251F]/85 leading-relaxed">
-              Curated artisanal recipes cooked with fresh wholesome ingredients.
-              Experience cloud-kitchen gourmet delivered right to your doorstep,
-              ordered conveniently through WhatsApp.
+              Where wholesome and indulgent come together. From slow-fermented sourdough to healthier desserts and little treats worth craving, everything is made in small batches with plenty of care.
             </p>
-            <div className="pt-1">
-              <div className="inline-flex items-center gap-2 rounded-xl border border-[#91885D]/30 bg-[#F5EBDD] px-3.5 py-2 text-xs font-semibold text-[#29251F] shadow-2xs">
-                <MessageCircle className="h-4 w-4 text-[#91885D]" strokeWidth={1.75} />
-                <span>WhatsApp Ordering Supported</span>
-              </div>
-            </div>
           </div>
 
           {/* Separator on desktop */}
