@@ -579,10 +579,10 @@ export default function AdminCategoriesPage() {
               return (
                 <div
                   key={cat.id}
-                  className="flex items-center justify-between px-5 sm:px-6 py-4 hover:bg-spoon-sand/20 transition-colors group"
+                  className="flex items-center justify-between px-3.5 sm:px-6 py-3.5 sm:py-4 hover:bg-spoon-sand/20 transition-colors group"
                 >
                   {/* Left: Reorder arrows & Category details */}
-                  <div className="flex items-center gap-3 sm:gap-4 flex-1 mr-4 min-w-0">
+                  <div className="flex items-center gap-2.5 sm:gap-4 flex-1 mr-2 sm:mr-4 min-w-0">
                     {/* Reorder Buttons */}
                     <div className="flex flex-col gap-0.5 shrink-0">
                       <button
@@ -606,7 +606,7 @@ export default function AdminCategoriesPage() {
                     </div>
 
                     {/* Category Cover Image Thumbnail */}
-                    <div className="relative h-12 w-12 shrink-0 rounded-xl overflow-hidden bg-spoon-sand/50 border border-spoon-border/80 flex items-center justify-center">
+                    <div className="relative h-11 w-11 sm:h-12 sm:w-12 shrink-0 rounded-xl overflow-hidden bg-spoon-sand/50 border border-spoon-border/80 flex items-center justify-center">
                       {isEditing && editingImagePreview ? (
                         <Image
                           src={editingImagePreview}
@@ -628,7 +628,7 @@ export default function AdminCategoriesPage() {
 
                     {/* Content or Edit Form */}
                     {isEditing ? (
-                      <div className="flex flex-wrap items-center gap-2 flex-1 max-w-lg">
+                      <div className="flex flex-wrap items-center gap-2 flex-1 max-w-lg min-w-0">
                         <Input
                           value={editingName}
                           onChange={(e) => setEditingName(e.target.value)}
@@ -638,7 +638,7 @@ export default function AdminCategoriesPage() {
                           }}
                           autoFocus
                           disabled={savingEdit}
-                          className="h-9 text-xs font-semibold w-40 sm:w-56"
+                          className="h-9 text-xs font-semibold w-32 sm:w-56"
                         />
 
                         {/* Edit Cover Image Button */}

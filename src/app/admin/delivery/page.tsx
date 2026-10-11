@@ -705,12 +705,12 @@ export default function AdminDeliveryPage() {
           </p>
         </div>
 
-        <div className="flex flex-wrap items-center gap-2.5">
+        <div className="flex items-center gap-2 overflow-x-auto pb-1 max-w-full scrollbar-none">
           <Button
             variant="outline"
             size="sm"
             onClick={() => setShowTemplatesModal(true)}
-            className="gap-1.5 text-xs font-semibold"
+            className="gap-1.5 text-xs font-semibold shrink-0"
           >
             <Layers className="h-3.5 w-3.5 text-spoon-caramel" />
             <span>Templates ({templates.length})</span>
@@ -723,10 +723,11 @@ export default function AdminDeliveryPage() {
               setBulkDeleteCategory(selectedCategoryFilter === "all" ? "" : selectedCategoryFilter);
               setShowBulkDeleteModal(true);
             }}
-            className="gap-1.5 text-xs font-semibold text-rose-700 border-rose-200 hover:bg-rose-50 hover:text-rose-800"
+            className="gap-1.5 text-xs font-semibold text-rose-700 border-rose-200 hover:bg-rose-50 hover:text-rose-800 shrink-0"
           >
             <Trash2 className="h-3.5 w-3.5" />
-            <span>Bulk Delete Slots</span>
+            <span className="hidden sm:inline">Bulk Delete Slots</span>
+            <span className="sm:hidden">Bulk Delete</span>
           </Button>
 
           <Button
@@ -735,10 +736,11 @@ export default function AdminDeliveryPage() {
               setBulkCategory(selectedCategoryFilter === "all" ? "" : selectedCategoryFilter);
               setShowBulkModal(true);
             }}
-            className="gap-1.5 text-xs font-bold bg-spoon-caramel hover:bg-spoon-caramel-dark text-white shadow-warm-sm"
+            className="gap-1.5 text-xs font-bold bg-spoon-caramel hover:bg-spoon-caramel-dark text-white shadow-warm-sm shrink-0"
           >
             <Sparkles className="h-3.5 w-3.5" />
-            <span>Quick Add Bulk Schedule</span>
+            <span className="hidden sm:inline">Quick Add Bulk Schedule</span>
+            <span className="sm:hidden">Bulk Schedule</span>
           </Button>
         </div>
       </div>
@@ -949,20 +951,30 @@ export default function AdminDeliveryPage() {
 
       {/* ── FLOATING BATCH ACTIONS BAR (WHEN ITEMS SELECTED IN LIST VIEW) ── */}
       {selectedSlotIds.length > 0 && viewMode === "list" && (
-        <div className="sticky top-20 z-40 flex items-center justify-between p-3.5 bg-[#29251F] text-white rounded-2xl shadow-warm-xl border border-spoon-border animate-in fade-in slide-in-from-top-2">
-          <div className="flex items-center gap-2 text-xs font-bold">
-            <span className="flex h-6 w-6 items-center justify-center rounded-full bg-spoon-caramel text-white text-xs">
-              {selectedSlotIds.length}
-            </span>
-            <span>slots selected</span>
+        <div className="sticky top-20 z-40 flex flex-col sm:flex-row sm:items-center justify-between gap-2.5 p-3 sm:p-3.5 bg-[#29251F] text-white rounded-2xl shadow-warm-xl border border-spoon-border animate-in fade-in slide-in-from-top-2">
+          <div className="flex items-center justify-between sm:justify-start gap-2 text-xs font-bold">
+            <div className="flex items-center gap-2">
+              <span className="flex h-6 w-6 items-center justify-center rounded-full bg-spoon-caramel text-white text-xs">
+                {selectedSlotIds.length}
+              </span>
+              <span>slots selected</span>
+            </div>
+            <button
+              type="button"
+              onClick={() => setSelectedSlotIds([])}
+              className="sm:hidden p-1 rounded-lg text-white/70 hover:text-white"
+              title="Deselect All"
+            >
+              <X className="h-4 w-4" />
+            </button>
           </div>
 
-          <div className="flex items-center gap-2">
+          <div className="flex items-center gap-2 overflow-x-auto pb-0.5 sm:pb-0 scrollbar-none">
             <button
               type="button"
               disabled={submittingBatchAction}
               onClick={() => handleToggleSelectedSlotsStatus(false)}
-              className="px-3 py-1.5 rounded-xl bg-emerald-700 hover:bg-emerald-600 text-white text-xs font-bold transition-colors cursor-pointer disabled:opacity-50"
+              className="px-2.5 sm:px-3 py-1.5 rounded-xl bg-emerald-700 hover:bg-emerald-600 text-white text-[11px] sm:text-xs font-bold transition-colors cursor-pointer disabled:opacity-50 shrink-0"
             >
               Mark Active
             </button>
@@ -970,7 +982,7 @@ export default function AdminDeliveryPage() {
               type="button"
               disabled={submittingBatchAction}
               onClick={() => handleToggleSelectedSlotsStatus(true)}
-              className="px-3 py-1.5 rounded-xl bg-amber-700 hover:bg-amber-600 text-white text-xs font-bold transition-colors cursor-pointer disabled:opacity-50"
+              className="px-2.5 sm:px-3 py-1.5 rounded-xl bg-amber-700 hover:bg-amber-600 text-white text-[11px] sm:text-xs font-bold transition-colors cursor-pointer disabled:opacity-50 shrink-0"
             >
               Mark Closed
             </button>
@@ -978,7 +990,7 @@ export default function AdminDeliveryPage() {
               type="button"
               disabled={submittingBatchAction}
               onClick={handleDeleteSelectedSlots}
-              className="flex items-center gap-1.5 px-3 py-1.5 rounded-xl bg-rose-600 hover:bg-rose-500 text-white text-xs font-bold transition-colors cursor-pointer disabled:opacity-50"
+              className="flex items-center gap-1.5 px-2.5 sm:px-3 py-1.5 rounded-xl bg-rose-600 hover:bg-rose-500 text-white text-[11px] sm:text-xs font-bold transition-colors cursor-pointer disabled:opacity-50 shrink-0"
             >
               <Trash2 className="h-3.5 w-3.5" />
               <span>Delete Selected</span>
@@ -986,7 +998,7 @@ export default function AdminDeliveryPage() {
             <button
               type="button"
               onClick={() => setSelectedSlotIds([])}
-              className="p-1.5 rounded-lg text-white/70 hover:text-white"
+              className="hidden sm:block p-1.5 rounded-lg text-white/70 hover:text-white"
               title="Deselect All"
             >
               <X className="h-4 w-4" />
@@ -1025,7 +1037,7 @@ export default function AdminDeliveryPage() {
                 <div
                   key={`${cell.dateStr}-${idx}`}
                   onClick={() => openDayModal(cell.dateStr)}
-                  className={`min-h-[105px] sm:min-h-[120px] p-2 sm:p-2.5 transition-all cursor-pointer group flex flex-col justify-between ${
+                  className={`min-h-[75px] sm:min-h-[120px] p-1 sm:p-2.5 transition-all cursor-pointer group flex flex-col justify-between ${
                     !cell.isCurrentMonth
                       ? "bg-spoon-sand/15 opacity-40 hover:opacity-80"
                       : cell.isClosed
@@ -1037,9 +1049,9 @@ export default function AdminDeliveryPage() {
                       : "bg-white hover:bg-spoon-sand/20"
                   }`}
                 >
-                  <div className="flex items-center justify-between">
+                  <div className="flex items-center justify-between gap-0.5">
                     <span
-                      className={`h-6 w-6 rounded-full flex items-center justify-center text-xs font-bold transition-colors ${
+                      className={`h-5 w-5 sm:h-6 sm:w-6 rounded-full flex items-center justify-center text-[10px] sm:text-xs font-bold transition-colors ${
                         isToday
                           ? "bg-spoon-caramel text-white shadow-xs"
                           : cell.isCurrentMonth
@@ -1051,38 +1063,38 @@ export default function AdminDeliveryPage() {
                     </span>
 
                     {cell.isClosed ? (
-                      <span className="text-[9.5px] font-bold px-1.5 py-0.5 rounded bg-rose-100 text-rose-800 uppercase tracking-wider">
+                      <span className="text-[7.5px] sm:text-[9.5px] font-bold px-1 sm:px-1.5 py-0.2 sm:py-0.5 rounded bg-rose-100 text-rose-800 uppercase tracking-wider">
                         Closed
                       </span>
                     ) : hasSlots ? (
                       <span
-                        className={`text-[9.5px] font-bold px-1.5 py-0.5 rounded uppercase tracking-wider ${
+                        className={`text-[7.5px] sm:text-[9.5px] font-bold px-1 sm:px-1.5 py-0.2 sm:py-0.5 rounded uppercase tracking-wider ${
                           isFull
                             ? "bg-amber-100 text-amber-800"
                             : "bg-emerald-100 text-emerald-800"
                         }`}
                       >
-                        {cell.slots.length} {cell.slots.length === 1 ? "Slot" : "Slots"}
+                        {cell.slots.length} <span className="hidden sm:inline">{cell.slots.length === 1 ? "Slot" : "Slots"}</span>
                       </span>
                     ) : null}
                   </div>
 
                   {/* Slot Details in Day Cell */}
-                  <div className="my-1.5 space-y-1">
+                  <div className="my-1 space-y-0.5 sm:space-y-1">
                     {cell.isClosed ? (
-                      <p className="text-[10px] text-rose-700 italic truncate font-medium">
-                        Holiday / Off
+                      <p className="text-[8.5px] sm:text-[10px] text-rose-700 italic truncate font-medium">
+                        Closed
                       </p>
                     ) : hasSlots ? (
                       <div className="space-y-0.5">
-                        <div className="flex items-center justify-between text-[10px] font-medium text-spoon-muted">
-                          <span>Capacity:</span>
+                        <div className="flex items-center justify-between text-[8.5px] sm:text-[10px] font-medium text-spoon-muted">
+                          <span className="hidden sm:inline">Capacity:</span>
                           <span className="font-bold text-spoon-dark">
-                            {cell.totalBooked} / {cell.totalCapacity}
+                            {cell.totalBooked}/{cell.totalCapacity}
                           </span>
                         </div>
                         {/* Progress bar */}
-                        <div className="h-1.5 w-full rounded-full bg-spoon-sand overflow-hidden">
+                        <div className="h-1 sm:h-1.5 w-full rounded-full bg-spoon-sand overflow-hidden">
                           <div
                             className={`h-full rounded-full transition-all ${
                               isFull ? "bg-amber-500" : "bg-emerald-500"
@@ -1097,13 +1109,13 @@ export default function AdminDeliveryPage() {
                         </div>
                       </div>
                     ) : (
-                      <span className="text-[10px] text-spoon-muted/60 block opacity-0 group-hover:opacity-100 transition-opacity">
-                        + Click to add slots
+                      <span className="text-[9px] text-spoon-muted/60 block opacity-0 group-hover:opacity-100 transition-opacity">
+                        + Add
                       </span>
                     )}
                   </div>
 
-                  <div className="text-[9.5px] text-spoon-muted text-right font-medium">
+                  <div className="text-[9px] sm:text-[9.5px] text-spoon-muted text-right font-medium hidden sm:block">
                     {hasSlots && (
                       <span className="text-spoon-caramel hover:underline">Manage &rarr;</span>
                     )}
@@ -1121,73 +1133,90 @@ export default function AdminDeliveryPage() {
               No delivery slots found for this category. Click &ldquo;Quick Add Bulk Schedule&rdquo; to generate slots.
             </div>
           ) : (
-            <div className="overflow-x-auto">
-              <table className="w-full text-left text-xs text-spoon-dark">
-                <thead className="border-b border-spoon-border bg-spoon-cream/40 font-bold uppercase tracking-wider text-spoon-muted text-[10px]">
-                  <tr>
-                    <th className="px-4 py-4 w-10 text-center">
-                      <button
-                        type="button"
-                        onClick={toggleSelectAllFiltered}
-                        className="p-1 text-spoon-dark hover:text-spoon-caramel"
-                      >
-                        {selectedSlotIds.length === filteredSlots.length && filteredSlots.length > 0 ? (
-                          <CheckSquare className="h-4 w-4 text-spoon-caramel" />
-                        ) : (
-                          <Square className="h-4 w-4 text-spoon-muted" />
-                        )}
-                      </button>
-                    </th>
-                    <th className="px-6 py-4">Delivery Date</th>
-                    <th className="px-6 py-4">Time Window</th>
-                    <th className="px-6 py-4">Category Scope</th>
-                    <th className="px-6 py-4">Capacity &amp; Bookings</th>
-                    <th className="px-6 py-4">Status</th>
-                    <th className="px-6 py-4 text-right">Actions</th>
-                  </tr>
-                </thead>
-                <tbody className="divide-y divide-spoon-border/60">
+            <>
+              {/* Mobile Card View (md:hidden) */}
+              <div className="md:hidden">
+                <div className="flex items-center justify-between px-4 py-3 bg-spoon-cream/40 border-b border-spoon-border text-xs font-bold text-spoon-dark">
+                  <button
+                    type="button"
+                    onClick={toggleSelectAllFiltered}
+                    className="flex items-center gap-2 hover:text-spoon-caramel"
+                  >
+                    {selectedSlotIds.length === filteredSlots.length && filteredSlots.length > 0 ? (
+                      <CheckSquare className="h-4 w-4 text-spoon-caramel" />
+                    ) : (
+                      <Square className="h-4 w-4 text-spoon-muted" />
+                    )}
+                    <span className="text-[11px] uppercase tracking-wider text-spoon-muted">
+                      Select All ({filteredSlots.length})
+                    </span>
+                  </button>
+                  <span className="text-[11px] text-spoon-muted font-normal">
+                    {filteredSlots.length} slots
+                  </span>
+                </div>
+
+                <div className="divide-y divide-spoon-border/60">
                   {filteredSlots.map((slot) => {
                     const isFull = slot.current_order_count >= slot.capacity;
                     const catObj = categories.find((c) => c.id === slot.category_id);
-                    const catName = catObj?.name || "Store-wide (All Products)";
+                    const catName = catObj?.name || "Store-wide";
                     const isSelected = selectedSlotIds.includes(slot.id);
 
                     return (
-                      <tr
+                      <div
                         key={slot.id}
-                        className={`transition-colors ${
-                          isSelected ? "bg-spoon-sand/40" : "hover:bg-spoon-sand/15"
+                        className={`p-4 transition-colors space-y-3 ${
+                          isSelected ? "bg-spoon-sand/40" : "bg-white"
                         }`}
                       >
-                        <td className="px-4 py-4 text-center">
-                          <button
-                            type="button"
-                            onClick={() => toggleSelectSlot(slot.id)}
-                            className="p-1"
-                          >
-                            {isSelected ? (
-                              <CheckSquare className="h-4 w-4 text-spoon-caramel" />
+                        <div className="flex items-center justify-between gap-2">
+                          <div className="flex items-center gap-2.5">
+                            <button
+                              type="button"
+                              onClick={() => toggleSelectSlot(slot.id)}
+                              className="p-1 -ml-1"
+                            >
+                              {isSelected ? (
+                                <CheckSquare className="h-4 w-4 text-spoon-caramel" />
+                              ) : (
+                                <Square className="h-4 w-4 text-spoon-muted" />
+                              )}
+                            </button>
+                            <span className="font-bold text-xs text-spoon-dark">
+                              {new Date(`${slot.date}T00:00:00`).toLocaleDateString("en-IN", {
+                                weekday: "short",
+                                month: "short",
+                                day: "numeric",
+                              })}
+                            </span>
+                          </div>
+
+                          <div>
+                            {slot.is_closed ? (
+                              <span className="inline-flex items-center px-2 py-0.5 rounded-full text-[10px] font-bold bg-rose-100 text-rose-800">
+                                Closed
+                              </span>
+                            ) : !slot.is_active ? (
+                              <span className="inline-flex items-center px-2 py-0.5 rounded-full text-[10px] font-bold bg-gray-100 text-gray-700">
+                                Inactive
+                              </span>
+                            ) : isFull ? (
+                              <span className="inline-flex items-center px-2 py-0.5 rounded-full text-[10px] font-bold bg-amber-100 text-amber-800">
+                                Full
+                              </span>
                             ) : (
-                              <Square className="h-4 w-4 text-spoon-muted" />
+                              <span className="inline-flex items-center px-2 py-0.5 rounded-full text-[10px] font-bold bg-emerald-100 text-emerald-800">
+                                Active
+                              </span>
                             )}
-                          </button>
-                        </td>
+                          </div>
+                        </div>
 
-                        <td className="px-6 py-4 font-bold text-spoon-dark whitespace-nowrap">
-                          {new Date(`${slot.date}T00:00:00`).toLocaleDateString("en-IN", {
-                            weekday: "short",
-                            month: "short",
-                            day: "numeric",
-                            year: "numeric",
-                          })}
-                        </td>
-
-                        <td className="px-6 py-4 font-bold text-spoon-caramel whitespace-nowrap">
-                          {formatSlotWindow(slot.start_time, slot.end_time)}
-                        </td>
-
-                        <td className="px-6 py-4">
+                        <div className="flex items-center justify-between gap-2 text-xs">
+                          <span className="font-bold text-spoon-caramel">
+                            {formatSlotWindow(slot.start_time, slot.end_time)}
+                          </span>
                           <span
                             className={`inline-flex items-center px-2 py-0.5 rounded-md text-[10.5px] font-bold ${
                               slot.category_id
@@ -1197,11 +1226,11 @@ export default function AdminDeliveryPage() {
                           >
                             {catName}
                           </span>
-                        </td>
+                        </div>
 
-                        <td className="px-6 py-4">
-                          <div className="space-y-1 max-w-[140px]">
-                            <div className="flex justify-between text-[11px] font-semibold">
+                        <div className="flex items-center justify-between gap-3 pt-1 border-t border-spoon-border/40">
+                          <div className="flex-1 space-y-1">
+                            <div className="flex justify-between text-[10px] font-semibold">
                               <span>{slot.current_order_count} booked</span>
                               <span className="text-spoon-muted">max {slot.capacity}</span>
                             </div>
@@ -1219,30 +1248,8 @@ export default function AdminDeliveryPage() {
                               />
                             </div>
                           </div>
-                        </td>
 
-                        <td className="px-6 py-4">
-                          {slot.is_closed ? (
-                            <span className="inline-flex items-center px-2 py-0.5 rounded-full text-[10px] font-bold bg-rose-100 text-rose-800">
-                              Closed
-                            </span>
-                          ) : !slot.is_active ? (
-                            <span className="inline-flex items-center px-2 py-0.5 rounded-full text-[10px] font-bold bg-gray-100 text-gray-700">
-                              Inactive
-                            </span>
-                          ) : isFull ? (
-                            <span className="inline-flex items-center px-2 py-0.5 rounded-full text-[10px] font-bold bg-amber-100 text-amber-800">
-                              Full
-                            </span>
-                          ) : (
-                            <span className="inline-flex items-center px-2 py-0.5 rounded-full text-[10px] font-bold bg-emerald-100 text-emerald-800">
-                              Active
-                            </span>
-                          )}
-                        </td>
-
-                        <td className="px-6 py-4 text-right whitespace-nowrap">
-                          <div className="flex items-center justify-end gap-2">
+                          <div className="flex items-center gap-1.5 shrink-0 ml-2">
                             <button
                               onClick={() => setEditingSlot(slot)}
                               className="p-1.5 rounded-lg bg-spoon-sand/70 text-spoon-dark hover:bg-spoon-sand transition-colors cursor-pointer"
@@ -1258,13 +1265,159 @@ export default function AdminDeliveryPage() {
                               <Trash2 className="h-3.5 w-3.5" />
                             </button>
                           </div>
-                        </td>
-                      </tr>
+                        </div>
+                      </div>
                     );
                   })}
-                </tbody>
-              </table>
-            </div>
+                </div>
+              </div>
+
+              {/* Desktop Table View (hidden md:block) */}
+              <div className="hidden md:block overflow-x-auto">
+                <table className="w-full text-left text-xs text-spoon-dark">
+                  <thead className="border-b border-spoon-border bg-spoon-cream/40 font-bold uppercase tracking-wider text-spoon-muted text-[10px]">
+                    <tr>
+                      <th className="px-4 py-4 w-10 text-center">
+                        <button
+                          type="button"
+                          onClick={toggleSelectAllFiltered}
+                          className="p-1 text-spoon-dark hover:text-spoon-caramel"
+                        >
+                          {selectedSlotIds.length === filteredSlots.length && filteredSlots.length > 0 ? (
+                            <CheckSquare className="h-4 w-4 text-spoon-caramel" />
+                          ) : (
+                            <Square className="h-4 w-4 text-spoon-muted" />
+                          )}
+                        </button>
+                      </th>
+                      <th className="px-6 py-4">Delivery Date</th>
+                      <th className="px-6 py-4">Time Window</th>
+                      <th className="px-6 py-4">Category Scope</th>
+                      <th className="px-6 py-4">Capacity &amp; Bookings</th>
+                      <th className="px-6 py-4">Status</th>
+                      <th className="px-6 py-4 text-right">Actions</th>
+                    </tr>
+                  </thead>
+                  <tbody className="divide-y divide-spoon-border/60">
+                    {filteredSlots.map((slot) => {
+                      const isFull = slot.current_order_count >= slot.capacity;
+                      const catObj = categories.find((c) => c.id === slot.category_id);
+                      const catName = catObj?.name || "Store-wide (All Products)";
+                      const isSelected = selectedSlotIds.includes(slot.id);
+
+                      return (
+                        <tr
+                          key={slot.id}
+                          className={`transition-colors ${
+                            isSelected ? "bg-spoon-sand/40" : "hover:bg-spoon-sand/15"
+                          }`}
+                        >
+                          <td className="px-4 py-4 text-center">
+                            <button
+                              type="button"
+                              onClick={() => toggleSelectSlot(slot.id)}
+                              className="p-1"
+                            >
+                              {isSelected ? (
+                                <CheckSquare className="h-4 w-4 text-spoon-caramel" />
+                              ) : (
+                                <Square className="h-4 w-4 text-spoon-muted" />
+                              )}
+                            </button>
+                          </td>
+
+                          <td className="px-6 py-4 font-bold text-spoon-dark whitespace-nowrap">
+                            {new Date(`${slot.date}T00:00:00`).toLocaleDateString("en-IN", {
+                              weekday: "short",
+                              month: "short",
+                              day: "numeric",
+                              year: "numeric",
+                            })}
+                          </td>
+
+                          <td className="px-6 py-4 font-bold text-spoon-caramel whitespace-nowrap">
+                            {formatSlotWindow(slot.start_time, slot.end_time)}
+                          </td>
+
+                          <td className="px-6 py-4">
+                            <span
+                              className={`inline-flex items-center px-2 py-0.5 rounded-md text-[10.5px] font-bold ${
+                                slot.category_id
+                                  ? "bg-amber-100/70 text-amber-900 border border-amber-300/60"
+                                  : "bg-spoon-sand text-spoon-dark border border-spoon-border"
+                              }`}
+                            >
+                              {catName}
+                            </span>
+                          </td>
+
+                          <td className="px-6 py-4">
+                            <div className="space-y-1 max-w-[140px]">
+                              <div className="flex justify-between text-[11px] font-semibold">
+                                <span>{slot.current_order_count} booked</span>
+                                <span className="text-spoon-muted">max {slot.capacity}</span>
+                              </div>
+                              <div className="h-1.5 w-full rounded-full bg-spoon-sand overflow-hidden">
+                                <div
+                                  className={`h-full rounded-full ${
+                                    isFull ? "bg-amber-500" : "bg-emerald-500"
+                                  }`}
+                                  style={{
+                                    width: `${Math.min(
+                                      100,
+                                      (slot.current_order_count / (slot.capacity || 1)) * 100
+                                    )}%`,
+                                  }}
+                                />
+                              </div>
+                            </div>
+                          </td>
+
+                          <td className="px-6 py-4">
+                            {slot.is_closed ? (
+                              <span className="inline-flex items-center px-2 py-0.5 rounded-full text-[10px] font-bold bg-rose-100 text-rose-800">
+                                Closed
+                              </span>
+                            ) : !slot.is_active ? (
+                              <span className="inline-flex items-center px-2 py-0.5 rounded-full text-[10px] font-bold bg-gray-100 text-gray-700">
+                                Inactive
+                              </span>
+                            ) : isFull ? (
+                              <span className="inline-flex items-center px-2 py-0.5 rounded-full text-[10px] font-bold bg-amber-100 text-amber-800">
+                                Full
+                              </span>
+                            ) : (
+                              <span className="inline-flex items-center px-2 py-0.5 rounded-full text-[10px] font-bold bg-emerald-100 text-emerald-800">
+                                Active
+                              </span>
+                            )}
+                          </td>
+
+                          <td className="px-6 py-4 text-right whitespace-nowrap">
+                            <div className="flex items-center justify-end gap-2">
+                              <button
+                                onClick={() => setEditingSlot(slot)}
+                                className="p-1.5 rounded-lg bg-spoon-sand/70 text-spoon-dark hover:bg-spoon-sand transition-colors cursor-pointer"
+                                title="Edit capacity"
+                              >
+                                <Edit2 className="h-3.5 w-3.5" />
+                              </button>
+                              <button
+                                onClick={() => handleDeleteSlot(slot.id)}
+                                className="p-1.5 rounded-lg bg-rose-50 text-rose-700 hover:bg-rose-100 transition-colors cursor-pointer"
+                                title="Delete slot"
+                              >
+                                <Trash2 className="h-3.5 w-3.5" />
+                              </button>
+                            </div>
+                          </td>
+                        </tr>
+                      );
+                    })}
+                  </tbody>
+                </table>
+              </div>
+            </>
           )}
         </div>
       )}
