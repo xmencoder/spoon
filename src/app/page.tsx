@@ -5,11 +5,16 @@ import { Clock, Star, Award } from "lucide-react";
 import { MenuSection } from "@/components/home/MenuSection";
 import { FounderNoteSection } from "@/components/home/FounderNoteSection";
 import { OrderNowButton } from "@/components/home/OrderNowButton";
+import { getDefaultRestaurant, getCategories, getProducts } from "@/lib/supabase/queries";
 
-export default function Home() {
+export default async function Home() {
   const slug =
     process.env.NEXT_PUBLIC_DEFAULT_RESTAURANT_SLUG ||
     "the-indulgent-spoon";
+
+  const restaurant = await getDefaultRestaurant();
+  const categories = restaurant ? await getCategories(restaurant.id) : [];
+  const products = restaurant ? await getProducts(restaurant.id) : [];
 
   return (
     <div className="flex min-h-screen flex-col bg-[#D9BC9E] text-[#29251F]">
@@ -116,7 +121,12 @@ export default function Home() {
       </section>
 
       {/* ═══ OUR MENU SECTION (MATCHING PHOTO) ═══ */}
-      <MenuSection slug={slug} />
+      <MenuSection
+        slug={slug}
+        initialRestaurantId={restaurant?.id}
+        initialCategories={categories}
+        initialProducts={products}
+      />
 
       {/* ═══ FOUNDER'S NOTE ═══ */}
       <FounderNoteSection />

@@ -27,66 +27,88 @@ export interface CategoryCard {
   image: string;
 }
 
-// Exactly only the categories requested by the user:
-// Popular, All Menus, Tea Cake, Muffins, Sourdough, Spreads, Sugar Free, Cake Jars, Gift Boxes
-export const CATEGORY_CARDS: CategoryCard[] = [
-  {
-    id: "popular",
-    name: "Popular",
-    count: "18 items",
-    image:
-      "https://images.unsplash.com/photo-1578985545062-69928b1d9587?w=300&auto=format&fit=crop&q=80",
-  },
-  {
-    id: "tea-cake",
-    name: "Tea Cake",
-    count: "12 items",
-    image:
-      "https://images.unsplash.com/photo-1519869325930-281384150729?w=300&auto=format&fit=crop&q=80",
-  },
-  {
-    id: "muffins",
-    name: "Muffins",
-    count: "14 items",
-    image:
-      "https://images.unsplash.com/photo-1586985289688-ca3cf47d3e6e?w=300&auto=format&fit=crop&q=80",
-  },
-  {
-    id: "sourdough",
-    name: "Sourdough",
-    count: "10 items",
-    image:
-      "https://images.unsplash.com/photo-1589367920969-ab8e050bbb04?w=300&auto=format&fit=crop&q=80",
-  },
-  {
-    id: "spreads",
-    name: "Spreads",
-    count: "8 items",
-    image:
-      "https://images.unsplash.com/photo-1589733955941-5eeaf752f6dd?w=300&auto=format&fit=crop&q=80",
-  },
-  {
-    id: "sugar-free",
-    name: "Sugar Free",
-    count: "15 items",
-    image:
-      "https://images.unsplash.com/photo-1488477181946-6428a0291777?w=300&auto=format&fit=crop&q=80",
-  },
-  {
-    id: "cake-jars",
-    name: "Cake Jars",
-    count: "16 items",
-    image:
-      "https://images.unsplash.com/photo-1587314168485-3236d6710814?w=300&auto=format&fit=crop&q=80",
-  },
-  {
-    id: "gift-boxes",
-    name: "Gift Boxes",
-    count: "8 items",
-    image:
-      "https://images.unsplash.com/photo-1549465220-1a8b9238cd48?w=300&auto=format&fit=crop&q=80",
-  },
-];
+export const CATEGORY_CARDS: CategoryCard[] = [];
+
+export function buildCategoryCardsAndMenuItems(
+  dbCategories: Category[],
+  dbProducts: Product[]
+): { categoryCards: CategoryCard[]; menuItems: MenuItem[] } {
+  const categoryCards: CategoryCard[] = [
+    {
+      id: "popular",
+      name: "Popular",
+      count: `${dbProducts.filter((p) => p.featured).length || dbProducts.length} items`,
+      image:
+        dbProducts.find((p) => p.featured)?.image_url ||
+        dbProducts[0]?.image_url ||
+        "https://images.unsplash.com/photo-1578985545062-69928b1d9587?w=300&auto=format&fit=crop&q=80",
+    },
+  ];
+
+  for (const cat of dbCategories) {
+    const catProducts = dbProducts.filter((p) => p.category_id === cat.id);
+    const coverImage =
+      cat.image_url ||
+      catProducts[0]?.image_url ||
+      (catProducts[0]?.gallery_images && catProducts[0]?.gallery_images[0]) ||
+      "https://images.unsplash.com/photo-1578985545062-69928b1d9587?w=300&auto=format&fit=crop&q=80";
+
+    categoryCards.push({
+      id: cat.id,
+      name: cat.name,
+      count: `${catProducts.length} items`,
+      image: coverImage,
+    });
+  }
+
+  const uncategorized = dbProducts.filter(
+    (p) => !p.category_id || !dbCategories.find((c) => c.id === p.category_id)
+  );
+  if (uncategorized.length > 0 && dbCategories.length > 0) {
+    categoryCards.push({
+      id: "other",
+      name: "Other",
+      count: `${uncategorized.length} items`,
+      image:
+        uncategorized[0]?.image_url ||
+        "https://images.unsplash.com/photo-1578985545062-69928b1d9587?w=300&auto=format&fit=crop&q=80",
+    });
+  }
+
+  const menuItems: MenuItem[] = dbProducts.map((p) => {
+    const cat = dbCategories.find((c) => c.id === p.category_id);
+    const categorySlug = cat ? cat.id : "other";
+
+    const pGallery = Array.isArray(p.gallery_images) ? p.gallery_images : [];
+    const primaryImg =
+      p.image_url ||
+      (pGallery.length > 0 ? pGallery[0] : "") ||
+      "https://images.unsplash.com/photo-1578985545062-69928b1d9587?w=800&auto=format&fit=crop&q=80";
+
+    return {
+      id: p.id,
+      name: p.name,
+      price: Number(p.price),
+      description: p.description || "",
+      category: categorySlug,
+      isPopular: p.featured,
+      badge: (p.badge as MenuItem["badge"]) || undefined,
+      tags: p.tags || [],
+      image: primaryImg,
+      doodleText: p.story_text || undefined,
+      hasChefHat: false,
+    };
+  });
+
+  return { categoryCards, menuItems };
+}
+
+// Global in-memory cache to ensure instant, seamless switching between Home & Menu
+let globalCachedCategories: CategoryCard[] = [];
+let globalCachedMenuItems: MenuItem[] = [];
+let globalCachedDbProducts: Product[] = [];
+let globalCachedRestaurantId: string = "";
+let globalDbLoaded = false;
 
 export interface MenuItem {
   id: string;
@@ -102,210 +124,7 @@ export interface MenuItem {
   hasChefHat?: boolean;
 }
 
-const MENU_ITEMS: MenuItem[] = [
-  // Popular / Tea Cake
-  {
-    id: "og-choco-chip-butter-cake",
-    name: "OG Choco Chip Butter Cake",
-    price: 900,
-    description: "Soft, buttery & loaded with choco chips. The Nanz Original.",
-    category: "tea-cake",
-    isPopular: true,
-    badge: "POPULAR",
-    tags: ["Bestseller", "Classic", "Eggless"],
-    image:
-      "https://images.unsplash.com/photo-1578985545062-69928b1d9587?w=800&auto=format&fit=crop&q=80",
-    doodleText: "A slice of happiness ♡",
-    hasChefHat: true,
-  },
-  {
-    id: "intense-chocolate-butter-cake",
-    name: "Intense Chocolate Butter Cake",
-    price: 999,
-    description: "Soft, buttery & intensely chocolatey.",
-    category: "tea-cake",
-    isPopular: true,
-    badge: "NEW!",
-    tags: ["Rich", "Gooey", "Chocolate Lover's"],
-    image:
-      "https://images.unsplash.com/photo-1606313564200-e75d5e30476c?w=800&auto=format&fit=crop&q=80",
-  },
-  {
-    id: "lemon-drizzle-cake",
-    name: "Lemon Drizzle Tea Cake",
-    price: 799,
-    description: "A zesty classic soaked with Meyer lemon syrup for bright days.",
-    category: "tea-cake",
-    isPopular: true,
-    badge: "NEW!",
-    tags: ["Zesty", "Light", "Refreshing"],
-    image:
-      "https://images.unsplash.com/photo-1519869325930-281384150729?w=800&auto=format&fit=crop&q=80",
-    doodleText: "Zesty sunshine ♡",
-  },
-
-  // Muffins
-  {
-    id: "wild-blueberry-muffin",
-    name: "Wild Blueberry Streusel Muffin",
-    price: 500,
-    description: "Bursting with juicy wild blueberries and crowned with crispy brown sugar streusel.",
-    category: "muffins",
-    isPopular: true,
-    badge: "BESTSELLER",
-    tags: ["Pack of 4", "Wild Berry", "Crisp Top"],
-    image:
-      "https://images.unsplash.com/photo-1586985289688-ca3cf47d3e6e?w=800&auto=format&fit=crop&q=80",
-    doodleText: "Berry delight ♡",
-  },
-  {
-    id: "belgian-double-choco-muffin",
-    name: "Double Belgian Choco Muffin",
-    price: 500,
-    description: "Rich dark chocolate muffin loaded with gooey Belgian chocolate molten drops.",
-    category: "muffins",
-    isPopular: false,
-    badge: "POPULAR",
-    tags: ["Pack of 4", "Molten Core", "Belgian Choco"],
-    image:
-      "https://images.unsplash.com/photo-1558961363-fa8fdf82db35?w=800&auto=format&fit=crop&q=80",
-  },
-
-  // Sourdough
-  {
-    id: "country-sourdough-batard",
-    name: "Artisanal Country Sourdough",
-    price: 290,
-    description: "36-hour slow fermented wild yeast sourdough with blistered caramel crust and open crumb.",
-    category: "sourdough",
-    isPopular: true,
-    badge: "BESTSELLER",
-    tags: ["Wild Ferment", "No Commercial Yeast", "Vegan"],
-    image:
-      "https://images.unsplash.com/photo-1589367920969-ab8e050bbb04?w=800&auto=format&fit=crop&q=80",
-    doodleText: "Golden crust ♡",
-  },
-  {
-    id: "olive-rosemary-sourdough",
-    name: "Kalamata Olive & Rosemary Sourdough",
-    price: 340,
-    description: "Infused with organic Tuscan extra virgin olive oil, fragrant rosemary, and Greek Kalamata olives.",
-    category: "sourdough",
-    isPopular: false,
-    badge: "NEW!",
-    tags: ["Artisanal", "Savory Herb", "Handcrafted"],
-    image:
-      "https://images.unsplash.com/photo-1509440159596-0249088772ff?w=800&auto=format&fit=crop&q=80",
-  },
-
-  // Spreads
-  {
-    id: "zero-sugar-hazelnut-spread",
-    name: "Zero-Sugar Roasted Hazelnut Spread",
-    price: 480,
-    description: "Pure stone-ground Turkish hazelnuts blended with raw cacao and monkfruit sweetener.",
-    category: "spreads",
-    isPopular: true,
-    badge: "POPULAR",
-    tags: ["Zero Sugar", "70% Hazelnuts", "Keto Friendly"],
-    image:
-      "https://images.unsplash.com/photo-1589733955941-5eeaf752f6dd?w=800&auto=format&fit=crop&q=80",
-    doodleText: "Pure guilt-free ♡",
-  },
-  {
-    id: "artisanal-salted-caramel-spread",
-    name: "Artisanal Fleur de Sel Caramel",
-    price: 390,
-    description: "Slow-caramelized dairy cream simmered with Madagascar vanilla and mineral-rich sea salt.",
-    category: "spreads",
-    isPopular: false,
-    badge: "NEW!",
-    tags: ["Slow Simmered", "Vanilla Bean", "Luscious"],
-    image:
-      "https://images.unsplash.com/photo-1551024709-8f23befc6f87?w=800&auto=format&fit=crop&q=80",
-  },
-
-  // Sugar Free
-  {
-    id: "sugar-free-almond-brownie",
-    name: "Sugar-Free Almond Flour Brownie",
-    price: 320,
-    description: "Dense, fudgy brownie sweetened naturally with stevia extract & California almond flour.",
-    category: "sugar-free",
-    isPopular: true,
-    badge: "POPULAR",
-    tags: ["Zero Sugar", "Gluten Conscious", "Fudgy"],
-    image:
-      "https://images.unsplash.com/photo-1624353365286-3f8d62daad51?w=800&auto=format&fit=crop&q=80",
-    doodleText: "Guilt-free joy ♡",
-  },
-  {
-    id: "sugar-free-cheesecake",
-    name: "Sugar-Free Basque Burnt Cheesecake",
-    price: 420,
-    description: "Caramelized charred exterior with a molten creamy center, 100% refined sugar-free.",
-    category: "sugar-free",
-    isPopular: false,
-    badge: "NEW!",
-    tags: ["Zero Sugar", "Keto", "Rich & Creamy"],
-    image:
-      "https://images.unsplash.com/photo-1533134242443-d4fd215305ad?w=800&auto=format&fit=crop&q=80",
-  },
-
-  // Cake Jars
-  {
-    id: "belgian-truffle-cake-jar",
-    name: "Belgian Truffle Cake Jar",
-    price: 399,
-    description: "Layers of moist devil's food sponge, silky Belgian ganache, and dark chocolate crispearls.",
-    category: "cake-jars",
-    isPopular: true,
-    badge: "BESTSELLER",
-    tags: ["Portable Delight", "Triple Layer", "Rich Truffle"],
-    image:
-      "https://images.unsplash.com/photo-1587314168485-3236d6710814?w=800&auto=format&fit=crop&q=80",
-    doodleText: "Happiness in a jar ♡",
-  },
-  {
-    id: "biscoff-mousse-cake-jar",
-    name: "Lotus Biscoff Mousse Cake Jar",
-    price: 420,
-    description: "Fluffy vanilla sponge layered with Lotus spread, white chocolate mousse, and spiced cookie crumble.",
-    category: "cake-jars",
-    isPopular: true,
-    badge: "POPULAR",
-    tags: ["Biscoff Lover", "Creamy Mousse", "Crunchy"],
-    image:
-      "https://images.unsplash.com/photo-1541781774459-bb2af2f05b55?w=800&auto=format&fit=crop&q=80",
-  },
-
-  // Gift Boxes
-  {
-    id: "assorted-cookie-tin",
-    name: "Assorted Cookie Tin",
-    price: 899,
-    description: "3-in-1 cookie tin\nOG Choco Chip • Red Velvet • Double Choco Chip",
-    category: "gift-boxes",
-    isPopular: true,
-    badge: "NEW!",
-    tags: ["Assorted", "Perfect Gift", "Freshly Baked"],
-    image:
-      "https://images.unsplash.com/photo-1499636136210-6f4ee915583e?w=800&auto=format&fit=crop&q=80",
-    doodleText: "Happiness in every bite ♡",
-  },
-  {
-    id: "gourmet-hamper-box",
-    name: "The Indulgent Luxe Gift Hamper",
-    price: 1850,
-    description: "Curated gift box with assorted cookies, Belgian brownies, artisanal spread, and celebration note.",
-    category: "gift-boxes",
-    isPopular: true,
-    badge: "BESTSELLER",
-    tags: ["Luxe Box", "Hand-Tied", "Custom Note"],
-    image:
-      "https://images.unsplash.com/photo-1549465220-1a8b9238cd48?w=800&auto=format&fit=crop&q=80",
-  },
-];
+const MENU_ITEMS: MenuItem[] = [];
 
 // Pure Veg Indian Green Icon Badge
 function VegSymbol({ className = "" }: { className?: string }) {
@@ -349,12 +168,35 @@ function LeafDivider({ active }: { active: boolean }) {
 interface MenuSectionProps {
   slug?: string;
   isFullMenu?: boolean;
+  initialRestaurantId?: string;
+  initialCategories?: Category[];
+  initialProducts?: Product[];
 }
 
 export function MenuSection({
   slug = "the-indulgent-spoon",
   isFullMenu = false,
+  initialRestaurantId,
+  initialCategories,
+  initialProducts,
 }: MenuSectionProps) {
+  // If initial props provided from server and cache empty, seed cache immediately
+  if (
+    initialCategories &&
+    initialProducts &&
+    initialProducts.length > 0 &&
+    !globalDbLoaded
+  ) {
+    const { categoryCards, menuItems } = buildCategoryCardsAndMenuItems(
+      initialCategories,
+      initialProducts
+    );
+    globalCachedRestaurantId = initialRestaurantId || "";
+    globalCachedDbProducts = initialProducts;
+    globalCachedCategories = categoryCards;
+    globalCachedMenuItems = menuItems;
+    globalDbLoaded = true;
+  }
   const [activeCategory, setActiveCategory] = useState<string>("popular");
   const [activeSectionId, setActiveSectionId] = useState<string>("popular");
   const [quantities, setQuantities] = useState<Record<string, number>>({});
@@ -369,12 +211,38 @@ export function MenuSection({
   // Ensures the initial hash/query scroll happens only once per page load
   const hasScrolledToInitialTarget = useRef(false);
 
-  // ── LIVE DATA FROM SUPABASE (with fallback to hardcoded) ──
-  const [liveCategories, setLiveCategories] = useState<CategoryCard[]>([]);
-  const [liveMenuItems, setLiveMenuItems] = useState<MenuItem[]>([]);
-  const [liveDbProducts, setLiveDbProducts] = useState<Product[]>([]);
-  const [restaurantId, setRestaurantId] = useState<string>("");
-  const [dbLoaded, setDbLoaded] = useState(false);
+  // ── LIVE DATA FROM SUPABASE (persisted in global cache) ──
+  const [liveCategories, setLiveCategories] = useState<CategoryCard[]>(() => {
+    if (globalDbLoaded && globalCachedCategories.length > 0) return globalCachedCategories;
+    if (initialCategories && initialProducts && initialProducts.length > 0) {
+      const { categoryCards } = buildCategoryCardsAndMenuItems(initialCategories, initialProducts);
+      return categoryCards;
+    }
+    return [];
+  });
+
+  const [liveMenuItems, setLiveMenuItems] = useState<MenuItem[]>(() => {
+    if (globalDbLoaded && globalCachedMenuItems.length > 0) return globalCachedMenuItems;
+    if (initialCategories && initialProducts && initialProducts.length > 0) {
+      const { menuItems } = buildCategoryCardsAndMenuItems(initialCategories, initialProducts);
+      return menuItems;
+    }
+    return [];
+  });
+
+  const [liveDbProducts, setLiveDbProducts] = useState<Product[]>(() => {
+    if (globalDbLoaded && globalCachedDbProducts.length > 0) return globalCachedDbProducts;
+    if (initialProducts && initialProducts.length > 0) return initialProducts;
+    return [];
+  });
+
+  const [restaurantId, setRestaurantId] = useState<string>(() => {
+    return globalCachedRestaurantId || initialRestaurantId || "";
+  });
+
+  const [dbLoaded, setDbLoaded] = useState<boolean>(() => {
+    return globalDbLoaded || (!!initialProducts && initialProducts.length > 0);
+  });
 
   // Fetch live products & categories from Supabase
   useEffect(() => {
@@ -449,77 +317,18 @@ export function MenuSection({
         const dbProducts = rawProducts.map(unpackMeta);
 
         if (dbProducts.length > 0 || dbCategories.length > 0) {
-          // Build category cards from DB categories
-          const categoryCards: CategoryCard[] = [
-            {
-              id: "popular",
-              name: "Popular",
-              count: `${dbProducts.filter((p) => p.featured).length || dbProducts.length} items`,
-              image:
-                dbProducts.find((p) => p.featured)?.image_url ||
-                dbProducts[0]?.image_url ||
-                "https://images.unsplash.com/photo-1578985545062-69928b1d9587?w=300&auto=format&fit=crop&q=80",
-            },
-          ];
-
-          for (const cat of dbCategories) {
-            const catProducts = dbProducts.filter(
-              (p) => p.category_id === cat.id
-            );
-            const coverImage =
-              cat.image_url ||
-              catProducts[0]?.image_url ||
-              (catProducts[0]?.gallery_images && catProducts[0]?.gallery_images[0]) ||
-              "https://images.unsplash.com/photo-1578985545062-69928b1d9587?w=300&auto=format&fit=crop&q=80";
-
-            categoryCards.push({
-              id: cat.id,
-              name: cat.name,
-              count: `${catProducts.length} items`,
-              image: coverImage,
-            });
-          }
-
-          // Also include products with no category under an "Other" tab if needed
-          const uncategorized = dbProducts.filter(
-            (p) => !p.category_id || !dbCategories.find((c) => c.id === p.category_id)
+          const { categoryCards, menuItems } = buildCategoryCardsAndMenuItems(
+            dbCategories,
+            dbProducts
           );
-          if (uncategorized.length > 0 && dbCategories.length > 0) {
-            categoryCards.push({
-              id: "other",
-              name: "Other",
-              count: `${uncategorized.length} items`,
-              image:
-                uncategorized[0]?.image_url ||
-                "https://images.unsplash.com/photo-1578985545062-69928b1d9587?w=300&auto=format&fit=crop&q=80",
-            });
-          }
-
-          // Build menu items from DB products
-          const menuItems: MenuItem[] = dbProducts.map((p) => {
-            const cat = dbCategories.find((c) => c.id === p.category_id);
-            const categorySlug = cat ? cat.id : "other";
-
-            const pGallery = Array.isArray(p.gallery_images) ? p.gallery_images : [];
-            const primaryImg = p.image_url || (pGallery.length > 0 ? pGallery[0] : "") ||
-              "https://images.unsplash.com/photo-1578985545062-69928b1d9587?w=800&auto=format&fit=crop&q=80";
-
-            return {
-              id: p.id,
-              name: p.name,
-              price: Number(p.price),
-              description: p.description || "",
-              category: categorySlug,
-              isPopular: p.featured,
-              badge: (p.badge as MenuItem["badge"]) || undefined,
-              tags: p.tags || [],
-              image: primaryImg,
-              doodleText: p.story_text || undefined,
-              hasChefHat: false,
-            };
-          });
 
           if (!cancelled) {
+            globalCachedRestaurantId = restaurant.id;
+            globalCachedDbProducts = dbProducts;
+            globalCachedCategories = categoryCards;
+            globalCachedMenuItems = menuItems;
+            globalDbLoaded = true;
+
             setRestaurantId(restaurant.id);
             setLiveDbProducts(dbProducts);
             setLiveCategories(categoryCards);
@@ -538,9 +347,9 @@ export function MenuSection({
     };
   }, []);
 
-  // Use live data if loaded, otherwise fallback to hardcoded constants
-  const baseCategoryCards = dbLoaded && liveCategories.length > 0 ? liveCategories : CATEGORY_CARDS;
-  const activeMenuItems = dbLoaded && liveMenuItems.length > 0 ? liveMenuItems : MENU_ITEMS;
+  // Use live data (persisted in module cache)
+  const baseCategoryCards = liveCategories;
+  const activeMenuItems = liveMenuItems;
 
   // Categories order: First "Popular", then rest of categories in order
   const popularCard = baseCategoryCards.find((c) => c.id === "popular");
