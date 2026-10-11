@@ -156,7 +156,7 @@ export function Header({ cartCount: initialCartCount }: HeaderProps) {
         rel="noopener noreferrer"
         id="navbar-whatsapp-bar"
         aria-label="Direct WhatsApp chat with admin at +91 97171 23510"
-        className="group relative z-20 flex items-center justify-between w-full bg-gradient-to-r from-[#128C7E] via-[#25D366] to-[#128C7E] hover:from-[#0d7367] hover:via-[#20ba59] hover:to-[#0d7367] text-white py-1.5 sm:py-2 px-3 sm:px-6 transition-all duration-300 shadow-[0_2px_8px_rgba(0,0,0,0.12)] border-t border-black/10 overflow-hidden cursor-pointer"
+        className="group relative z-20 flex items-center w-full bg-gradient-to-r from-[#128C7E] via-[#25D366] to-[#128C7E] hover:from-[#0d7367] hover:via-[#20ba59] hover:to-[#0d7367] text-white py-1.5 sm:py-2 px-4 sm:px-8 transition-all duration-300 shadow-[0_2px_8px_rgba(0,0,0,0.12)] border-t border-black/10 overflow-hidden cursor-pointer"
       >
         {/* Subtle hover shimmer beam */}
         <span
@@ -164,7 +164,7 @@ export function Header({ cartCount: initialCartCount }: HeaderProps) {
           aria-hidden="true"
         />
 
-        <div className="relative mx-auto max-w-7xl w-full flex items-center justify-center gap-2 sm:gap-2.5">
+        <div className="relative mx-auto max-w-7xl w-full flex items-center justify-start gap-2 sm:gap-2.5">
           {/* WhatsApp Icon + Text */}
           <span className="flex items-center justify-center w-6 h-6 sm:w-7 sm:h-7 rounded-full bg-white text-[#25D366] shadow-[0_1px_4px_rgba(0,0,0,0.18)] group-hover:scale-110 transition-transform duration-200 shrink-0">
             <svg
@@ -180,9 +180,6 @@ export function Header({ cartCount: initialCartCount }: HeaderProps) {
           <div className="flex items-center gap-1.5 leading-tight">
             <span className="font-bold text-[12px] sm:text-sm tracking-wide text-white drop-shadow-[0_1px_1px_rgba(0,0,0,0.18)]">
               Order Directly on WhatsApp
-            </span>
-            <span className="hidden md:inline text-white/90 text-xs font-normal">
-              • Custom Cakes, Bulk & Instant Help
             </span>
             <span className="text-white/90 text-[11px] sm:text-xs font-semibold group-hover:translate-x-0.5 transition-transform duration-200">
               ↗
