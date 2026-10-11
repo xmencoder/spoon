@@ -115,10 +115,10 @@ export function FounderNoteSection() {
                 style={{ transform: "rotate(25deg)" }}
               />
 
-              {/* Sticky note badge — "Baked with Love Always" */}
+              {/* Sticky note badge — "Baked with Love Always" — top-right of polaroid */}
               <div
-                className="absolute -bottom-6 -left-6 sm:-bottom-8 sm:-left-10 bg-[#faf3e6] px-4 py-3 sm:px-5 sm:py-4 rounded-sm shadow-[0_4px_16px_rgba(41,37,31,0.1)] border border-[#E8D5BC]/60"
-                style={{ transform: "rotate(-6deg)" }}
+                className="absolute -top-6 -right-6 sm:-top-8 sm:-right-8 bg-[#faf3e6] px-4 py-3 sm:px-5 sm:py-4 rounded-sm shadow-[0_4px_16px_rgba(41,37,31,0.1)] border border-[#E8D5BC]/60 z-10"
+                style={{ transform: "rotate(5deg)" }}
               >
                 <p
                   className="text-sm sm:text-base text-[#5a4a3a] leading-snug"
