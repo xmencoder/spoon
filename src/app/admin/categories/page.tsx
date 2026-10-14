@@ -561,9 +561,9 @@ export default function AdminCategoriesPage() {
           <div className="flex items-center gap-2 sm:w-56 shrink-0">
             <ShieldAlert className="h-4 w-4 text-rose-500 shrink-0" />
             <div>
-              <span className="text-xs font-bold text-spoon-dark block">Order Limit</span>
+              <span className="text-xs font-bold text-spoon-dark block">Daily Order Limit</span>
               <span className="text-[10px] text-spoon-muted">
-                Max total units sold across all orders
+                Max total units allowed per day (resets daily)
               </span>
             </div>
           </div>
@@ -574,15 +574,15 @@ export default function AdminCategoriesPage() {
               step="1"
               value={newCatLimit}
               onChange={(e) => setNewCatLimit(e.target.value)}
-              placeholder="e.g. 50 (leave blank for unlimited)"
+              placeholder="e.g. 10 (leave blank for unlimited)"
               disabled={creating}
               className="h-9 text-xs bg-white border-spoon-border focus:border-rose-400 max-w-[220px]"
             />
-            <span className="text-xs text-spoon-muted shrink-0">units</span>
+            <span className="text-xs text-spoon-muted shrink-0">units/day</span>
             {newCatLimit && parseInt(newCatLimit, 10) > 0 && (
               <span className="inline-flex items-center gap-1 text-[11px] font-semibold text-rose-700 bg-rose-50 border border-rose-200 px-2.5 py-1 rounded-full">
                 <ShieldAlert className="h-3 w-3" />
-                Limit: {parseInt(newCatLimit, 10)} units
+                Daily Limit: {parseInt(newCatLimit, 10)} units/day
               </span>
             )}
           </div>
@@ -794,7 +794,7 @@ export default function AdminCategoriesPage() {
                             {/* Order Limit */}
                             <div className="flex items-center gap-2">
                               <ShieldAlert className="h-3.5 w-3.5 text-rose-500 shrink-0" />
-                              <span className="text-[10px] font-semibold text-spoon-dark w-20 shrink-0">Order Limit:</span>
+                              <span className="text-[10px] font-semibold text-spoon-dark w-20 shrink-0">Daily Limit:</span>
                               <Input
                                 type="number"
                                 min="1"
@@ -803,14 +803,14 @@ export default function AdminCategoriesPage() {
                                 onChange={(e) => setEditingLimit(e.target.value)}
                                 placeholder="blank = unlimited"
                                 disabled={savingEdit}
-                                title="Max total units across all orders (leave blank for unlimited)"
+                                title="Max total units per day (resets daily)"
                                 className="h-8 text-xs w-28 border-spoon-border focus:border-rose-400"
                               />
-                              <span className="text-[10px] text-spoon-muted">units</span>
+                              <span className="text-[10px] text-spoon-muted">units/day</span>
                               {editingLimit && parseInt(editingLimit, 10) > 0 && (
                                 <span className="inline-flex items-center gap-1 text-[10px] font-semibold text-rose-700 bg-rose-50 border border-rose-200 px-2 py-0.5 rounded-full">
                                   <ShieldAlert className="h-3 w-3" />
-                                  Max {parseInt(editingLimit, 10)}
+                                  Max {parseInt(editingLimit, 10)}/day
                                 </span>
                               )}
                             </div>
@@ -869,7 +869,7 @@ export default function AdminCategoriesPage() {
                           {cat.category_limit != null && cat.category_limit > 0 && (
                             <span className="inline-flex items-center gap-1 text-[10px] font-semibold text-rose-700 bg-rose-50 border border-rose-200 px-2 py-0.5 rounded-full">
                               <ShieldAlert className="h-3 w-3" />
-                              Limit: {cat.category_limit} units
+                              Limit: {cat.category_limit} units/day
                             </span>
                           )}
                         </div>

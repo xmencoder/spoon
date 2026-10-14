@@ -46,6 +46,27 @@ export interface CreateOrderResult {
   error?: string;
 }
 
+/** Helper to get date string 'YYYY-MM-DD' in Indian Standard Time (Asia/Kolkata) */
+export function getISTDateString(date: Date = new Date()): string {
+  return new Intl.DateTimeFormat("en-CA", {
+    timeZone: "Asia/Kolkata",
+    year: "numeric",
+    month: "2-digit",
+    day: "2-digit",
+  }).format(date);
+}
+
+/** Helper to extract 'YYYY-MM-DD' from an order record */
+export function getOrderDateString(order: { delivery_date?: string | null; created_at?: string | null }): string {
+  if (order.delivery_date && /^\d{4}-\d{2}-\d{2}$/.test(order.delivery_date.trim())) {
+    return order.delivery_date.trim();
+  }
+  if (order.created_at) {
+    return getISTDateString(new Date(order.created_at));
+  }
+  return getISTDateString();
+}
+
 export async function createOrder(
   data: CheckoutFormData
 ): Promise<CreateOrderResult> {
@@ -58,8 +79,13 @@ export async function createOrder(
       throw new Error("A valid email address is required for order updates and receipt delivery.");
     }
 
+    // Determine target day for this order (per-day limits apply to that day)
+    const targetOrderDate = (data.deliveryDate && /^\d{4}-\d{2}-\d{2}$/.test(data.deliveryDate.trim()))
+      ? data.deliveryDate.trim()
+      : getISTDateString();
+
     // 1. Build order items from payload
-    // Pre‑check product order limits before creating the order
+    // Pre‑check product order limits per day before creating the order
     const admin = createAdminClient();
     const productIds = data.cartItems.map((ci) => ci.productId);
     const { data: prodInfo, error: prodInfoErr } = await admin
@@ -79,12 +105,15 @@ export async function createOrder(
 
         const { data: pItems } = await admin
           .from('order_items')
-          .select('quantity, orders!inner(status)')
+          .select('quantity, orders!inner(status, delivery_date, created_at)')
           .eq('product_id', p.id)
           .neq('orders.status', 'cancelled');
 
         const prodAlreadyOrdered = (pItems || []).reduce(
-          (sum, it: any) => sum + (Number(it.quantity) || 0),
+          (sum, it: any) => {
+            const oDate = getOrderDateString(it.orders);
+            return oDate === targetOrderDate ? sum + (Number(it.quantity) || 0) : sum;
+          },
           0
         );
 
@@ -93,14 +122,14 @@ export async function createOrder(
           const remaining = Math.max(0, p.order_limit - prodAlreadyOrdered);
           throw new Error(
             remaining === 0
-              ? `Sorry, "${ci.productName}" is sold out.`
-              : `Only ${remaining} unit${remaining === 1 ? '' : 's'} remaining for "${ci.productName}". Please adjust your cart.`
+              ? `Sorry, "${ci.productName}" is sold out for ${targetOrderDate}.`
+              : `Only ${remaining} unit${remaining === 1 ? '' : 's'} remaining for "${ci.productName}" today (${targetOrderDate}). Please adjust your cart.`
           );
         }
       }
     }
 
-    // 1.2. Pre-check category order limits
+    // 1.2. Pre-check category order limits per day
     // Group cart items by their product's category_id
     const { data: prodCatInfo } = await admin
       .from('products')
@@ -133,7 +162,7 @@ export async function createOrder(
         );
 
         if (limitedCats.length > 0) {
-          // For each limited category, count already-ordered quantities from non-cancelled orders
+          // For each limited category, count already-ordered quantities from non-cancelled orders for this day
           for (const cat of limitedCats) {
             // Get all product IDs in this category
             const { data: catProds } = await admin
@@ -146,12 +175,15 @@ export async function createOrder(
 
             const { data: catOrderItems } = await admin
               .from('order_items')
-              .select('quantity, orders!inner(status)')
+              .select('quantity, orders!inner(status, delivery_date, created_at)')
               .in('product_id', catProdIds)
               .neq('orders.status', 'cancelled');
 
             const alreadyOrdered = (catOrderItems || []).reduce(
-              (sum, oi: any) => sum + (Number(oi.quantity) || 0),
+              (sum, oi: any) => {
+                const oDate = getOrderDateString(oi.orders);
+                return oDate === targetOrderDate ? sum + (Number(oi.quantity) || 0) : sum;
+              },
               0
             );
 
@@ -165,8 +197,8 @@ export async function createOrder(
               const remaining = Math.max(0, cat.category_limit - alreadyOrdered);
               throw new Error(
                 remaining === 0
-                  ? `Sorry, "${cat.name}" is sold out.`
-                  : `Only ${remaining} unit${remaining === 1 ? '' : 's'} remaining in "${cat.name}". Please adjust your cart.`
+                  ? `Sorry, "${cat.name}" is sold out for ${targetOrderDate}.`
+                  : `Only ${remaining} unit${remaining === 1 ? '' : 's'} remaining in "${cat.name}" today (${targetOrderDate}). Please adjust your cart.`
               );
             }
           }
@@ -472,13 +504,18 @@ export async function submitPaymentConfirmation(payload: {
  * Returns a map of categoryId → { limit, totalOrdered, remaining }
  * for all categories in a restaurant that have a category_limit set.
  * Aggregates actual quantities from order_items (excluding cancelled orders)
- * to ensure 100% real-time accuracy across all customers.
+ * for a specific day (targetDate defaults to today in IST).
+ * Category limits reset every day.
  */
 export async function getCategoryRemainingStock(
-  restaurantId: string
+  restaurantId: string,
+  targetDate?: string
 ): Promise<Record<string, { limit: number; totalOrdered: number; remaining: number }>> {
   try {
     const admin = createAdminClient();
+    const dateStr = (targetDate && /^\d{4}-\d{2}-\d{2}$/.test(targetDate.trim()))
+      ? targetDate.trim()
+      : getISTDateString();
 
     // Fetch all categories with a limit for this restaurant
     const { data: cats, error: catErr } = await admin
@@ -525,16 +562,19 @@ export async function getCategoryRemainingStock(
     // Query order_items for these products from non-cancelled orders
     const { data: items, error: itemsErr } = await admin
       .from("order_items")
-      .select("product_id, quantity, orders!inner(id, status)")
+      .select("product_id, quantity, orders!inner(id, status, delivery_date, created_at)")
       .in("product_id", prodIds)
       .neq("orders.status", "cancelled");
 
     const orderedPerCat: Record<string, number> = {};
     if (!itemsErr && items) {
       items.forEach((it: any) => {
-        const catId = it.product_id ? prodToCat[it.product_id] : null;
-        if (catId) {
-          orderedPerCat[catId] = (orderedPerCat[catId] || 0) + (Number(it.quantity) || 0);
+        const oDate = getOrderDateString(it.orders);
+        if (oDate === dateStr) {
+          const catId = it.product_id ? prodToCat[it.product_id] : null;
+          if (catId) {
+            orderedPerCat[catId] = (orderedPerCat[catId] || 0) + (Number(it.quantity) || 0);
+          }
         }
       });
     }
