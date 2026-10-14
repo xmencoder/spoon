@@ -29,6 +29,7 @@ import {
   Navigation,
   Copy,
   Check,
+  Loader2,
 } from "lucide-react";
 import { generateOrderReceiptPdf } from "@/lib/pdf-generator";
 
@@ -69,6 +70,53 @@ interface ReceiptData {
   paymentStatus?: "PAID" | "PENDING" | string;
   paymentMethod?: string;
   trackingToken?: string;
+}
+
+function buildWhatsAppPingUrl(receipt: ReceiptData): string {
+  const bakeryPhone = (receipt.restaurantPhone || "919717123510").replace(/\D/g, "");
+  const targetPhone = bakeryPhone.startsWith("91") ? bakeryPhone : `91${bakeryPhone}`;
+
+  let msg = `🧁 *New Order from The Indulgent Spoon* 🧁\n\n`;
+  msg += `*Order ID:* #${receipt.orderId}\n`;
+  msg += `*Customer:* ${receipt.customerName}\n`;
+  msg += `*Phone:* ${receipt.customerPhone}\n`;
+  if (receipt.customerEmail) {
+    msg += `*Email:* ${receipt.customerEmail}\n`;
+  }
+
+  msg += `\n`;
+  if (receipt.orderType === "takeaway") {
+    msg += `🛍️ *Fulfilment:* Bakery Takeaway (Self Pickup)\n`;
+    if (receipt.deliveryDate) msg += `🗓️ *Pickup Date:* ${receipt.deliveryDate}\n`;
+    if (receipt.deliveryTimeSlot) msg += `⏰ *Pickup Slot:* ${receipt.deliveryTimeSlot}\n`;
+    msg += `📍 *Pickup Address:* N 376, 2nd Floor, Mayfield Gardens, Sec 51, Gurgaon\n`;
+  } else {
+    msg += `📦 *Fulfilment:* Home Delivery\n`;
+    if (receipt.deliveryDate) msg += `🗓️ *Delivery Date:* ${receipt.deliveryDate}\n`;
+    if (receipt.deliveryTimeSlot) msg += `⏰ *Delivery Slot:* ${receipt.deliveryTimeSlot}\n`;
+    if (receipt.deliveryAddress) {
+      const typeTag = receipt.addressType ? ` (${receipt.addressType.toUpperCase()})` : "";
+      msg += `📍 *Delivery Address${typeTag}:* ${receipt.deliveryAddress}\n`;
+    }
+  }
+
+  msg += `\n🛍️ *Items Ordered:*\n`;
+  for (const item of receipt.items) {
+    const size = item.sizeLabel ? ` (${item.sizeLabel})` : "";
+    msg += `• ${item.name}${size} × ${item.quantity} — ₹${item.unitPrice * item.quantity}\n`;
+    if (item.addons && item.addons.length > 0) {
+      msg += `   └ Add-ons: ${item.addons.map((a) => a.label).join(", ")}\n`;
+    }
+  }
+
+  msg += `\n💰 *Total Paid:* ₹${receipt.total} (${receipt.paymentStatus === "PAID" ? "Paid Online via Razorpay/UPI" : "Payment Pending"})\n`;
+  if (receipt.hasGiftNote && receipt.giftNote) {
+    msg += `💌 *Gift Note:* "${receipt.giftNote}"\n`;
+  }
+
+  msg += `\n_Hi! I've just placed and paid for this order on your website. Please confirm my order. Thank you!_ ✨`;
+
+  return `https://wa.me/${targetPhone}?text=${encodeURIComponent(msg)}`;
 }
 
 export default function OrderSuccessReceiptPage() {
@@ -162,8 +210,23 @@ export default function OrderSuccessReceiptPage() {
 
   if (loading) {
     return (
-      <div className="min-h-screen bg-[#D9BC9E] flex items-center justify-center">
-        <div className="h-8 w-8 animate-spin rounded-full border-4 border-[#C26B59] border-t-transparent" />
+      <div className="min-h-screen bg-[#D9BC9E] flex items-center justify-center p-4">
+        <div className="bg-[#FAF5ED] border border-[#D9BC9E] rounded-3xl p-8 max-w-sm w-full text-center shadow-2xl relative overflow-hidden">
+          <div className="relative mx-auto w-16 h-16 mb-4">
+            <div className="w-16 h-16 rounded-2xl bg-[#E8D5BC] border border-[#91885D]/30 flex items-center justify-center text-[#C26B59] shadow-inner">
+              <Loader2 className="w-8 h-8 animate-spin text-[#C26B59]" />
+            </div>
+          </div>
+          <h3 className="font-serif text-xl font-bold text-[#29251F] mb-1.5">
+            Generating Your Receipt...
+          </h3>
+          <p className="text-xs text-[#696053] leading-relaxed mb-4">
+            Please wait while we prepare your official digital order invoice and summary.
+          </p>
+          <div className="w-full bg-[#E5D7C5] h-1.5 rounded-full overflow-hidden">
+            <div className="h-full w-full bg-gradient-to-r from-[#C26B59] via-[#91885D] to-[#4D7C47] rounded-full animate-progress-indeterminate" />
+          </div>
+        </div>
       </div>
     );
   }
@@ -632,24 +695,29 @@ export default function OrderSuccessReceiptPage() {
             </button>
           </div>
 
-          {/* Primary Action: Open / Send on WhatsApp */}
-          {receipt.whatsappUrl && (
-            <a
-              href={receipt.whatsappUrl}
-              target="_blank"
-              rel="noopener noreferrer"
-              className="w-full flex items-center justify-center gap-2.5 rounded-2xl bg-[#634832] hover:bg-[#523B28] text-[#F5EBDD] py-3.5 text-xs sm:text-sm font-bold shadow-warm-md hover:shadow-warm-lg transition-all active:scale-[0.99]"
-            >
-              <MessageCircle className="w-4 h-4 text-[#F5EBDD]" />
-              <span>Send Order to Bakery on WhatsApp</span>
-              <ExternalLink className="w-3.5 h-3.5 opacity-80" />
-            </a>
+          {/* Primary Action: Open / Send Ping on WhatsApp */}
+          {receipt && (
+            <div className="space-y-1.5 pt-1">
+              <a
+                href={buildWhatsAppPingUrl(receipt)}
+                target="_blank"
+                rel="noopener noreferrer"
+                className="w-full flex items-center justify-center gap-2.5 rounded-2xl bg-[#25D366] hover:bg-[#20BD5A] text-white py-3.5 px-4 text-xs sm:text-sm font-bold shadow-warm-md hover:shadow-warm-lg transition-all active:scale-[0.99] group cursor-pointer"
+              >
+                <MessageCircle className="w-5 h-5 fill-white text-transparent group-hover:scale-110 transition-transform" />
+                <span>Ping Bakery on WhatsApp (Send Order Details)</span>
+                <ExternalLink className="w-3.5 h-3.5 opacity-90" />
+              </a>
+              <p className="text-[10.5px] text-center text-[#696053]">
+                Tap to send your verified order &amp; customer details directly to our bakery on WhatsApp.
+              </p>
+            </div>
           )}
 
           {/* Secondary Action: Back to Menu */}
           <div className="pt-2 text-center">
             <Link
-              href={`/store/${slug}`}
+              href="/#menu"
               className="inline-flex items-center gap-1.5 text-xs font-bold text-[#A34B3D] hover:text-[#7A362B] transition-colors"
             >
               <ArrowLeft className="w-3.5 h-3.5" />

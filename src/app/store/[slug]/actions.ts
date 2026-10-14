@@ -302,22 +302,18 @@ export async function createOrder(
       }
     }
 
-    // 5. Build WhatsApp URL
-    let msg = `🍰 *New Bakery Order #${orderNumber}*\n`;
-    msg += `━━━━━━━━━━━━━━\n`;
+    // 5. Build WhatsApp Ping URL
+    let msg = `🧁 *New Order from The Indulgent Spoon* 🧁\n\n`;
+    msg += `*Order ID:* #${orderNumber}\n`;
     msg += `*Customer:* ${data.customerName}\n`;
     msg += `*Phone:* ${data.customerPhone}\n`;
-    if (data.alternatePhone) {
-      msg += `*Alt Phone:* ${data.alternatePhone}\n`;
-    }
     if (data.customerEmail) {
       msg += `*Email:* ${data.customerEmail}\n`;
     }
-    msg += `*Type:* ${
-      data.orderType === "delivery" ? "🛵 Home Delivery" : "🛍️ Store Pickup"
-    }\n`;
 
+    msg += `\n`;
     if (data.orderType === "delivery") {
+      msg += `📦 *Fulfilment:* Home Delivery\n`;
       if (data.deliveryDate) {
         const dObj = new Date(data.deliveryDate + "T00:00:00");
         const formattedDeliveryDate = isNaN(dObj.getTime())
@@ -328,18 +324,17 @@ export async function createOrder(
               day: "numeric",
               year: "numeric",
             });
-        msg += `*Delivery Date:* ${formattedDeliveryDate}\n`;
+        msg += `🗓️ *Delivery Date:* ${formattedDeliveryDate}\n`;
       }
       if (data.deliveryTimeSlot) {
-        msg += `*Time Slot:* ⏰ ${data.deliveryTimeSlot}\n`;
+        msg += `⏰ *Delivery Slot:* ${data.deliveryTimeSlot}\n`;
       }
       if (data.deliveryAddress) {
         const typeTag = data.addressType ? ` (${data.addressType.toUpperCase()})` : "";
-        msg += `*Address${typeTag}:* ${data.deliveryAddress}\n`;
+        msg += `📍 *Delivery Address${typeTag}:* ${data.deliveryAddress}\n`;
       }
-    }
-
-    if (data.orderType === "takeaway") {
+    } else {
+      msg += `🛍️ *Fulfilment:* Bakery Takeaway (Self Pickup)\n`;
       if (data.deliveryDate) {
         const dObj = new Date(data.deliveryDate + "T00:00:00");
         const formattedPickupDate = isNaN(dObj.getTime())
@@ -350,37 +345,25 @@ export async function createOrder(
               day: "numeric",
               year: "numeric",
             });
-        msg += `*Pickup Date:* ${formattedPickupDate}\n`;
+        msg += `🗓️ *Pickup Date:* ${formattedPickupDate}\n`;
       }
       if (data.deliveryTimeSlot) {
-        msg += `*Pickup Slot:* ⏰ ${data.deliveryTimeSlot}\n`;
+        msg += `⏰ *Pickup Slot:* ${data.deliveryTimeSlot}\n`;
       }
-      msg += `*Pickup Location:* The Indulgent Spoon, N 376, 2nd Floor, Mayfield Gardens, Sec 51, Gurgaon 122018\n`;
-      msg += `*Maps:* https://www.google.com/maps/search/?api=1&query=N+376%2C+2nd+Floor%2C+Mayfield+Gardens%2C+Sector+51%2C+Gurgaon+122018\n`;
+      msg += `📍 *Pickup Address:* N 376, 2nd Floor, Mayfield Gardens, Sec 51, Gurgaon\n`;
     }
 
-    msg += `━━━━━━━━━━━━━━\n`;
-    msg += `*Items:*\n`;
+    msg += `\n🛍️ *Items Ordered:*\n`;
     for (const item of orderItems) {
       msg += `• ${item.productName} × ${item.quantity} — ₹${item.subtotal}\n`;
     }
-    msg += `━━━━━━━━━━━━━━\n`;
-    msg += `*Subtotal:* ₹${itemsSubtotal}\n`;
-    if (calculatedDeliveryCharge > 0) {
-      msg += `*Delivery Fee (${calculatedDistanceKm ? `${calculatedDistanceKm} km` : "Standard"}):* ₹${calculatedDeliveryCharge}\n`;
-    } else if (data.orderType === "takeaway") {
-      msg += `*Delivery:* Free (Store Pickup)\n`;
-    }
-    if (packagingCharge > 0) {
-      msg += `*Packing & Handling (4%):* ₹${packagingCharge}\n`;
-    }
+
+    msg += `\n💰 *Total Paid:* ₹${total} (Paid Online)\n`;
     if (data.hasGiftNote && data.giftNote) {
-      msg += `*Gift Note (+₹40):* "${data.giftNote.trim()}"\n`;
+      msg += `💌 *Gift Note:* "${data.giftNote.trim()}"\n`;
     }
-    msg += `*Total Amount:* ₹${total}\n`;
-    msg += `*Payment:* UPI (Pending Verification)\n`;
-    msg += `━━━━━━━━━━━━━━\n`;
-    msg += `_Please confirm my order and verify payment._`;
+
+    msg += `\n_Hi! I've just placed and paid for this order on your website. Please confirm my order. Thank you!_ ✨`;
 
     const cleanNumber = data.whatsappNumber.replace(/\D/g, "");
     const encodedMsg = encodeURIComponent(msg);

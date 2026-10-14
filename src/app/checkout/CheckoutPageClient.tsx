@@ -152,6 +152,7 @@ export default function CheckoutPageClient() {
 
   // Status
   const [submitting, setSubmitting] = useState(false);
+  const [isGeneratingReceipt, setIsGeneratingReceipt] = useState(false);
   const [errorMsg, setErrorMsg] = useState<string | null>(null);
 
 
@@ -658,6 +659,7 @@ export default function CheckoutPageClient() {
           handler: async function (response: any) {
             try {
               setSubmitting(true);
+              setIsGeneratingReceipt(true);
               // Verify payment on server
               await fetch("/api/razorpay/verify-payment", {
                 method: "POST",
@@ -1715,6 +1717,59 @@ export default function CheckoutPageClient() {
           )}
         </div>
       </div>
+
+      {/* ── CREATIVE PAYMENT SUCCESS & RECEIPT GENERATION TRANSITION OVERLAY ── */}
+      {isGeneratingReceipt && (
+        <div className="fixed inset-0 z-[9999] bg-[#29251F]/80 backdrop-blur-md flex flex-col items-center justify-center p-4 animate-in fade-in duration-300">
+          <div className="bg-[#FAF5ED] border border-[#D9BC9E] rounded-3xl p-7 sm:p-9 max-w-sm w-full text-center shadow-2xl relative overflow-hidden">
+            {/* Soft Ambient Glows */}
+            <div className="absolute -top-12 -left-12 w-32 h-32 bg-[#C26B59]/15 rounded-full blur-2xl pointer-events-none" />
+            <div className="absolute -bottom-12 -right-12 w-32 h-32 bg-[#4D7C47]/15 rounded-full blur-2xl pointer-events-none" />
+
+            {/* Animated Celebration & Stamp Icon */}
+            <div className="relative mx-auto w-20 h-20 mb-4">
+              <div className="w-20 h-20 rounded-2xl bg-[#E8D5BC] border-2 border-[#91885D]/30 flex items-center justify-center text-[#C26B59] shadow-inner relative">
+                <Sparkles className="w-9 h-9 text-[#C26B59] animate-pulse" />
+              </div>
+              <div className="absolute -bottom-1 -right-1 w-7 h-7 rounded-full bg-[#4D7C47] text-white flex items-center justify-center shadow-md animate-bounce">
+                <Check className="w-4 h-4 stroke-[3]" />
+              </div>
+            </div>
+
+            <div className="inline-block px-3 py-1 rounded-full bg-[#4D7C47]/15 text-[#2D5A27] text-[11px] font-bold tracking-wide uppercase mb-2 border border-[#4D7C47]/20">
+              Payment Successful
+            </div>
+
+            <h3 className="font-serif text-2xl font-bold text-[#29251F] leading-tight mb-2">
+              Generating Your Receipt...
+            </h3>
+            <p className="text-xs text-[#696053] leading-relaxed mb-5">
+              Please wait while we secure your baking slot and prepare your digital invoice.
+            </p>
+
+            {/* Stepper Checklist */}
+            <div className="space-y-2.5 text-left bg-[#F3EADF] rounded-2xl p-3.5 border border-[#E3D4C1] text-xs">
+              <div className="flex items-center gap-2.5 text-[#2D5A27] font-semibold">
+                <span className="w-4 h-4 rounded-full bg-[#4D7C47] text-white flex items-center justify-center text-[10px] shrink-0 font-bold">✓</span>
+                <span>Payment verified securely</span>
+              </div>
+              <div className="flex items-center gap-2.5 text-[#2D5A27] font-semibold">
+                <span className="w-4 h-4 rounded-full bg-[#4D7C47] text-white flex items-center justify-center text-[10px] shrink-0 font-bold">✓</span>
+                <span>Baking slot confirmed</span>
+              </div>
+              <div className="flex items-center gap-2.5 text-[#C26B59] font-bold animate-pulse">
+                <Loader2 className="w-4 h-4 animate-spin shrink-0 text-[#C26B59]" />
+                <span>Generating receipt &amp; order details...</span>
+              </div>
+            </div>
+
+            {/* Animated Warm Progress Bar */}
+            <div className="mt-5 w-full bg-[#E5D7C5] h-1.5 rounded-full overflow-hidden">
+              <div className="h-full w-full bg-gradient-to-r from-[#C26B59] via-[#91885D] to-[#4D7C47] rounded-full animate-progress-indeterminate" />
+            </div>
+          </div>
+        </div>
+      )}
     </div>
   );
 }
