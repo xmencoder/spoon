@@ -82,6 +82,77 @@ export async function createOrder(
       }
     }
 
+    // 1.2. Pre-check category order limits
+    // Group cart items by their product's category_id
+    const { data: prodCatInfo } = await supabase
+      .from('products')
+      .select('id, category_id')
+      .in('id', productIds);
+
+    if (prodCatInfo && prodCatInfo.length > 0) {
+      // Collect unique category IDs that have products in cart
+      const catIdSet = new Set<string>();
+      const prodToCat: Record<string, string> = {};
+      prodCatInfo.forEach((p) => {
+        if (p.category_id) {
+          catIdSet.add(p.category_id);
+          prodToCat[p.id] = p.category_id;
+        }
+      });
+
+      if (catIdSet.size > 0) {
+        const catIds = Array.from(catIdSet);
+
+        // Fetch categories with limits
+        const { data: catsWithLimit } = await supabase
+          .from('categories')
+          .select('id, name, category_limit')
+          .in('id', catIds)
+          .not('category_limit', 'is', null);
+
+        const limitedCats = (catsWithLimit || []).filter(
+          (c) => c.category_limit != null && c.category_limit > 0
+        );
+
+        if (limitedCats.length > 0) {
+          // For each limited category, count already-ordered quantities from non-cancelled orders
+          for (const cat of limitedCats) {
+            // Get all product IDs in this category from the cart
+            const catProductIds = productIds.filter(
+              (pid) => prodToCat[pid] === cat.id
+            );
+            if (catProductIds.length === 0) continue;
+
+            // Sum total_ordered from ALL products in this category
+            const { data: catProds } = await supabase
+              .from('products')
+              .select('id, total_ordered')
+              .eq('category_id', cat.id);
+
+            const alreadyOrdered = (catProds || []).reduce(
+              (sum, p) => sum + (Number(p.total_ordered) || 0),
+              0
+            );
+
+            // How much is this customer adding from this category
+            const cartQtyInCat = data.cartItems
+              .filter((ci) => prodToCat[ci.productId] === cat.id)
+              .reduce((sum, ci) => sum + ci.quantity, 0);
+
+            const prospective = alreadyOrdered + cartQtyInCat;
+            if (prospective > cat.category_limit) {
+              const remaining = Math.max(0, cat.category_limit - alreadyOrdered);
+              throw new Error(
+                remaining === 0
+                  ? `Sorry, "${cat.name}" is sold out for this period.`
+                  : `Only ${remaining} unit${remaining === 1 ? '' : 's'} remaining in "${cat.name}". Please adjust your cart.`
+              );
+            }
+          }
+        }
+      }
+    }
+
     // 1.5. If delivery/pickup slot is selected, check capacity
     if (data.deliverySlotId && !data.deliverySlotId.startsWith("fallback-")) {
       const { data: slotData, error: slotErr } = await supabase
@@ -395,3 +466,60 @@ export async function submitPaymentConfirmation(payload: {
   return submitCustomerPaymentAction({ orderId: payload.orderId });
 }
 
+/**
+ * Returns a map of categoryId → { limit, totalOrdered, remaining }
+ * for all categories in a restaurant that have a category_limit set.
+ * Uses product.total_ordered as the source of truth (same as product-level limit).
+ */
+export async function getCategoryRemainingStock(
+  restaurantId: string
+): Promise<Record<string, { limit: number; totalOrdered: number; remaining: number }>> {
+  try {
+    const supabase = await createClient();
+
+    // Fetch all categories with a limit for this restaurant
+    const { data: cats } = await supabase
+      .from("categories")
+      .select("id, name, category_limit")
+      .eq("restaurant_id", restaurantId)
+      .not("category_limit", "is", null);
+
+    const limitedCats = (cats || []).filter(
+      (c) => c.category_limit != null && c.category_limit > 0
+    );
+
+    if (limitedCats.length === 0) return {};
+
+    // Fetch products in those categories to sum total_ordered
+    const catIds = limitedCats.map((c) => c.id);
+    const { data: products } = await supabase
+      .from("products")
+      .select("id, category_id, total_ordered")
+      .eq("restaurant_id", restaurantId)
+      .in("category_id", catIds);
+
+    // Sum total_ordered per category
+    const orderedPerCat: Record<string, number> = {};
+    (products || []).forEach((p) => {
+      if (p.category_id) {
+        orderedPerCat[p.category_id] =
+          (orderedPerCat[p.category_id] || 0) + (Number(p.total_ordered) || 0);
+      }
+    });
+
+    const result: Record<string, { limit: number; totalOrdered: number; remaining: number }> = {};
+    limitedCats.forEach((cat) => {
+      const totalOrdered = orderedPerCat[cat.id] || 0;
+      const limit = cat.category_limit as number;
+      result[cat.id] = {
+        limit,
+        totalOrdered,
+        remaining: Math.max(0, limit - totalOrdered),
+      };
+    });
+
+    return result;
+  } catch {
+    return {};
+  }
+}

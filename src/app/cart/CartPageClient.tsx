@@ -12,6 +12,7 @@ import { formatPrice } from "@/lib/utils";
 import { isSourdoughOrFocaccia } from "@/lib/delivery-slots-service";
 import { createClient } from "@/lib/supabase/client";
 import type { Product, Category } from "@/types/database";
+import { getCategoryRemainingStock } from "@/app/store/[slug]/actions";
 import { Header } from "@/components/layout/Header";
 import { Footer } from "@/components/layout/Footer";
 import {
@@ -55,6 +56,9 @@ export default function CartPageClient() {
   const [favorites, setFavorites] = useState<Record<string, boolean>>({});
   const [addedRecId, setAddedRecId] = useState<string | null>(null);
   const [selectedCategoryTab, setSelectedCategoryTab] = useState<string>("all");
+  const [catStockMap, setCatStockMap] = useState<
+    Record<string, { limit: number; totalOrdered: number; remaining: number }>
+  >({});
 
   // Fetch live products & categories from Supabase database
   useEffect(() => {
@@ -70,6 +74,9 @@ export default function CartPageClient() {
           .maybeSingle();
 
         const targetRestId = rest?.id;
+        if (targetRestId) {
+          getCategoryRemainingStock(targetRestId).then((map) => setCatStockMap(map));
+        }
 
         const [prodRes, catRes] = await Promise.all([
           targetRestId
@@ -118,6 +125,30 @@ export default function CartPageClient() {
     return map;
   }, [dbCategories]);
 
+  // Check if any category limit is exceeded by items currently in the cart
+  const categoryCartQuantities = useMemo(() => {
+    const map: Record<string, number> = {};
+    items.forEach((item) => {
+      const catId = item.product.category_id;
+      if (catId) {
+        map[catId] = (map[catId] || 0) + item.quantity;
+      }
+    });
+    return map;
+  }, [items]);
+
+  const exceededCategories = useMemo(() => {
+    const list: { catName: string; remaining: number; inCart: number }[] = [];
+    Object.entries(categoryCartQuantities).forEach(([catId, inCart]) => {
+      const stock = catStockMap[catId];
+      if (stock && inCart > stock.remaining) {
+        const catName = categoryMap[catId]?.name || "This category";
+        list.push({ catName, remaining: stock.remaining, inCart });
+      }
+    });
+    return list;
+  }, [categoryCartQuantities, catStockMap, categoryMap]);
+
   // Detect which categories are represented in user's cart
   const userCartCategories = useMemo(() => {
     const matchedCategories = new Set<string>();
@@ -142,6 +173,9 @@ export default function CartPageClient() {
   };
 
   const handleAddRecommended = (product: Product, e?: React.MouseEvent) => {
+    if (product.category_id && catStockMap[product.category_id]?.remaining <= 0) {
+      return;
+    }
     addItem(product, 1, undefined, e);
     setAddedRecId(product.id);
     setTimeout(() => setAddedRecId(null), 1500);
@@ -235,6 +269,11 @@ export default function CartPageClient() {
                 <div className="divide-y divide-[#91885D]/15">
                   {items.map((item) => {
                     const lineTotal = item.unitPrice * item.quantity;
+                    const itemCatStock = item.product.category_id ? catStockMap[item.product.category_id] : null;
+                    const totalInCat = item.product.category_id ? (categoryCartQuantities[item.product.category_id] || 0) : 0;
+                    const isCatExceeded = itemCatStock != null && totalInCat > itemCatStock.remaining;
+                    const canIncrement = itemCatStock == null || totalInCat < itemCatStock.remaining;
+
                     return (
                       <div
                         key={item.id}
@@ -274,6 +313,16 @@ export default function CartPageClient() {
                             {item.sizeLabel && (
                               <span className="inline-block text-[11px] font-bold text-[#A34B3D] bg-[#A34B3D]/10 px-2 py-0.5 rounded-md mt-1 mr-2">
                                 Size: {item.sizeLabel}
+                              </span>
+                            )}
+                            {isCatExceeded && itemCatStock && (
+                              <span className="inline-block text-[10px] font-bold text-rose-700 bg-rose-100 border border-rose-300 px-2 py-0.5 rounded-md mt-1 mr-2">
+                                ⚠️ Exceeds category limit ({itemCatStock.remaining} left)
+                              </span>
+                            )}
+                            {!isCatExceeded && itemCatStock && itemCatStock.remaining <= 5 && (
+                              <span className="inline-block text-[10px] font-bold text-[#C26B59] bg-[#C26B59]/10 px-2 py-0.5 rounded-md mt-1 mr-2">
+                                Only {itemCatStock.remaining} left in category
                               </span>
                             )}
                             {isSourdoughOrFocaccia(item.product) && (
@@ -324,8 +373,16 @@ export default function CartPageClient() {
                               {item.quantity}
                             </span>
                             <button
-                              onClick={() => increment(item.id)}
-                              className="w-6 h-6 rounded-md flex items-center justify-center text-[#554D3F] hover:text-[#29251F] hover:bg-[#DFD3C0] transition-colors cursor-pointer"
+                              onClick={() => {
+                                if (canIncrement) increment(item.id);
+                              }}
+                              disabled={!canIncrement}
+                              className={`w-6 h-6 rounded-md flex items-center justify-center transition-colors ${
+                                canIncrement
+                                  ? "text-[#554D3F] hover:text-[#29251F] hover:bg-[#DFD3C0] cursor-pointer"
+                                  : "text-[#B5A490] opacity-40 cursor-not-allowed"
+                              }`}
+                              title={!canIncrement ? "Category order limit reached" : "Increase quantity"}
                               aria-label="Increase quantity"
                             >
                               <Plus className="w-3.5 h-3.5" />
@@ -405,13 +462,29 @@ export default function CartPageClient() {
                 </div>
 
                 {/* ── PROCEED TO CHECKOUT BUTTON (CLEAN /checkout URL) ── */}
-                <Link
-                  href="/checkout"
-                  className="mt-6 w-full flex items-center justify-center gap-2 rounded-2xl bg-[#634832] hover:bg-[#523B28] text-[#F5EBDD] py-4 text-sm font-bold shadow-md hover:shadow-lg transition-all active:scale-[0.98] group"
-                >
-                  <span>Proceed to Checkout</span>
-                  <ArrowRight className="w-4 h-4 group-hover:translate-x-1 transition-transform" />
-                </Link>
+                {exceededCategories.length > 0 ? (
+                  <div className="mt-6 w-full rounded-2xl bg-rose-50 border border-rose-300 p-4 text-center space-y-1">
+                    <p className="text-xs font-bold text-rose-900">
+                      ⚠️ Order limit exceeded
+                    </p>
+                    {exceededCategories.map((ex, i) => (
+                      <p key={i} className="text-[11px] text-rose-700">
+                        &quot;{ex.catName}&quot;: you have {ex.inCart} in cart, but only {ex.remaining} remaining.
+                      </p>
+                    ))}
+                    <p className="text-[10px] text-rose-600 font-medium pt-1">
+                      Please adjust your quantities to proceed with checkout.
+                    </p>
+                  </div>
+                ) : (
+                  <Link
+                    href="/checkout"
+                    className="mt-6 w-full flex items-center justify-center gap-2 rounded-2xl bg-[#634832] hover:bg-[#523B28] text-[#F5EBDD] py-4 text-sm font-bold shadow-md hover:shadow-lg transition-all active:scale-[0.98] group"
+                  >
+                    <span>Proceed to Checkout</span>
+                    <ArrowRight className="w-4 h-4 group-hover:translate-x-1 transition-transform" />
+                  </Link>
+                )}
               </div>
             </div>
           </div>
@@ -461,11 +534,16 @@ export default function CartPageClient() {
                 const recInCartQty = getProductQuantity(treat.id);
                 const isAlreadyInCart = recInCartQty > 0;
                 const categoryObj = treat.category_id ? categoryMap[treat.category_id] : null;
+                const isRecCatSoldOut = treat.category_id ? catStockMap[treat.category_id]?.remaining <= 0 : false;
 
                 return (
                   <div
                     key={treat.id}
-                    className="group bg-[#FAF6EF] rounded-2xl border border-[#91885D]/25 overflow-hidden shadow-2xs hover:shadow-md hover:border-[#91885D]/40 transition-all duration-300 flex flex-col justify-between"
+                    className={`group bg-[#FAF6EF] rounded-2xl border overflow-hidden transition-all duration-300 flex flex-col justify-between ${
+                      isRecCatSoldOut
+                        ? "border-[#91885D]/15 opacity-60"
+                        : "border-[#91885D]/25 shadow-2xs hover:shadow-md hover:border-[#91885D]/40"
+                    }`}
                   >
                     <div>
                       {/* Image with Heart Favorite Overlay */}
@@ -490,15 +568,21 @@ export default function CartPageClient() {
                           )}
                         </Link>
 
-                        {/* In Cart Indicator Ribbon */}
-                        {isAlreadyInCart && (
+                        {/* Sold Out or In Cart Indicator Ribbon */}
+                        {isRecCatSoldOut ? (
+                          <div className="absolute inset-0 bg-[#29251F]/60 flex items-center justify-center z-10 pointer-events-none">
+                            <span className="text-[10px] font-bold text-[#F5EBDD] uppercase tracking-wider">
+                              Sold Out
+                            </span>
+                          </div>
+                        ) : isAlreadyInCart ? (
                           <div className="absolute top-2.5 left-2.5 z-10 animate-in fade-in pointer-events-none">
                             <span className="inline-flex items-center gap-1 px-2 py-0.5 rounded-md text-[9px] font-bold text-white bg-[#4D7C47] shadow-sm border border-white/20">
                               <Check className="w-2.5 h-2.5 stroke-[3]" />
                               <span>{recInCartQty} in Cart</span>
                             </span>
                           </div>
-                        )}
+                        ) : null}
 
                         <button
                           onClick={(e) => {
@@ -544,33 +628,39 @@ export default function CartPageClient() {
                         {formatPrice(treat.price)}
                       </span>
 
-                      <button
-                        onClick={(e) => handleAddRecommended(treat, e)}
-                        className={`inline-flex items-center gap-1 rounded-xl px-2.5 py-1.5 text-[11px] font-bold shadow-2xs transition-all active:scale-90 cursor-pointer ${
-                          isJustAdded
-                            ? "bg-[#4D7C47] text-[#FAF5ED]"
-                            : isAlreadyInCart
-                            ? "bg-[#5D6B3F] hover:bg-[#4E5B33] text-[#FAF5ED]"
-                            : "bg-[#7E5743] hover:bg-[#684433] text-[#FAF5ED]"
-                        }`}
-                      >
-                        {isJustAdded ? (
-                          <>
-                            <Check className="w-3 h-3" />
-                            <span>Added!</span>
-                          </>
-                        ) : isAlreadyInCart ? (
-                          <>
-                            <Check className="w-3 h-3" />
-                            <span>In Cart ({recInCartQty}) +</span>
-                          </>
-                        ) : (
-                          <>
-                            <span>Add</span>
-                            <Plus className="w-3 h-3" />
-                          </>
-                        )}
-                      </button>
+                      {isRecCatSoldOut ? (
+                        <span className="inline-flex items-center rounded-xl px-2.5 py-1.5 text-[10px] font-bold text-[#A95145] bg-[#A95145]/10 border border-[#A95145]/20 uppercase tracking-wider">
+                          Sold Out
+                        </span>
+                      ) : (
+                        <button
+                          onClick={(e) => handleAddRecommended(treat, e)}
+                          className={`inline-flex items-center gap-1 rounded-xl px-2.5 py-1.5 text-[11px] font-bold shadow-2xs transition-all active:scale-90 cursor-pointer ${
+                            isJustAdded
+                              ? "bg-[#4D7C47] text-[#FAF5ED]"
+                              : isAlreadyInCart
+                              ? "bg-[#5D6B3F] hover:bg-[#4E5B33] text-[#FAF5ED]"
+                              : "bg-[#7E5743] hover:bg-[#684433] text-[#FAF5ED]"
+                          }`}
+                        >
+                          {isJustAdded ? (
+                            <>
+                              <Check className="w-3 h-3" />
+                              <span>Added!</span>
+                            </>
+                          ) : isAlreadyInCart ? (
+                            <>
+                              <Check className="w-3 h-3" />
+                              <span>In Cart ({recInCartQty}) +</span>
+                            </>
+                          ) : (
+                            <>
+                              <span>Add</span>
+                              <Plus className="w-3 h-3" />
+                            </>
+                          )}
+                        </button>
+                      )}
                     </div>
                   </div>
                 );

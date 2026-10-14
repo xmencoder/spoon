@@ -20,6 +20,7 @@ import { useCart } from "@/lib/store/CartContext";
 import { createClient } from "@/lib/supabase/client";
 import type { Product, Category } from "@/types/database";
 import { parseBadges, getBadgeColorClass } from "@/lib/badges";
+import { getCategoryRemainingStock } from "@/app/store/[slug]/actions";
 
 export interface CategoryCard {
   id: string;
@@ -245,6 +246,35 @@ export function MenuSection({
     return globalDbLoaded || (!!initialProducts && initialProducts.length > 0);
   });
 
+  // Category order-limit remaining stock map: catId → { limit, totalOrdered, remaining }
+  const [catStockMap, setCatStockMap] = useState<
+    Record<string, { limit: number; totalOrdered: number; remaining: number }>
+  >({});
+
+  useEffect(() => {
+    const restId = restaurantId || globalCachedRestaurantId || initialRestaurantId;
+    if (restId) {
+      getCategoryRemainingStock(restId).then((map) => setCatStockMap(map));
+    }
+  }, [restaurantId, initialRestaurantId]);
+
+  /** Returns true if the product's category has a limit that's been fully used up */
+  const isProductCatSoldOut = useCallback((itemId: string): boolean => {
+    const dbProd = liveDbProducts.find((p) => p.id === itemId);
+    if (!dbProd || !dbProd.category_id) return false;
+    const stock = catStockMap[dbProd.category_id];
+    return stock != null && stock.remaining <= 0;
+  }, [liveDbProducts, catStockMap]);
+
+  /** Returns remaining count for an item's category (null = no limit or not near limit) */
+  const getProductCatRemaining = useCallback((itemId: string): number | null => {
+    const dbProd = liveDbProducts.find((p) => p.id === itemId);
+    if (!dbProd || !dbProd.category_id) return null;
+    const stock = catStockMap[dbProd.category_id];
+    if (!stock || stock.remaining <= 0 || stock.remaining > 5) return null;
+    return stock.remaining;
+  }, [liveDbProducts, catStockMap]);
+
   // Fetch live products & categories from Supabase
   useEffect(() => {
     let cancelled = false;
@@ -438,6 +468,7 @@ export function MenuSection({
   } = useCart();
 
   const handleIncrement = (id: string) => {
+    if (isProductCatSoldOut(id)) return;
     const inCartCount = getProductQuantity(id);
     if (inCartCount > 0) {
       const cartItem = cartItems.find(
@@ -494,6 +525,7 @@ export function MenuSection({
   };
 
   const handleAddToCart = (item: MenuItem, e?: React.MouseEvent) => {
+    if (isProductCatSoldOut(item.id)) return;
     const inCartCount = getProductQuantity(item.id);
     const qty = getQty(item.id);
     const qtyToAdd = inCartCount > 0 ? 1 : Math.max(1, qty);
@@ -983,10 +1015,14 @@ export function MenuSection({
                     const isJustAdded = addedItem === item.id;
                     const inCartCount = getProductQuantity(item.id);
                     const isAlreadyInCart = inCartCount > 0;
+                    const isCatSoldOut = isProductCatSoldOut(item.id);
+                    const catRemaining = getProductCatRemaining(item.id);
                     return (
                       <div
                         key={`fm-mob-${sec.id}-${item.id}`}
-                        className="flex flex-row rounded-2xl bg-[#FAF4EB] border border-[#E5D7C6] overflow-hidden shadow-[0_2px_10px_rgba(41,37,31,0.05)] transition-all"
+                        className={`flex flex-row rounded-2xl bg-[#FAF4EB] border overflow-hidden shadow-[0_2px_10px_rgba(41,37,31,0.05)] transition-all ${
+                          isCatSoldOut ? "border-[#E5D7C6]/60 opacity-60" : "border-[#E5D7C6]"
+                        }`}
                       >
                         <Link
                           href={`/store/${slug}/product/${item.id}`}
@@ -994,12 +1030,18 @@ export function MenuSection({
                           className="relative w-[42%] shrink-0 overflow-hidden bg-[#EFE5D7] block cursor-pointer group"
                         >
                           <ProductImage src={item.image} alt={item.name} fill sizes="45vw" className="object-cover group-hover:scale-105 transition-transform duration-300" />
-                          {isAlreadyInCart && (
+                          {isCatSoldOut ? (
+                            <div className="absolute inset-0 bg-[#29251F]/60 flex items-center justify-center z-10">
+                              <span className="text-[10px] font-bold text-[#F5EBDD] uppercase tracking-wider">
+                                Sold Out
+                              </span>
+                            </div>
+                          ) : isAlreadyInCart ? (
                             <div className="absolute top-2 right-2 z-10 animate-in fade-in zoom-in-75">
                               <span className="inline-flex items-center gap-1 px-1.5 py-0.5 rounded-md text-[8.5px] font-bold text-white bg-[#4D7C47] shadow-sm"><Check className="w-2.5 h-2.5 stroke-[3]" /><span>{inCartCount} in Cart</span></span>
                             </div>
-                          )}
-                          {item.badge && item.badge !== "NONE" && parseBadges(item.badge).length > 0 && (
+                          ) : null}
+                          {item.badge && item.badge !== "NONE" && !isCatSoldOut && parseBadges(item.badge).length > 0 && (
                             <div className="absolute top-2 left-2 z-10 flex flex-wrap gap-1 max-w-[85%]">
                               {parseBadges(item.badge).map((b, bIdx) => (
                                 <span
@@ -1026,18 +1068,31 @@ export function MenuSection({
                             </div>
                           </div>
                           <div className="mt-3 pt-2 border-t border-[#EAE0D1] flex items-center justify-between gap-1">
-                            <span className="font-serif text-sm font-bold text-[#29251F] whitespace-nowrap">₹{item.price}</span>
-                            <div className="flex items-center rounded-lg bg-[#EFE8DC] px-1.5 py-0.5 border border-[#E2D6C6]">
-                              <button onClick={() => handleDecrement(item.id)} className="p-0.5 text-[#695F52] hover:text-[#29251F] cursor-pointer" aria-label="Decrease"><Minus className="w-3 h-3" strokeWidth={2} /></button>
-                              <span className="w-4 text-center text-[11px] font-bold text-[#29251F]">{inCartCount > 0 ? inCartCount : qty}</span>
-                              <button onClick={() => handleIncrement(item.id)} className="p-0.5 text-[#695F52] hover:text-[#29251F] cursor-pointer" aria-label="Increase"><Plus className="w-3 h-3" strokeWidth={2} /></button>
+                            <div className="flex flex-col">
+                              <span className="font-serif text-sm font-bold text-[#29251F] whitespace-nowrap">₹{item.price}</span>
+                              {catRemaining != null && (
+                                <span className="text-[9px] font-bold text-[#C26B59] animate-pulse">Only {catRemaining} left!</span>
+                              )}
                             </div>
-                            <button
-                              onClick={(e) => handleAddToCart(item, e)}
-                              className={`flex items-center justify-center gap-1 px-2.5 py-1.5 rounded-lg text-[11px] font-semibold transition-all duration-200 cursor-pointer shadow-xs whitespace-nowrap ${ isJustAdded ? "bg-[#4D7C47] text-white" : isAlreadyInCart ? "bg-[#5D6B3F] hover:bg-[#4E5B33] text-white" : "bg-[#A34B3D] hover:bg-[#8F3F32] text-white active:scale-95" }`}
-                            >
-                              {isJustAdded ? (<><Check className="w-3 h-3" strokeWidth={2.5} /><span>Added!</span></>) : isAlreadyInCart ? (<><Check className="w-3 h-3" strokeWidth={2.5} /><span>In Cart ({inCartCount}) +</span></>) : (<><ShoppingCart className="w-3 h-3" strokeWidth={2} /><span>Add +</span></>)}
-                            </button>
+                            {!isCatSoldOut && (
+                              <div className="flex items-center rounded-lg bg-[#EFE8DC] px-1.5 py-0.5 border border-[#E2D6C6]">
+                                <button onClick={() => handleDecrement(item.id)} className="p-0.5 text-[#695F52] hover:text-[#29251F] cursor-pointer" aria-label="Decrease"><Minus className="w-3 h-3" strokeWidth={2} /></button>
+                                <span className="w-4 text-center text-[11px] font-bold text-[#29251F]">{inCartCount > 0 ? inCartCount : qty}</span>
+                                <button onClick={() => handleIncrement(item.id)} className="p-0.5 text-[#695F52] hover:text-[#29251F] cursor-pointer" aria-label="Increase"><Plus className="w-3 h-3" strokeWidth={2} /></button>
+                              </div>
+                            )}
+                            {isCatSoldOut ? (
+                              <span className="px-2.5 py-1.5 rounded-lg text-[10px] font-bold text-[#A95145] bg-[#A95145]/10 border border-[#A95145]/20 uppercase tracking-wider whitespace-nowrap">
+                                Sold Out
+                              </span>
+                            ) : (
+                              <button
+                                onClick={(e) => handleAddToCart(item, e)}
+                                className={`flex items-center justify-center gap-1 px-2.5 py-1.5 rounded-lg text-[11px] font-semibold transition-all duration-200 cursor-pointer shadow-xs whitespace-nowrap ${ isJustAdded ? "bg-[#4D7C47] text-white" : isAlreadyInCart ? "bg-[#5D6B3F] hover:bg-[#4E5B33] text-white" : "bg-[#A34B3D] hover:bg-[#8F3F32] text-white active:scale-95" }`}
+                              >
+                                {isJustAdded ? (<><Check className="w-3 h-3" strokeWidth={2.5} /><span>Added!</span></>) : isAlreadyInCart ? (<><Check className="w-3 h-3" strokeWidth={2.5} /><span>In Cart ({inCartCount}) +</span></>) : (<><ShoppingCart className="w-3 h-3" strokeWidth={2} /><span>Add +</span></>)}
+                              </button>
+                            )}
                           </div>
                         </div>
                       </div>
@@ -1053,16 +1108,26 @@ export function MenuSection({
                     const isJustAdded = addedItem === item.id;
                     const inCartCount = getProductQuantity(item.id);
                     const isAlreadyInCart = inCartCount > 0;
+                    const isCatSoldOut = isProductCatSoldOut(item.id);
+                    const catRemaining = getProductCatRemaining(item.id);
                     return (
-                      <div key={`fm-desk-${sec.id}-${item.id}`} className="group flex flex-col rounded-3xl bg-[#FAF5ED] border border-[#E7DCCE] p-3.5 sm:p-4 shadow-[0_2px_12px_rgba(41,37,31,0.04)] hover:shadow-[0_8px_24px_rgba(41,37,31,0.08)] hover:border-[#D4C3AE] transition-all duration-300">
+                      <div key={`fm-desk-${sec.id}-${item.id}`} className={`group flex flex-col rounded-3xl bg-[#FAF5ED] border p-3.5 sm:p-4 transition-all duration-300 ${
+                        isCatSoldOut ? "border-[#E7DCCE]/60 opacity-60" : "border-[#E7DCCE] shadow-[0_2px_12px_rgba(41,37,31,0.04)] hover:shadow-[0_8px_24px_rgba(41,37,31,0.08)] hover:border-[#D4C3AE]"
+                      }`}>
                         <Link href={`/store/${slug}/product/${item.id}`} data-product-img={item.id} className="relative aspect-4/3 sm:aspect-[1.18/1] w-full overflow-hidden rounded-2xl bg-[#EFE5D7] block cursor-pointer">
                           <ProductImage src={item.image} alt={item.name} fill sizes="(max-width: 1024px) 50vw, 33vw" className="object-cover transition-transform duration-500 group-hover:scale-105" />
-                          {isAlreadyInCart && (
+                          {isCatSoldOut ? (
+                            <div className="absolute inset-0 bg-[#29251F]/60 flex items-center justify-center z-10">
+                              <span className="text-xs font-bold text-[#F5EBDD] uppercase tracking-wider">
+                                Sold Out
+                              </span>
+                            </div>
+                          ) : isAlreadyInCart ? (
                             <div className="absolute top-3 left-3 z-20 animate-in fade-in zoom-in-75">
                               <span className="inline-flex items-center gap-1.5 px-2.5 py-1 rounded-md text-[10px] font-bold text-white bg-[#4D7C47] shadow-sm border border-white/20"><Check className="w-3 h-3 stroke-[3]" /><span>{inCartCount} in Cart</span></span>
                             </div>
-                          )}
-                          {item.badge && !isAlreadyInCart && parseBadges(item.badge).length > 0 && (
+                          ) : null}
+                          {item.badge && !isAlreadyInCart && !isCatSoldOut && parseBadges(item.badge).length > 0 && (
                             <div className="absolute top-3 left-3 z-10 flex flex-wrap gap-1.5 max-w-[85%]">
                               {parseBadges(item.badge).map((b, bIdx) => (
                                 <span
@@ -1092,7 +1157,12 @@ export function MenuSection({
                               </Link>
                             </div>
                             <div className="flex items-center gap-2 shrink-0">
-                              <span className="font-serif text-base sm:text-lg font-bold text-[#29251F] whitespace-nowrap">₹{item.price}</span>
+                              <div className="flex flex-col items-end">
+                                <span className="font-serif text-base sm:text-lg font-bold text-[#29251F] whitespace-nowrap">₹{item.price}</span>
+                                {catRemaining != null && (
+                                  <span className="text-[10px] font-bold text-[#C26B59] animate-pulse">Only {catRemaining} left!</span>
+                                )}
+                              </div>
                               <VegSymbol className="w-4 h-4" />
                             </div>
                           </div>
@@ -1101,17 +1171,25 @@ export function MenuSection({
                             {item.tags.map((tag) => (<span key={tag} className="px-2.5 py-0.5 rounded-md bg-[#EFE8DC] text-[#695F52] text-[10px] sm:text-[11px] font-medium">{tag}</span>))}
                           </div>
                           <div className="mt-auto pt-4 flex items-center gap-2.5">
-                            <div className="flex items-center rounded-xl bg-[#EFE8DC] px-2 py-1.5 border border-[#E2D6C6]">
-                              <button onClick={() => handleDecrement(item.id)} className="p-1 text-[#695F52] hover:text-[#29251F] transition-colors cursor-pointer" aria-label="Decrease"><Minus className="w-3.5 h-3.5" strokeWidth={2} /></button>
-                              <span className="w-6 text-center text-xs font-bold text-[#29251F]">{inCartCount > 0 ? inCartCount : qty}</span>
-                              <button onClick={() => handleIncrement(item.id)} className="p-1 text-[#695F52] hover:text-[#29251F] transition-colors cursor-pointer" aria-label="Increase"><Plus className="w-3.5 h-3.5" strokeWidth={2} /></button>
-                            </div>
-                            <button
-                              onClick={(e) => handleAddToCart(item, e)}
-                              className={`flex-1 flex items-center justify-center gap-2 py-2.5 px-4 rounded-xl text-xs sm:text-sm font-semibold transition-all duration-200 cursor-pointer shadow-xs ${ isJustAdded ? "bg-[#4D7C47] text-white" : isAlreadyInCart ? "bg-[#5D6B3F] hover:bg-[#4E5B33] text-white" : "bg-[#A34B3D] hover:bg-[#8F3F32] text-white active:scale-[0.98]" }`}
-                            >
-                              {isJustAdded ? (<><Check className="w-4 h-4" strokeWidth={2.5} /><span>Added!</span></>) : isAlreadyInCart ? (<><Check className="w-4 h-4" strokeWidth={2.5} /><span>In Cart ({inCartCount}) • Add More</span></>) : (<><ShoppingCart className="w-4 h-4" strokeWidth={2} /><span>Add to Cart</span></>)}
-                            </button>
+                            {!isCatSoldOut && (
+                              <div className="flex items-center rounded-xl bg-[#EFE8DC] px-2 py-1.5 border border-[#E2D6C6]">
+                                <button onClick={() => handleDecrement(item.id)} className="p-1 text-[#695F52] hover:text-[#29251F] transition-colors cursor-pointer" aria-label="Decrease"><Minus className="w-3.5 h-3.5" strokeWidth={2} /></button>
+                                <span className="w-6 text-center text-xs font-bold text-[#29251F]">{inCartCount > 0 ? inCartCount : qty}</span>
+                                <button onClick={() => handleIncrement(item.id)} className="p-1 text-[#695F52] hover:text-[#29251F] transition-colors cursor-pointer" aria-label="Increase"><Plus className="w-3.5 h-3.5" strokeWidth={2} /></button>
+                              </div>
+                            )}
+                            {isCatSoldOut ? (
+                              <div className="flex-1 flex items-center justify-center py-2.5 px-4 rounded-xl text-xs sm:text-sm font-bold text-[#A95145] bg-[#A95145]/10 border border-[#A95145]/20 uppercase tracking-wider">
+                                Sold Out
+                              </div>
+                            ) : (
+                              <button
+                                onClick={(e) => handleAddToCart(item, e)}
+                                className={`flex-1 flex items-center justify-center gap-2 py-2.5 px-4 rounded-xl text-xs sm:text-sm font-semibold transition-all duration-200 cursor-pointer shadow-xs ${ isJustAdded ? "bg-[#4D7C47] text-white" : isAlreadyInCart ? "bg-[#5D6B3F] hover:bg-[#4E5B33] text-white" : "bg-[#A34B3D] hover:bg-[#8F3F32] text-white active:scale-[0.98]" }`}
+                              >
+                                {isJustAdded ? (<><Check className="w-4 h-4" strokeWidth={2.5} /><span>Added!</span></>) : isAlreadyInCart ? (<><Check className="w-4 h-4" strokeWidth={2.5} /><span>In Cart ({inCartCount}) • Add More</span></>) : (<><ShoppingCart className="w-4 h-4" strokeWidth={2} /><span>Add to Cart</span></>)}
+                              </button>
+                            )}
                           </div>
                         </div>
                       </div>
@@ -1132,11 +1210,15 @@ export function MenuSection({
             const isJustAdded = addedItem === item.id;
             const inCartCount = getProductQuantity(item.id);
             const isAlreadyInCart = inCartCount > 0;
+            const isCatSoldOut = isProductCatSoldOut(item.id);
+            const catRemaining = getProductCatRemaining(item.id);
 
             return (
               <div
                 key={`mobile-${item.id}`}
-                className="flex flex-row rounded-2xl bg-[#FAF4EB] border border-[#E5D7C6] overflow-hidden shadow-[0_2px_10px_rgba(41,37,31,0.05)] transition-all"
+                className={`flex flex-row rounded-2xl bg-[#FAF4EB] border overflow-hidden shadow-[0_2px_10px_rgba(41,37,31,0.05)] transition-all ${
+                  isCatSoldOut ? "border-[#E5D7C6]/60 opacity-60" : "border-[#E5D7C6]"
+                }`}
               >
                 {/* Left Side: Product Image (42% width) */}
                 <Link
@@ -1152,18 +1234,24 @@ export function MenuSection({
                     className="object-cover group-hover:scale-105 transition-transform duration-300"
                   />
 
-                  {/* In Cart Indicator */}
-                  {isAlreadyInCart && (
+                  {/* Sold Out Overlay or In Cart Indicator */}
+                  {isCatSoldOut ? (
+                    <div className="absolute inset-0 bg-[#29251F]/60 flex items-center justify-center z-10">
+                      <span className="text-[10px] font-bold text-[#F5EBDD] uppercase tracking-wider">
+                        Sold Out
+                      </span>
+                    </div>
+                  ) : isAlreadyInCart ? (
                     <div className="absolute top-2 right-2 z-10 animate-in fade-in zoom-in-75">
                       <span className="inline-flex items-center gap-1 px-1.5 py-0.5 rounded-md text-[8.5px] font-bold text-white bg-[#4D7C47] shadow-sm">
                         <Check className="w-2.5 h-2.5 stroke-[3]" />
                         <span>{inCartCount} in Cart</span>
                       </span>
                     </div>
-                  )}
+                  ) : null}
 
                   {/* Top-Left Badges */}
-                  {item.badge && item.badge !== "NONE" && parseBadges(item.badge).length > 0 && (
+                  {item.badge && item.badge !== "NONE" && !isCatSoldOut && parseBadges(item.badge).length > 0 && (
                     <div className="absolute top-2 left-2 z-10 flex flex-wrap items-start gap-1 max-w-[85%]">
                       {parseBadges(item.badge).map((b, bIdx) => (
                         <span
@@ -1230,60 +1318,73 @@ export function MenuSection({
 
                   {/* Bottom Action Row: Price + Stepper + Add Button */}
                   <div className="mt-3 pt-2 border-t border-[#EAE0D1] flex items-center justify-between gap-1">
-                    {/* Price */}
-                    <span className="font-serif text-sm font-bold text-[#29251F] whitespace-nowrap">
-                      ₹{item.price}
-                    </span>
-
-                    {/* Stepper */}
-                    <div className="flex items-center rounded-lg bg-[#EFE8DC] px-1.5 py-0.5 border border-[#E2D6C6]">
-                      <button
-                        onClick={() => handleDecrement(item.id)}
-                        className="p-0.5 text-[#695F52] hover:text-[#29251F] cursor-pointer"
-                        aria-label="Decrease quantity"
-                      >
-                        <Minus className="w-3 h-3" strokeWidth={2} />
-                      </button>
-                      <span className="w-4 text-center text-[11px] font-bold text-[#29251F]">
-                        {inCartCount > 0 ? inCartCount : qty}
+                    {/* Price & remaining badge */}
+                    <div className="flex flex-col">
+                      <span className="font-serif text-sm font-bold text-[#29251F] whitespace-nowrap">
+                        ₹{item.price}
                       </span>
-                      <button
-                        onClick={() => handleIncrement(item.id)}
-                        className="p-0.5 text-[#695F52] hover:text-[#29251F] cursor-pointer"
-                        aria-label="Increase quantity"
-                      >
-                        <Plus className="w-3 h-3" strokeWidth={2} />
-                      </button>
+                      {catRemaining != null && (
+                        <span className="text-[9px] font-bold text-[#C26B59] animate-pulse">Only {catRemaining} left!</span>
+                      )}
                     </div>
 
-                    {/* Add Button with In-Cart State */}
-                    <button
-                      onClick={(e) => handleAddToCart(item, e)}
-                      className={`flex items-center justify-center gap-1 px-2.5 py-1.5 rounded-lg text-[11px] font-semibold transition-all duration-200 cursor-pointer shadow-xs whitespace-nowrap ${
-                        isJustAdded
-                          ? "bg-[#4D7C47] text-white"
-                          : isAlreadyInCart
-                          ? "bg-[#5D6B3F] hover:bg-[#4E5B33] text-white"
-                          : "bg-[#A34B3D] hover:bg-[#8F3F32] text-white active:scale-95"
-                      }`}
-                    >
-                      {isJustAdded ? (
-                        <>
-                          <Check className="w-3 h-3" strokeWidth={2.5} />
-                          <span>Added!</span>
-                        </>
-                      ) : isAlreadyInCart ? (
-                        <>
-                          <Check className="w-3 h-3" strokeWidth={2.5} />
-                          <span>In Cart ({inCartCount}) +</span>
-                        </>
-                      ) : (
-                        <>
-                          <ShoppingCart className="w-3 h-3" strokeWidth={2} />
-                          <span>Add +</span>
-                        </>
-                      )}
-                    </button>
+                    {/* Stepper */}
+                    {!isCatSoldOut && (
+                      <div className="flex items-center rounded-lg bg-[#EFE8DC] px-1.5 py-0.5 border border-[#E2D6C6]">
+                        <button
+                          onClick={() => handleDecrement(item.id)}
+                          className="p-0.5 text-[#695F52] hover:text-[#29251F] cursor-pointer"
+                          aria-label="Decrease quantity"
+                        >
+                          <Minus className="w-3 h-3" strokeWidth={2} />
+                        </button>
+                        <span className="w-4 text-center text-[11px] font-bold text-[#29251F]">
+                          {inCartCount > 0 ? inCartCount : qty}
+                        </span>
+                        <button
+                          onClick={() => handleIncrement(item.id)}
+                          className="p-0.5 text-[#695F52] hover:text-[#29251F] cursor-pointer"
+                          aria-label="Increase quantity"
+                        >
+                          <Plus className="w-3 h-3" strokeWidth={2} />
+                        </button>
+                      </div>
+                    )}
+
+                    {/* Add Button or Sold Out with In-Cart State */}
+                    {isCatSoldOut ? (
+                      <span className="px-2.5 py-1.5 rounded-lg text-[10px] font-bold text-[#A95145] bg-[#A95145]/10 border border-[#A95145]/20 uppercase tracking-wider whitespace-nowrap">
+                        Sold Out
+                      </span>
+                    ) : (
+                      <button
+                        onClick={(e) => handleAddToCart(item, e)}
+                        className={`flex items-center justify-center gap-1 px-2.5 py-1.5 rounded-lg text-[11px] font-semibold transition-all duration-200 cursor-pointer shadow-xs whitespace-nowrap ${
+                          isJustAdded
+                            ? "bg-[#4D7C47] text-white"
+                            : isAlreadyInCart
+                            ? "bg-[#5D6B3F] hover:bg-[#4E5B33] text-white"
+                            : "bg-[#A34B3D] hover:bg-[#8F3F32] text-white active:scale-95"
+                        }`}
+                      >
+                        {isJustAdded ? (
+                          <>
+                            <Check className="w-3 h-3" strokeWidth={2.5} />
+                            <span>Added!</span>
+                          </>
+                        ) : isAlreadyInCart ? (
+                          <>
+                            <Check className="w-3 h-3" strokeWidth={2.5} />
+                            <span>In Cart ({inCartCount}) +</span>
+                          </>
+                        ) : (
+                          <>
+                            <ShoppingCart className="w-3 h-3" strokeWidth={2} />
+                            <span>Add +</span>
+                          </>
+                        )}
+                      </button>
+                    )}
                   </div>
                 </div>
               </div>
@@ -1301,11 +1402,15 @@ export function MenuSection({
             const isJustAdded = addedItem === item.id;
             const inCartCount = getProductQuantity(item.id);
             const isAlreadyInCart = inCartCount > 0;
+            const isCatSoldOut = isProductCatSoldOut(item.id);
+            const catRemaining = getProductCatRemaining(item.id);
 
             return (
               <div
                 key={`desktop-${item.id}`}
-                className="group flex flex-col rounded-3xl bg-[#FAF5ED] border border-[#E7DCCE] p-3.5 sm:p-4 shadow-[0_2px_12px_rgba(41,37,31,0.04)] hover:shadow-[0_8px_24px_rgba(41,37,31,0.08)] hover:border-[#D4C3AE] transition-all duration-300"
+                className={`group flex flex-col rounded-3xl bg-[#FAF5ED] border p-3.5 sm:p-4 transition-all duration-300 ${
+                  isCatSoldOut ? "border-[#E7DCCE]/60 opacity-60" : "border-[#E7DCCE] shadow-[0_2px_12px_rgba(41,37,31,0.04)] hover:shadow-[0_8px_24px_rgba(41,37,31,0.08)] hover:border-[#D4C3AE]"
+                }`}
               >
                 {/* Image Container */}
                 <Link
@@ -1321,18 +1426,24 @@ export function MenuSection({
                     className="object-cover transition-transform duration-500 group-hover:scale-105"
                   />
 
-                  {/* In Cart Indicator Ribbon/Badge */}
-                  {isAlreadyInCart && (
+                  {/* Sold Out or In Cart Indicator Ribbon/Badge */}
+                  {isCatSoldOut ? (
+                    <div className="absolute inset-0 bg-[#29251F]/60 flex items-center justify-center z-10">
+                      <span className="text-xs font-bold text-[#F5EBDD] uppercase tracking-wider">
+                        Sold Out
+                      </span>
+                    </div>
+                  ) : isAlreadyInCart ? (
                     <div className="absolute top-3 left-3 z-20 animate-in fade-in zoom-in-75">
                       <span className="inline-flex items-center gap-1.5 px-2.5 py-1 rounded-md text-[10px] font-bold text-white bg-[#4D7C47] shadow-sm border border-white/20">
                         <Check className="w-3 h-3 stroke-[3]" />
                         <span>{inCartCount} in Cart</span>
                       </span>
                     </div>
-                  )}
+                  ) : null}
 
                   {/* Top-Left Badges */}
-                  {item.badge && !isAlreadyInCart && parseBadges(item.badge).length > 0 && (
+                  {item.badge && !isAlreadyInCart && !isCatSoldOut && parseBadges(item.badge).length > 0 && (
                     <div className="absolute top-3 left-3 z-10 flex flex-wrap gap-1.5 max-w-[85%]">
                       {parseBadges(item.badge).map((b, bIdx) => (
                         <span
@@ -1394,9 +1505,14 @@ export function MenuSection({
                       </Link>
                     </div>
                     <div className="flex items-center gap-2 shrink-0">
-                      <span className="font-serif text-base sm:text-lg font-bold text-[#29251F] whitespace-nowrap">
-                        ₹{item.price}
-                      </span>
+                      <div className="flex flex-col items-end">
+                        <span className="font-serif text-base sm:text-lg font-bold text-[#29251F] whitespace-nowrap">
+                          ₹{item.price}
+                        </span>
+                        {catRemaining != null && (
+                          <span className="text-[10px] font-bold text-[#C26B59] animate-pulse">Only {catRemaining} left!</span>
+                        )}
+                      </div>
                       <VegSymbol className="w-4 h-4" />
                     </div>
                   </div>
@@ -1421,54 +1537,62 @@ export function MenuSection({
                   {/* Bottom Action Row: Stepper + Add to Cart */}
                   <div className="mt-auto pt-4 flex items-center gap-2.5">
                     {/* Stepper */}
-                    <div className="flex items-center rounded-xl bg-[#EFE8DC] px-2 py-1.5 border border-[#E2D6C6]">
-                      <button
-                        onClick={() => handleDecrement(item.id)}
-                        className="p-1 text-[#695F52] hover:text-[#29251F] transition-colors cursor-pointer"
-                        aria-label="Decrease quantity"
-                      >
-                        <Minus className="w-3.5 h-3.5" strokeWidth={2} />
-                      </button>
-                      <span className="w-6 text-center text-xs font-bold text-[#29251F]">
-                        {inCartCount > 0 ? inCartCount : qty}
-                      </span>
-                      <button
-                        onClick={() => handleIncrement(item.id)}
-                        className="p-1 text-[#695F52] hover:text-[#29251F] transition-colors cursor-pointer"
-                        aria-label="Increase quantity"
-                      >
-                        <Plus className="w-3.5 h-3.5" strokeWidth={2} />
-                      </button>
-                    </div>
+                    {!isCatSoldOut && (
+                      <div className="flex items-center rounded-xl bg-[#EFE8DC] px-2 py-1.5 border border-[#E2D6C6]">
+                        <button
+                          onClick={() => handleDecrement(item.id)}
+                          className="p-1 text-[#695F52] hover:text-[#29251F] transition-colors cursor-pointer"
+                          aria-label="Decrease quantity"
+                        >
+                          <Minus className="w-3.5 h-3.5" strokeWidth={2} />
+                        </button>
+                        <span className="w-6 text-center text-xs font-bold text-[#29251F]">
+                          {inCartCount > 0 ? inCartCount : qty}
+                        </span>
+                        <button
+                          onClick={() => handleIncrement(item.id)}
+                          className="p-1 text-[#695F52] hover:text-[#29251F] transition-colors cursor-pointer"
+                          aria-label="Increase quantity"
+                        >
+                          <Plus className="w-3.5 h-3.5" strokeWidth={2} />
+                        </button>
+                      </div>
+                    )}
 
-                    {/* Add to Cart Button */}
-                    <button
-                      onClick={(e) => handleAddToCart(item, e)}
-                      className={`flex-1 flex items-center justify-center gap-2 py-2.5 px-4 rounded-xl text-xs sm:text-sm font-semibold transition-all duration-200 cursor-pointer shadow-xs ${
-                        isJustAdded
-                          ? "bg-[#4D7C47] text-white"
-                          : isAlreadyInCart
-                          ? "bg-[#5D6B3F] hover:bg-[#4E5B33] text-white"
-                          : "bg-[#A34B3D] hover:bg-[#8F3F32] text-white active:scale-[0.98]"
-                      }`}
-                    >
-                      {isJustAdded ? (
-                        <>
-                          <Check className="w-4 h-4" strokeWidth={2.5} />
-                          <span>Added!</span>
-                        </>
-                      ) : isAlreadyInCart ? (
-                        <>
-                          <Check className="w-4 h-4" strokeWidth={2.5} />
-                          <span>In Cart ({inCartCount}) • Add More</span>
-                        </>
-                      ) : (
-                        <>
-                          <ShoppingCart className="w-4 h-4" strokeWidth={2} />
-                          <span>Add to Cart</span>
-                        </>
-                      )}
-                    </button>
+                    {/* Add to Cart Button or Sold Out */}
+                    {isCatSoldOut ? (
+                      <div className="flex-1 flex items-center justify-center py-2.5 px-4 rounded-xl text-xs sm:text-sm font-bold text-[#A95145] bg-[#A95145]/10 border border-[#A95145]/20 uppercase tracking-wider">
+                        Sold Out
+                      </div>
+                    ) : (
+                      <button
+                        onClick={(e) => handleAddToCart(item, e)}
+                        className={`flex-1 flex items-center justify-center gap-2 py-2.5 px-4 rounded-xl text-xs sm:text-sm font-semibold transition-all duration-200 cursor-pointer shadow-xs ${
+                          isJustAdded
+                            ? "bg-[#4D7C47] text-white"
+                            : isAlreadyInCart
+                            ? "bg-[#5D6B3F] hover:bg-[#4E5B33] text-white"
+                            : "bg-[#A34B3D] hover:bg-[#8F3F32] text-white active:scale-[0.98]"
+                        }`}
+                      >
+                        {isJustAdded ? (
+                          <>
+                            <Check className="w-4 h-4" strokeWidth={2.5} />
+                            <span>Added!</span>
+                          </>
+                        ) : isAlreadyInCart ? (
+                          <>
+                            <Check className="w-4 h-4" strokeWidth={2.5} />
+                            <span>In Cart ({inCartCount}) • Add More</span>
+                          </>
+                        ) : (
+                          <>
+                            <ShoppingCart className="w-4 h-4" strokeWidth={2} />
+                            <span>Add to Cart</span>
+                          </>
+                        )}
+                      </button>
+                    )}
                   </div>
                 </div>
               </div>

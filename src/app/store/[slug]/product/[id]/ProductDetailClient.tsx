@@ -24,6 +24,7 @@ import {
 import type { Restaurant, Product } from "@/types/database";
 import { parseBadges, getBadgeColorClass } from "@/lib/badges";
 import { isSourdoughOrFocaccia, getSourdoughSlotInfo } from "@/lib/delivery-slots-service";
+import { getCategoryRemainingStock } from "@/app/store/[slug]/actions";
 
 interface Props {
   product: Product;
@@ -238,6 +239,24 @@ export default function ProductDetailClient({
   const [selectedSizeId, setSelectedSizeId] = useState<string>(initialSizeId);
   const [selectedAddonIds, setSelectedAddonIds] = useState<string[]>([]);
 
+  // Category order-limit remaining stock map: catId → { limit, totalOrdered, remaining }
+  const [catStockMap, setCatStockMap] = useState<
+    Record<string, { limit: number; totalOrdered: number; remaining: number }>
+  >({});
+
+  useEffect(() => {
+    if (restaurant.id) {
+      getCategoryRemainingStock(restaurant.id).then((map) => setCatStockMap(map));
+    }
+  }, [restaurant.id]);
+
+  const catStock = product.category_id ? catStockMap[product.category_id] : undefined;
+  const isCatSoldOut = catStock != null && catStock.remaining <= 0;
+  const catRemaining =
+    catStock && catStock.remaining > 0 && catStock.remaining <= 5
+      ? catStock.remaining
+      : null;
+
   const isSourdough =
     isSourdoughOrFocaccia(product) ||
     isSourdoughOrFocaccia(categoryName) ||
@@ -314,6 +333,7 @@ export default function ProductDetailClient({
   };
 
   const handleAddToCart = () => {
+    if (isCatSoldOut) return;
     const selectedSizeLabel = selectedSizeObj?.label;
     const selectedAddonObjects = (detail.addons || []).filter((a) =>
       selectedAddonIds.includes(a.id)
@@ -581,14 +601,19 @@ export default function ProductDetailClient({
             </div>
 
             {/* Dynamic Price Block */}
-            <div className="space-y-0.5 pt-1">
-              <div className="flex items-baseline gap-2.5">
+            <div className="space-y-1 pt-1">
+              <div className="flex items-baseline gap-2.5 flex-wrap">
                 <span className="font-serif text-3xl sm:text-4xl font-bold text-[#29251F]">
                   ₹{unitPrice}
                 </span>
                 {addonsTotal > 0 && (
                   <span className="text-xs text-[#7A6E5D] font-medium">
                     (₹{basePrice} base + ₹{addonsTotal} add-ons)
+                  </span>
+                )}
+                {catRemaining != null && (
+                  <span className="inline-flex items-center gap-1 text-[11px] font-bold text-[#C26B59] bg-[#C26B59]/10 px-2.5 py-0.5 rounded-full border border-[#C26B59]/25 animate-pulse">
+                    Only {catRemaining} left in this category!
                   </span>
                 )}
               </div>
@@ -810,6 +835,7 @@ export default function ProductDetailClient({
             {(() => {
               const isSoldOut =
                 !product.available ||
+                isCatSoldOut ||
                 (product.order_limit != null &&
                   product.order_limit > 0 &&
                   (product.total_ordered || 0) >= product.order_limit);
@@ -817,7 +843,9 @@ export default function ProductDetailClient({
               if (isSoldOut) {
                 return (
                   <div className="w-full py-4 px-6 rounded-xl bg-rose-950/10 border border-rose-900/20 text-rose-900 text-center font-bold text-sm tracking-wider uppercase">
-                    Sold Out (Order Limit Reached or Product Unavailable)
+                    {isCatSoldOut
+                      ? `Sold Out (${categoryName || "Category"} Order Limit Reached)`
+                      : "Sold Out (Order Limit Reached or Product Unavailable)"}
                   </div>
                 );
               }

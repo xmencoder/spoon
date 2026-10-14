@@ -9,7 +9,8 @@ export async function createCategoryServerAction(
   restaurantId: string | undefined | null,
   name: string,
   imageUrl?: string | null,
-  bakingPeriodHours?: number | null
+  bakingPeriodHours?: number | null,
+  categoryLimit?: number | null
 ) {
   try {
     const supabase = await createClient();
@@ -59,6 +60,11 @@ export async function createCategoryServerAction(
       payload.baking_period_hours = null;
     }
 
+    payload.category_limit =
+      categoryLimit != null && !isNaN(categoryLimit) && categoryLimit > 0
+        ? categoryLimit
+        : null;
+
     let { data, error } = await supabase
       .from("categories")
       .insert(payload)
@@ -98,7 +104,8 @@ export async function updateCategoryServerAction(
   categoryId: string,
   name: string,
   imageUrl?: string | null,
-  bakingPeriodHours?: number | null
+  bakingPeriodHours?: number | null,
+  categoryLimit?: number | null
 ) {
   try {
     const supabase = await createClient();
@@ -110,6 +117,12 @@ export async function updateCategoryServerAction(
     payload.baking_period_hours = (bakingPeriodHours !== undefined && bakingPeriodHours !== null && !isNaN(bakingPeriodHours))
       ? bakingPeriodHours
       : null;
+
+    // Always persist category_limit (null clears it)
+    payload.category_limit =
+      categoryLimit != null && !isNaN(categoryLimit) && categoryLimit > 0
+        ? categoryLimit
+        : null;
 
     let { data, error } = await supabase
       .from("categories")
