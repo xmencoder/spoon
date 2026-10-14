@@ -60,10 +60,11 @@ export async function createOrder(
 
     // 1. Build order items from payload
     // Pre‑check product order limits before creating the order
+    const admin = createAdminClient();
     const productIds = data.cartItems.map((ci) => ci.productId);
-    const { data: prodInfo, error: prodInfoErr } = await supabase
+    const { data: prodInfo, error: prodInfoErr } = await admin
       .from('products')
-      .select('id, order_limit, total_ordered')
+      .select('id, order_limit')
       .in('id', productIds);
 
     if (!prodInfoErr && prodInfo) {
@@ -74,17 +75,34 @@ export async function createOrder(
 
       for (const ci of data.cartItems) {
         const p = prodMap[ci.productId];
-        if (!p) continue;
-        const prospective = (Number(p.total_ordered) || 0) + ci.quantity;
-        if (p.order_limit && prospective > p.order_limit) {
-          throw new Error(`Product "${ci.productName}" exceeds its order limit of ${p.order_limit}`);
+        if (!p || !p.order_limit || p.order_limit <= 0) continue;
+
+        const { data: pItems } = await admin
+          .from('order_items')
+          .select('quantity, orders!inner(status)')
+          .eq('product_id', p.id)
+          .neq('orders.status', 'cancelled');
+
+        const prodAlreadyOrdered = (pItems || []).reduce(
+          (sum, it: any) => sum + (Number(it.quantity) || 0),
+          0
+        );
+
+        const prospective = prodAlreadyOrdered + ci.quantity;
+        if (prospective > p.order_limit) {
+          const remaining = Math.max(0, p.order_limit - prodAlreadyOrdered);
+          throw new Error(
+            remaining === 0
+              ? `Sorry, "${ci.productName}" is sold out.`
+              : `Only ${remaining} unit${remaining === 1 ? '' : 's'} remaining for "${ci.productName}". Please adjust your cart.`
+          );
         }
       }
     }
 
     // 1.2. Pre-check category order limits
     // Group cart items by their product's category_id
-    const { data: prodCatInfo } = await supabase
+    const { data: prodCatInfo } = await admin
       .from('products')
       .select('id, category_id')
       .in('id', productIds);
@@ -104,7 +122,7 @@ export async function createOrder(
         const catIds = Array.from(catIdSet);
 
         // Fetch categories with limits
-        const { data: catsWithLimit } = await supabase
+        const { data: catsWithLimit } = await admin
           .from('categories')
           .select('id, name, category_limit')
           .in('id', catIds)
@@ -117,20 +135,23 @@ export async function createOrder(
         if (limitedCats.length > 0) {
           // For each limited category, count already-ordered quantities from non-cancelled orders
           for (const cat of limitedCats) {
-            // Get all product IDs in this category from the cart
-            const catProductIds = productIds.filter(
-              (pid) => prodToCat[pid] === cat.id
-            );
-            if (catProductIds.length === 0) continue;
-
-            // Sum total_ordered from ALL products in this category
-            const { data: catProds } = await supabase
+            // Get all product IDs in this category
+            const { data: catProds } = await admin
               .from('products')
-              .select('id, total_ordered')
+              .select('id')
               .eq('category_id', cat.id);
 
-            const alreadyOrdered = (catProds || []).reduce(
-              (sum, p) => sum + (Number(p.total_ordered) || 0),
+            const catProdIds = (catProds || []).map((p) => p.id);
+            if (catProdIds.length === 0) continue;
+
+            const { data: catOrderItems } = await admin
+              .from('order_items')
+              .select('quantity, orders!inner(status)')
+              .in('product_id', catProdIds)
+              .neq('orders.status', 'cancelled');
+
+            const alreadyOrdered = (catOrderItems || []).reduce(
+              (sum, oi: any) => sum + (Number(oi.quantity) || 0),
               0
             );
 
@@ -144,7 +165,7 @@ export async function createOrder(
               const remaining = Math.max(0, cat.category_limit - alreadyOrdered);
               throw new Error(
                 remaining === 0
-                  ? `Sorry, "${cat.name}" is sold out for this period.`
+                  ? `Sorry, "${cat.name}" is sold out.`
                   : `Only ${remaining} unit${remaining === 1 ? '' : 's'} remaining in "${cat.name}". Please adjust your cart.`
               );
             }
@@ -255,8 +276,6 @@ export async function createOrder(
       .join("");
 
     // 3. Create order record with delivery slot details using admin client
-    const admin = createAdminClient();
-
     const orderPayload: any = {
       restaurant_id: data.restaurantId,
       order_number: generatedOrderNumber,
@@ -356,23 +375,6 @@ export async function createOrder(
       notes: "Order created, waiting for UPI payment submission",
     });
 
-    // Increment total_ordered for each ordered product
-    for (const item of data.cartItems) {
-      if (item.productId) {
-        const { data: prod } = await supabase
-          .from("products")
-          .select("total_ordered")
-          .eq("id", item.productId)
-          .single();
-
-        const currentCount = prod?.total_ordered || 0;
-        await supabase
-          .from("products")
-          .update({ total_ordered: currentCount + item.quantity })
-          .eq("id", item.productId);
-      }
-    }
-
     // 5. Build WhatsApp Ping URL
     let msg = `🧁 *New Order from The Indulgent Spoon* 🧁\n\n`;
     msg += `*Order ID:* #${orderNumber}\n`;
@@ -469,43 +471,73 @@ export async function submitPaymentConfirmation(payload: {
 /**
  * Returns a map of categoryId → { limit, totalOrdered, remaining }
  * for all categories in a restaurant that have a category_limit set.
- * Uses product.total_ordered as the source of truth (same as product-level limit).
+ * Aggregates actual quantities from order_items (excluding cancelled orders)
+ * to ensure 100% real-time accuracy across all customers.
  */
 export async function getCategoryRemainingStock(
   restaurantId: string
 ): Promise<Record<string, { limit: number; totalOrdered: number; remaining: number }>> {
   try {
-    const supabase = await createClient();
+    const admin = createAdminClient();
 
     // Fetch all categories with a limit for this restaurant
-    const { data: cats } = await supabase
+    const { data: cats, error: catErr } = await admin
       .from("categories")
       .select("id, name, category_limit")
       .eq("restaurant_id", restaurantId)
       .not("category_limit", "is", null);
 
-    const limitedCats = (cats || []).filter(
+    if (catErr || !cats) return {};
+
+    const limitedCats = cats.filter(
       (c) => c.category_limit != null && c.category_limit > 0
     );
 
     if (limitedCats.length === 0) return {};
 
-    // Fetch products in those categories to sum total_ordered
     const catIds = limitedCats.map((c) => c.id);
-    const { data: products } = await supabase
+
+    // Fetch products belonging to these limited categories
+    const { data: products, error: prodErr } = await admin
       .from("products")
-      .select("id, category_id, total_ordered")
+      .select("id, category_id")
       .eq("restaurant_id", restaurantId)
       .in("category_id", catIds);
 
-    // Sum total_ordered per category
-    const orderedPerCat: Record<string, number> = {};
-    (products || []).forEach((p) => {
+    if (prodErr || !products || products.length === 0) {
+      const emptyResult: Record<string, { limit: number; totalOrdered: number; remaining: number }> = {};
+      limitedCats.forEach((cat) => {
+        const limit = cat.category_limit as number;
+        emptyResult[cat.id] = { limit, totalOrdered: 0, remaining: limit };
+      });
+      return emptyResult;
+    }
+
+    const prodToCat: Record<string, string> = {};
+    const prodIds: string[] = [];
+    products.forEach((p) => {
       if (p.category_id) {
-        orderedPerCat[p.category_id] =
-          (orderedPerCat[p.category_id] || 0) + (Number(p.total_ordered) || 0);
+        prodToCat[p.id] = p.category_id;
+        prodIds.push(p.id);
       }
     });
+
+    // Query order_items for these products from non-cancelled orders
+    const { data: items, error: itemsErr } = await admin
+      .from("order_items")
+      .select("product_id, quantity, orders!inner(id, status)")
+      .in("product_id", prodIds)
+      .neq("orders.status", "cancelled");
+
+    const orderedPerCat: Record<string, number> = {};
+    if (!itemsErr && items) {
+      items.forEach((it: any) => {
+        const catId = it.product_id ? prodToCat[it.product_id] : null;
+        if (catId) {
+          orderedPerCat[catId] = (orderedPerCat[catId] || 0) + (Number(it.quantity) || 0);
+        }
+      });
+    }
 
     const result: Record<string, { limit: number; totalOrdered: number; remaining: number }> = {};
     limitedCats.forEach((cat) => {
@@ -519,7 +551,8 @@ export async function getCategoryRemainingStock(
     });
 
     return result;
-  } catch {
+  } catch (err) {
+    console.error("Error in getCategoryRemainingStock:", err);
     return {};
   }
 }

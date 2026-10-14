@@ -467,8 +467,40 @@ export function MenuSection({
     getProductQuantity,
   } = useCart();
 
+  const canIncrementItem = useCallback(
+    (itemId: string): boolean => {
+      const dbProd = liveDbProducts.find(
+        (p) => p.id === itemId || p.name.trim().toLowerCase() === itemId.trim().toLowerCase()
+      );
+      if (!dbProd || !dbProd.category_id) return true;
+      const stock = catStockMap[dbProd.category_id];
+      if (!stock) return true;
+      if (stock.remaining <= 0) return false;
+
+      const inCartCatQty = cartItems
+        .filter((ci) => {
+          const lp = liveDbProducts.find(
+            (p) => p.id === ci.product?.id
+          );
+          return (
+            lp?.category_id === dbProd.category_id ||
+            ci.product?.category_id === dbProd.category_id
+          );
+        })
+        .reduce((sum, ci) => sum + ci.quantity, 0);
+
+      const inCartProdQty = getProductQuantity(itemId);
+      const localQty = quantities[itemId] !== undefined ? quantities[itemId] : 1;
+      return inCartProdQty > 0
+        ? inCartCatQty < stock.remaining
+        : inCartCatQty + localQty < stock.remaining;
+    },
+    [liveDbProducts, catStockMap, cartItems, getProductQuantity, quantities]
+  );
+
   const handleIncrement = (id: string) => {
     if (isProductCatSoldOut(id)) return;
+    if (!canIncrementItem(id)) return;
     const inCartCount = getProductQuantity(id);
     if (inCartCount > 0) {
       const cartItem = cartItems.find(
@@ -526,13 +558,34 @@ export function MenuSection({
 
   const handleAddToCart = (item: MenuItem, e?: React.MouseEvent) => {
     if (isProductCatSoldOut(item.id)) return;
-    const inCartCount = getProductQuantity(item.id);
-    const qty = getQty(item.id);
-    const qtyToAdd = inCartCount > 0 ? 1 : Math.max(1, qty);
-
     const matchingDbProduct = liveDbProducts.find(
       (p) => p.id === item.id || p.name.trim().toLowerCase() === item.name.trim().toLowerCase()
     );
+    const catId = matchingDbProduct?.category_id;
+    if (catId && catStockMap[catId]) {
+      const stock = catStockMap[catId];
+      const inCartCatQty = cartItems
+        .filter((ci) => {
+          const lp = liveDbProducts.find(
+            (p) => p.id === ci.product?.id
+          );
+          return (
+            lp?.category_id === catId ||
+            ci.product?.category_id === catId
+          );
+        })
+        .reduce((sum, ci) => sum + ci.quantity, 0);
+      const inCartCount = getProductQuantity(item.id);
+      const qty = getQty(item.id);
+      const qtyToAdd = inCartCount > 0 ? 1 : Math.max(1, qty);
+      if (inCartCatQty + qtyToAdd > stock.remaining) {
+        return;
+      }
+    }
+
+    const inCartCount = getProductQuantity(item.id);
+    const qty = getQty(item.id);
+    const qtyToAdd = inCartCount > 0 ? 1 : Math.max(1, qty);
 
     const productPayload: Product = matchingDbProduct
       ? {
@@ -1175,12 +1228,17 @@ export function MenuSection({
                               <div className="flex items-center rounded-xl bg-[#EFE8DC] px-2 py-1.5 border border-[#E2D6C6]">
                                 <button onClick={() => handleDecrement(item.id)} className="p-1 text-[#695F52] hover:text-[#29251F] transition-colors cursor-pointer" aria-label="Decrease"><Minus className="w-3.5 h-3.5" strokeWidth={2} /></button>
                                 <span className="w-6 text-center text-xs font-bold text-[#29251F]">{inCartCount > 0 ? inCartCount : qty}</span>
-                                <button onClick={() => handleIncrement(item.id)} className="p-1 text-[#695F52] hover:text-[#29251F] transition-colors cursor-pointer" aria-label="Increase"><Plus className="w-3.5 h-3.5" strokeWidth={2} /></button>
+                                <button onClick={() => handleIncrement(item.id)} disabled={!canIncrementItem(item.id)} className={`p-1 transition-colors ${canIncrementItem(item.id) ? "text-[#695F52] hover:text-[#29251F] cursor-pointer" : "text-[#B5A490] opacity-40 cursor-not-allowed"}`} aria-label="Increase"><Plus className="w-3.5 h-3.5" strokeWidth={2} /></button>
                               </div>
                             )}
                             {isCatSoldOut ? (
                               <div className="flex-1 flex items-center justify-center py-2.5 px-4 rounded-xl text-xs sm:text-sm font-bold text-[#A95145] bg-[#A95145]/10 border border-[#A95145]/20 uppercase tracking-wider">
                                 Sold Out
+                              </div>
+                            ) : isAlreadyInCart && !canIncrementItem(item.id) ? (
+                              <div className="flex-1 flex items-center justify-center gap-1.5 py-2.5 px-3 rounded-xl text-xs sm:text-sm font-semibold bg-[#5D6B3F]/75 text-white cursor-not-allowed shadow-xs">
+                                <Check className="w-4 h-4 stroke-[2.5]" />
+                                <span>Max in Cart ({inCartCount})</span>
                               </div>
                             ) : (
                               <button
@@ -1343,7 +1401,12 @@ export function MenuSection({
                         </span>
                         <button
                           onClick={() => handleIncrement(item.id)}
-                          className="p-0.5 text-[#695F52] hover:text-[#29251F] cursor-pointer"
+                          disabled={!canIncrementItem(item.id)}
+                          className={`p-0.5 transition-colors ${
+                            canIncrementItem(item.id)
+                              ? "text-[#695F52] hover:text-[#29251F] cursor-pointer"
+                              : "text-[#B5A490] opacity-40 cursor-not-allowed"
+                          }`}
                           aria-label="Increase quantity"
                         >
                           <Plus className="w-3 h-3" strokeWidth={2} />
@@ -1355,6 +1418,10 @@ export function MenuSection({
                     {isCatSoldOut ? (
                       <span className="px-2.5 py-1.5 rounded-lg text-[10px] font-bold text-[#A95145] bg-[#A95145]/10 border border-[#A95145]/20 uppercase tracking-wider whitespace-nowrap">
                         Sold Out
+                      </span>
+                    ) : isAlreadyInCart && !canIncrementItem(item.id) ? (
+                      <span className="px-2 py-1.5 rounded-lg text-[10px] font-bold bg-[#5D6B3F]/75 text-white cursor-not-allowed whitespace-nowrap">
+                        Max ({inCartCount})
                       </span>
                     ) : (
                       <button
@@ -1551,7 +1618,12 @@ export function MenuSection({
                         </span>
                         <button
                           onClick={() => handleIncrement(item.id)}
-                          className="p-1 text-[#695F52] hover:text-[#29251F] transition-colors cursor-pointer"
+                          disabled={!canIncrementItem(item.id)}
+                          className={`p-1 transition-colors ${
+                            canIncrementItem(item.id)
+                              ? "text-[#695F52] hover:text-[#29251F] cursor-pointer"
+                              : "text-[#B5A490] opacity-40 cursor-not-allowed"
+                          }`}
                           aria-label="Increase quantity"
                         >
                           <Plus className="w-3.5 h-3.5" strokeWidth={2} />
@@ -1563,6 +1635,11 @@ export function MenuSection({
                     {isCatSoldOut ? (
                       <div className="flex-1 flex items-center justify-center py-2.5 px-4 rounded-xl text-xs sm:text-sm font-bold text-[#A95145] bg-[#A95145]/10 border border-[#A95145]/20 uppercase tracking-wider">
                         Sold Out
+                      </div>
+                    ) : isAlreadyInCart && !canIncrementItem(item.id) ? (
+                      <div className="flex-1 flex items-center justify-center gap-2 py-2.5 px-4 rounded-xl text-xs sm:text-sm font-semibold bg-[#5D6B3F]/75 text-white cursor-not-allowed shadow-xs">
+                        <Check className="w-4 h-4 stroke-[2.5]" />
+                        <span>Max in Cart ({inCartCount})</span>
                       </div>
                     ) : (
                       <button

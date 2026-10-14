@@ -292,12 +292,28 @@ export default function ProductDetailClient({
     setActiveImageIndex((prev) => (prev > 0 ? prev - 1 : gallery.length - 1));
   };
 
+  const inCartQty = getProductQuantity(product.id);
+  const inCartCategoryQty = cartItems
+    .filter((ci) => {
+      return (
+        ci.product?.category_id === product.category_id ||
+        (ci.product?.id === product.id && product.category_id != null)
+      );
+    })
+    .reduce((sum, ci) => sum + ci.quantity, 0);
+
+  const canIncrement =
+    !catStock ||
+    (inCartQty > 0
+      ? inCartCategoryQty < catStock.remaining
+      : inCartCategoryQty + quantity < catStock.remaining);
+
   const handleNextImage = () => {
     setActiveImageIndex((prev) => (prev < gallery.length - 1 ? prev + 1 : 0));
   };
 
   const handleIncrement = () => {
-    const inCartQty = getProductQuantity(product.id);
+    if (!canIncrement) return;
     if (inCartQty > 0) {
       const cartItem = cartItems.find(
         (ci) =>
@@ -314,7 +330,6 @@ export default function ProductDetailClient({
   };
 
   const handleDecrement = () => {
-    const inCartQty = getProductQuantity(product.id);
     if (inCartQty > 0) {
       const cartItem = cartItems.find(
         (ci) =>
@@ -334,6 +349,13 @@ export default function ProductDetailClient({
 
   const handleAddToCart = () => {
     if (isCatSoldOut) return;
+    const countToAdd = Math.max(1, quantity);
+    if (
+      catStock &&
+      inCartCategoryQty + (inCartQty > 0 ? 1 : countToAdd) > catStock.remaining
+    ) {
+      return;
+    }
     const selectedSizeLabel = selectedSizeObj?.label;
     const selectedAddonObjects = (detail.addons || []).filter((a) =>
       selectedAddonIds.includes(a.id)
@@ -869,7 +891,12 @@ export default function ProductDetailClient({
                     </span>
                     <button
                       onClick={handleIncrement}
-                      className="w-8 h-8 rounded-lg flex items-center justify-center text-[#554D3F] hover:text-[#29251F] hover:bg-[#DFD3C0] transition-colors cursor-pointer"
+                      disabled={!canIncrement}
+                      className={`w-8 h-8 rounded-lg flex items-center justify-center transition-colors ${
+                        canIncrement
+                          ? "text-[#554D3F] hover:text-[#29251F] hover:bg-[#DFD3C0] cursor-pointer"
+                          : "text-[#B5A490] opacity-40 cursor-not-allowed"
+                      }`}
                       aria-label="Increase quantity"
                     >
                       <Plus className="w-4 h-4" />
@@ -879,12 +906,15 @@ export default function ProductDetailClient({
                   {/* Add to Cart Button */}
                   <button
                     onClick={handleAddToCart}
-                    className={`flex-1 flex items-center justify-center gap-2.5 py-3.5 px-6 rounded-xl font-semibold text-sm sm:text-base text-white shadow-md transition-all duration-200 cursor-pointer active:scale-[0.98] ${
+                    disabled={inCartQty > 0 && !canIncrement}
+                    className={`flex-1 flex items-center justify-center gap-2.5 py-3.5 px-6 rounded-xl font-semibold text-sm sm:text-base text-white shadow-md transition-all duration-200 ${
                       isAdded
-                        ? "bg-[#4D7C47]"
+                        ? "bg-[#4D7C47] cursor-pointer"
                         : inCartQty > 0
-                        ? "bg-[#5D6B3F] hover:bg-[#4E5B33]"
-                        : "bg-[#A34B3D] hover:bg-[#8F3F32]"
+                        ? !canIncrement
+                          ? "bg-[#5D6B3F]/75 cursor-not-allowed"
+                          : "bg-[#5D6B3F] hover:bg-[#4E5B33] cursor-pointer active:scale-[0.98]"
+                        : "bg-[#A34B3D] hover:bg-[#8F3F32] cursor-pointer active:scale-[0.98]"
                     }`}
                   >
                     {isAdded ? (
@@ -893,12 +923,19 @@ export default function ProductDetailClient({
                         <span>Added to Cart!</span>
                       </>
                     ) : inCartQty > 0 ? (
-                      <>
-                        <Check className="w-5 h-5 stroke-[2.5]" />
-                        <span>
-                          In Cart ({inCartQty}) • Add More (+₹{unitPrice * (quantity || 1)})
-                        </span>
-                      </>
+                      !canIncrement ? (
+                        <>
+                          <Check className="w-5 h-5 stroke-[2.5]" />
+                          <span>Max Limit in Cart ({inCartQty})</span>
+                        </>
+                      ) : (
+                        <>
+                          <Check className="w-5 h-5 stroke-[2.5]" />
+                          <span>
+                            In Cart ({inCartQty}) • Add More (+₹{unitPrice * (quantity || 1)})
+                          </span>
+                        </>
+                      )
                     ) : (
                       <>
                         <ShoppingCart className="w-5 h-5" />

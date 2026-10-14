@@ -68,6 +68,13 @@ export default function StoreClient({
     }
   }, [restaurant?.id]);
 
+  const getCategoryCartCount = (categoryId: string | null) => {
+    if (!categoryId) return 0;
+    return items
+      .filter((ci) => ci.product?.category_id === categoryId)
+      .reduce((sum, ci) => sum + ci.quantity, 0);
+  };
+
   const filtered = activeCategory
     ? products.filter((p) => p.category_id === activeCategory)
     : products;
@@ -183,18 +190,30 @@ export default function StoreClient({
             </h2>
           </div>
           <div className="grid grid-cols-1 sm:grid-cols-3 gap-4">
-            {featured.map((product) => (
-              <FeaturedCard
-                key={product.id}
-                product={product}
-                slug={slug}
-                catStock={product.category_id ? catStockMap[product.category_id] : undefined}
-                onAdd={(e) => addItem(product, 1, undefined, e)}
-                quantity={getQuantity(product.id)}
-                onIncrement={() => increment(product.id)}
-                onDecrement={() => decrement(product.id)}
-              />
-            ))}
+            {featured.map((product) => {
+              const catStock = product.category_id ? catStockMap[product.category_id] : undefined;
+              const inCat = getCategoryCartCount(product.category_id);
+              const disabledIncrement = catStock != null && inCat >= catStock.remaining;
+
+              return (
+                <FeaturedCard
+                  key={product.id}
+                  product={product}
+                  slug={slug}
+                  catStock={catStock}
+                  disabledIncrement={disabledIncrement}
+                  onAdd={(e) => {
+                    if (disabledIncrement) return;
+                    addItem(product, 1, undefined, e);
+                  }}
+                  quantity={getQuantity(product.id)}
+                  onIncrement={() => {
+                    if (!disabledIncrement) increment(product.id);
+                  }}
+                  onDecrement={() => decrement(product.id)}
+                />
+              );
+            })}
           </div>
         </section>
       )}
@@ -233,19 +252,31 @@ export default function StoreClient({
           </div>
         ) : (
           <div className="grid grid-cols-1 sm:grid-cols-2 lg:grid-cols-3 gap-4">
-            {filtered.map((product) => (
-              <ProductCard
-                key={product.id}
-                product={product}
-                slug={slug}
-                categoryName={getCategoryName(product.category_id)}
-                catStock={product.category_id ? catStockMap[product.category_id] : undefined}
-                onAdd={(e) => addItem(product, 1, undefined, e)}
-                quantity={getQuantity(product.id)}
-                onIncrement={() => increment(product.id)}
-                onDecrement={() => decrement(product.id)}
-              />
-            ))}
+            {filtered.map((product) => {
+              const catStock = product.category_id ? catStockMap[product.category_id] : undefined;
+              const inCat = getCategoryCartCount(product.category_id);
+              const disabledIncrement = catStock != null && inCat >= catStock.remaining;
+
+              return (
+                <ProductCard
+                  key={product.id}
+                  product={product}
+                  slug={slug}
+                  categoryName={getCategoryName(product.category_id)}
+                  catStock={catStock}
+                  disabledIncrement={disabledIncrement}
+                  onAdd={(e) => {
+                    if (disabledIncrement) return;
+                    addItem(product, 1, undefined, e);
+                  }}
+                  quantity={getQuantity(product.id)}
+                  onIncrement={() => {
+                    if (!disabledIncrement) increment(product.id);
+                  }}
+                  onDecrement={() => decrement(product.id)}
+                />
+              );
+            })}
           </div>
         )}
       </main>
@@ -283,6 +314,7 @@ function FeaturedCard({
   quantity,
   onIncrement,
   onDecrement,
+  disabledIncrement,
 }: {
   product: Product;
   slug: string;
@@ -291,6 +323,7 @@ function FeaturedCard({
   quantity: number;
   onIncrement: () => void;
   onDecrement: () => void;
+  disabledIncrement?: boolean;
 }) {
   const isCatSoldOut = catStock != null && catStock.remaining <= 0;
   const isSoldOut =
@@ -353,11 +386,17 @@ function FeaturedCard({
             quantity={quantity}
             onIncrement={onIncrement}
             onDecrement={onDecrement}
+            disabledIncrement={disabledIncrement}
           />
         ) : (
           <button
             onClick={onAdd}
-            className="flex items-center gap-1.5 rounded-xl bg-[#C26B59] hover:bg-[#A95145] text-[#F5EBDD] px-3.5 py-1.5 text-xs font-bold transition-all active:scale-95 cursor-pointer shadow-warm-sm"
+            disabled={disabledIncrement}
+            className={`flex items-center gap-1.5 rounded-xl px-3.5 py-1.5 text-xs font-bold transition-all shadow-warm-sm ${
+              disabledIncrement
+                ? "bg-[#C26B59]/40 text-[#F5EBDD]/60 cursor-not-allowed"
+                : "bg-[#C26B59] hover:bg-[#A95145] text-[#F5EBDD] active:scale-95 cursor-pointer"
+            }`}
           >
             <Plus className="h-3.5 w-3.5" />
             Add
@@ -378,6 +417,7 @@ function ProductCard({
   quantity,
   onIncrement,
   onDecrement,
+  disabledIncrement,
 }: {
   product: Product;
   slug: string;
@@ -387,6 +427,7 @@ function ProductCard({
   quantity: number;
   onIncrement: () => void;
   onDecrement: () => void;
+  disabledIncrement?: boolean;
 }) {
   const isCatSoldOut =
     catStock != null && catStock.remaining <= 0;
@@ -475,11 +516,17 @@ function ProductCard({
                 quantity={quantity}
                 onIncrement={onIncrement}
                 onDecrement={onDecrement}
+                disabledIncrement={disabledIncrement}
               />
             ) : (
               <button
                 onClick={onAdd}
-                className="flex items-center gap-1 rounded-xl border border-[#C26B59] bg-[#F5EBDD] text-[#C26B59] px-2.5 py-1 text-xs font-bold hover:bg-[#C26B59] hover:text-[#F5EBDD] transition-colors active:scale-95 cursor-pointer"
+                disabled={disabledIncrement}
+                className={`flex items-center gap-1 rounded-xl border px-2.5 py-1 text-xs font-bold transition-colors ${
+                  disabledIncrement
+                    ? "border-[#C26B59]/30 bg-[#F5EBDD] text-[#C26B59]/40 cursor-not-allowed"
+                    : "border-[#C26B59] bg-[#F5EBDD] text-[#C26B59] hover:bg-[#C26B59] hover:text-[#F5EBDD] active:scale-95 cursor-pointer"
+                }`}
               >
                 <Plus className="h-3.5 w-3.5" />
                 Add
@@ -501,10 +548,12 @@ function QuantityControl({
   quantity,
   onIncrement,
   onDecrement,
+  disabledIncrement,
 }: {
   quantity: number;
   onIncrement: () => void;
   onDecrement: () => void;
+  disabledIncrement?: boolean;
 }) {
   return (
     <div className="flex items-center gap-1 rounded-xl border border-[#C26B59] bg-[#F5EBDD] overflow-hidden shadow-2xs">
@@ -519,8 +568,15 @@ function QuantityControl({
         {quantity}
       </span>
       <button
-        onClick={onIncrement}
-        className="flex h-7 w-7 items-center justify-center text-[#C26B59] hover:bg-[#C26B59] hover:text-[#F5EBDD] transition-colors active:scale-90 cursor-pointer"
+        onClick={() => {
+          if (!disabledIncrement) onIncrement();
+        }}
+        disabled={disabledIncrement}
+        className={`flex h-7 w-7 items-center justify-center transition-colors ${
+          disabledIncrement
+            ? "text-[#B5A490] opacity-40 cursor-not-allowed"
+            : "text-[#C26B59] hover:bg-[#C26B59] hover:text-[#F5EBDD] active:scale-90 cursor-pointer"
+        }`}
         aria-label="Increase quantity"
       >
         <Plus className="h-3.5 w-3.5" />
