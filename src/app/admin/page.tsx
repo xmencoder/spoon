@@ -22,14 +22,24 @@ import {
   Power,
   RefreshCw,
   CalendarClock,
+  Pencil,
+  CloudRain,
+  TrafficCone,
+  Zap,
+  Truck,
 } from "lucide-react";
 import { formatPrice } from "@/lib/utils";
+import { DeliveryPricingModal } from "./DeliveryPricingModal";
+import { getAdminDeliveryPricingAction } from "./delivery-pricing-actions";
+import type { DeliveryPricingConfig } from "@/lib/delivery-types";
 
 export default function AdminDashboardPage() {
   const { restaurant, loading: restLoading, refreshRestaurant } = useAdmin();
   const [metrics, setMetrics] = useState<DashboardMetrics | null>(null);
   const [metricsLoading, setMetricsLoading] = useState(true);
   const [togglingStatus, setTogglingStatus] = useState(false);
+  const [deliveryPricing, setDeliveryPricing] = useState<DeliveryPricingConfig | null>(null);
+  const [pricingModalOpen, setPricingModalOpen] = useState(false);
 
   const loadMetrics = async (restId: string) => {
     try {
@@ -48,6 +58,14 @@ export default function AdminDashboardPage() {
       loadMetrics(restaurant.id);
     }
   }, [restaurant?.id]);
+
+  useEffect(() => {
+    getAdminDeliveryPricingAction().then((data) => {
+      setDeliveryPricing(data);
+    }).catch((err) => {
+      console.error("Failed to load delivery pricing config:", err);
+    });
+  }, []);
 
   const handleToggleStoreStatus = async () => {
     if (!restaurant?.id || !metrics) return;
@@ -342,13 +360,70 @@ export default function AdminDashboardPage() {
                   {restaurant?.whatsapp_number || "+91 98765 43210"}
                 </span>
               </div>
-              <div>
-                <span className="text-[10px] font-bold uppercase tracking-wider text-spoon-muted block">
-                  Delivery Charge
-                </span>
-                <span className="text-spoon-dark font-semibold">
-                  ₹{restaurant?.delivery_charge ?? 40}
-                </span>
+              <div className="rounded-2xl border border-spoon-border/80 bg-white p-3 space-y-2.5">
+                <div className="flex items-center justify-between">
+                  <span className="text-[10px] font-bold uppercase tracking-wider text-spoon-muted block">
+                    Delivery Charge
+                  </span>
+                  <button
+                    type="button"
+                    onClick={() => setPricingModalOpen(true)}
+                    className="inline-flex items-center gap-1 text-[11px] font-bold text-spoon-caramel hover:text-spoon-dark bg-spoon-sand/40 hover:bg-spoon-sand/80 px-2 py-0.5 rounded-md transition-colors cursor-pointer"
+                  >
+                    <Pencil className="w-3 h-3" />
+                    <span>Edit Rates & Surges</span>
+                  </button>
+                </div>
+
+                {deliveryPricing ? (
+                  <div className="space-y-1.5">
+                    <div className="flex items-baseline justify-between">
+                      <span className="text-base font-serif font-bold text-spoon-dark">
+                        ₹{deliveryPricing.baseFare} Base
+                      </span>
+                      <span className="text-[11px] text-spoon-muted font-medium">
+                        +₹{deliveryPricing.perKmRate}/km (after {deliveryPricing.baseDistanceKm} km)
+                      </span>
+                    </div>
+
+                    <div className="text-[10px] text-spoon-muted font-mono bg-spoon-sand/20 rounded-md p-1.5 border border-spoon-border/40">
+                      Formula: ₹{deliveryPricing.baseFare} + max(0, dist − {deliveryPricing.baseDistanceKm}) × ₹{deliveryPricing.perKmRate}
+                    </div>
+
+                    {/* Active Surges Badges */}
+                    <div className="flex flex-wrap gap-1.5 pt-0.5">
+                      {deliveryPricing.rainSurge?.enabled && (
+                        <span className="inline-flex items-center gap-1 text-[10px] font-bold bg-sky-50 text-sky-800 border border-sky-200 px-2 py-0.5 rounded-full">
+                          <CloudRain className="w-2.5 h-2.5" />
+                          <span>Rain (+₹{deliveryPricing.rainSurge.amount})</span>
+                        </span>
+                      )}
+                      {deliveryPricing.trafficSurge?.enabled && (
+                        <span className="inline-flex items-center gap-1 text-[10px] font-bold bg-amber-50 text-amber-800 border border-amber-200 px-2 py-0.5 rounded-full">
+                          <TrafficCone className="w-2.5 h-2.5" />
+                          <span>Traffic (+₹{deliveryPricing.trafficSurge.amount})</span>
+                        </span>
+                      )}
+                      {deliveryPricing.customSurge?.enabled && (
+                        <span className="inline-flex items-center gap-1 text-[10px] font-bold bg-purple-50 text-purple-800 border border-purple-200 px-2 py-0.5 rounded-full">
+                          <Zap className="w-2.5 h-2.5" />
+                          <span>{deliveryPricing.customSurge.label} (+₹{deliveryPricing.customSurge.amount})</span>
+                        </span>
+                      )}
+                      {!deliveryPricing.rainSurge?.enabled &&
+                        !deliveryPricing.trafficSurge?.enabled &&
+                        !deliveryPricing.customSurge?.enabled && (
+                          <span className="text-[10px] text-emerald-700 bg-emerald-50 px-2 py-0.5 rounded-full font-medium border border-emerald-200">
+                            ✓ Standard weather & traffic rates
+                          </span>
+                        )}
+                    </div>
+                  </div>
+                ) : (
+                  <span className="text-spoon-dark font-semibold">
+                    ₹{restaurant?.delivery_charge ?? 40}
+                  </span>
+                )}
               </div>
               <div>
                 <span className="text-[10px] font-bold uppercase tracking-wider text-spoon-muted block">
@@ -370,6 +445,18 @@ export default function AdminDashboardPage() {
           </div>
         </Card>
       </div>
+
+      {deliveryPricing && (
+        <DeliveryPricingModal
+          isOpen={pricingModalOpen}
+          onClose={() => setPricingModalOpen(false)}
+          currentPricing={deliveryPricing}
+          onSuccess={(updated) => {
+            setDeliveryPricing(updated);
+            refreshRestaurant();
+          }}
+        />
+      )}
     </div>
   );
 }

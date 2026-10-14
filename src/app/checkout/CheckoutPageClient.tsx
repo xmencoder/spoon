@@ -147,6 +147,7 @@ export default function CheckoutPageClient() {
   const [isDeliveryAvailable, setIsDeliveryAvailable] = useState(false);
   const [distanceKm, setDistanceKm] = useState<number | null>(null);
   const [deliveryCharge, setDeliveryCharge] = useState<number | null>(null);
+  const [deliverySurges, setDeliverySurges] = useState<Array<{ name: string; amount: number }>>([]);
   const [deliveryCheckError, setDeliveryCheckError] = useState<string | null>(null);
   const [verifiedFullAddress, setVerifiedFullAddress] = useState("");
 
@@ -449,6 +450,7 @@ export default function CheckoutPageClient() {
         setIsDeliveryAvailable(false);
         setDistanceKm(data.distanceKm);
         setDeliveryCharge(null);
+        setDeliverySurges([]);
         setDeliveryCheckError(
           data.error || "Sorry, we currently deliver only within 40 km."
         );
@@ -457,6 +459,7 @@ export default function CheckoutPageClient() {
         setIsDeliveryAvailable(true);
         setDistanceKm(data.distanceKm);
         setDeliveryCharge(data.deliveryCharge);
+        setDeliverySurges(data.surges || []);
         setVerifiedFullAddress(fullAddr);
         setDeliveryCheckError(null);
       }
@@ -464,6 +467,7 @@ export default function CheckoutPageClient() {
       setIsDeliveryChecked(false);
       setIsDeliveryAvailable(false);
       setDeliveryCharge(null);
+      setDeliverySurges([]);
       setDistanceKm(null);
       setDeliveryCheckError("Unable to check delivery right now. Please try again.");
     } finally {
@@ -1659,6 +1663,17 @@ export default function CheckoutPageClient() {
                   : "Click 'Check Delivery'"}
               </span>
             </div>
+            {orderType === "delivery" && deliverySurges.length > 0 && isDeliveryChecked && (
+              <div className="text-[10px] text-amber-900 bg-amber-50/80 border border-amber-200/70 rounded-xl px-2.5 py-1.5 space-y-0.5">
+                <span className="font-semibold block text-[10px] text-amber-950">Active Surcharges:</span>
+                {deliverySurges.map((s, idx) => (
+                  <div key={idx} className="flex justify-between text-[9.5px]">
+                    <span>• {s.name}</span>
+                    <span className="font-semibold">+{formatPrice(s.amount)}</span>
+                  </div>
+                ))}
+              </div>
+            )}
             <div className="flex justify-between text-[#696053]">
               <span>Transaction Fees (4%)</span>
               <span>+{formatPrice(packagingFee)}</span>

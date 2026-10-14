@@ -1,7 +1,70 @@
-/**
- * Delivery Pricing and Location Configuration
- * High-reliability distance-based delivery charge calculation using OpenStreetMap (Nominatim), OSRM, and Haversine road curvature fallback.
- */
+import fs from "fs";
+import path from "path";
+import type {
+  SurgeItem,
+  DeliveryPricingConfig,
+  StructuredAddress,
+  DeliveryCalculationResult,
+} from "./delivery-types";
+
+export type {
+  SurgeItem,
+  DeliveryPricingConfig,
+  StructuredAddress,
+  DeliveryCalculationResult,
+};
+
+const DEFAULT_DELIVERY_PRICING: DeliveryPricingConfig = {
+  baseFare: 50,
+  baseDistanceKm: 1,
+  perKmRate: 10,
+  maxDistanceKm: 40,
+  rainSurge: {
+    enabled: false,
+    amount: 25,
+    label: "Rain Surcharge",
+  },
+  trafficSurge: {
+    enabled: false,
+    amount: 20,
+    label: "Heavy Traffic Surcharge",
+  },
+  customSurge: {
+    enabled: false,
+    amount: 30,
+    label: "Peak Rush Surcharge",
+  },
+};
+
+export function getDeliveryPricing(): DeliveryPricingConfig {
+  try {
+    if (typeof window === "undefined") {
+      const filePath = path.join(process.cwd(), "src", "lib", "delivery-pricing.json");
+      if (fs.existsSync(filePath)) {
+        const raw = fs.readFileSync(filePath, "utf-8");
+        return JSON.parse(raw);
+      }
+    }
+  } catch (err) {
+    console.warn("Could not read dynamic delivery-pricing.json, using fallback:", err);
+  }
+  return DEFAULT_DELIVERY_PRICING;
+}
+
+export function saveDeliveryPricing(newConfig: DeliveryPricingConfig): boolean {
+  try {
+    if (typeof window === "undefined") {
+      const filePath = path.join(process.cwd(), "src", "lib", "delivery-pricing.json");
+      fs.writeFileSync(filePath, JSON.stringify(newConfig, null, 2), "utf-8");
+      // Clear distance cache so new prices apply immediately
+      distanceCache.clear();
+      return true;
+    }
+  } catch (err) {
+    console.error("Failed to write delivery-pricing.json:", err);
+  }
+  return false;
+}
 
 export const BAKERY_LOCATION = {
   name: "The Indulgent Spoon",
@@ -11,52 +74,69 @@ export const BAKERY_LOCATION = {
 };
 
 export const DELIVERY_CONFIG = {
-  BASE_DELIVERY_FARE: 50,
-  BASE_DISTANCE_KM: 1,
-  PER_KM_RATE: 10,
-  MAX_DELIVERY_DISTANCE_KM: 40,
+  get BASE_DELIVERY_FARE() { return getDeliveryPricing().baseFare; },
+  get BASE_DISTANCE_KM() { return getDeliveryPricing().baseDistanceKm; },
+  get PER_KM_RATE() { return getDeliveryPricing().perKmRate; },
+  get MAX_DELIVERY_DISTANCE_KM() { return getDeliveryPricing().maxDistanceKm; },
   ROUND_TO: 1,
 };
 
 /**
+ * Returns full breakdown of the delivery fee for a given distance,
+ * including base fare, distance charge, and active surcharges (rain, traffic, custom).
+ */
+export function getDeliveryChargeBreakdown(distanceKm: number) {
+  const config = getDeliveryPricing();
+  const extraDistance = Math.max(0, distanceKm - config.baseDistanceKm);
+  const baseCharge = config.baseFare;
+  const distanceCharge = Math.round(extraDistance * config.perKmRate);
+
+  const surges: Array<{ name: string; amount: number }> = [];
+  if (config.rainSurge?.enabled && config.rainSurge.amount > 0) {
+    surges.push({
+      name: config.rainSurge.label || "Rain Surcharge",
+      amount: config.rainSurge.amount,
+    });
+  }
+  if (config.trafficSurge?.enabled && config.trafficSurge.amount > 0) {
+    surges.push({
+      name: config.trafficSurge.label || "Heavy Traffic Surcharge",
+      amount: config.trafficSurge.amount,
+    });
+  }
+  if (config.customSurge?.enabled && config.customSurge.amount > 0) {
+    surges.push({
+      name: config.customSurge.label || "Peak Surcharge",
+      amount: config.customSurge.amount,
+    });
+  }
+
+  const surgeTotal = surges.reduce((sum, s) => sum + s.amount, 0);
+  const total = baseCharge + distanceCharge + surgeTotal;
+
+  return {
+    config,
+    total,
+    baseCharge,
+    distanceCharge,
+    extraDistanceKm: parseFloat(extraDistance.toFixed(1)),
+    surges,
+  };
+}
+
+/**
  * Calculate delivery charge based on road distance in kilometers.
- *
- * Formula:
- * Delivery Fee = ₹50 + max(0, Distance − 1) × ₹10
- *
- * Examples:
- * - If distance <= 1 km: ₹50
- * - If distance = 3 km: ₹50 + (3 - 1) * 10 = ₹70
- * - If distance = 3.5 km: ₹50 + (3.5 - 1) * 10 = ₹75
+ * Formula: Base Fare + max(0, Distance − Base Distance) × Per Km Rate + Active Surges
  */
 export function calculateDeliveryCharge(distanceKm: number): number {
-  const extraDistance = Math.max(0, distanceKm - DELIVERY_CONFIG.BASE_DISTANCE_KM);
-  const charge =
-    DELIVERY_CONFIG.BASE_DELIVERY_FARE +
-    extraDistance * DELIVERY_CONFIG.PER_KM_RATE;
-  return Math.round(charge);
+  return getDeliveryChargeBreakdown(distanceKm).total;
 }
 
-export interface StructuredAddress {
-  address?: string;
-  flatBuilding?: string;
-  areaStreet?: string;
-  landmark?: string;
-  pincode?: string;
-  city?: string;
-}
 
-export interface DeliveryCalculationResult {
-  success: boolean;
-  available: boolean;
-  distanceKm: number | null;
-  deliveryCharge: number | null;
-  formattedAddress?: string;
-  error?: string;
-}
 
-// In-memory server-side cache for geocoding & road distance queries
-const distanceCache = new Map<string, { result: DeliveryCalculationResult; timestamp: number }>();
+
+// In-memory server-side cache for geocoded distance
+const distanceCache = new Map<string, { distanceKm: number; displayName?: string; timestamp: number }>();
 const CACHE_TTL_MS = 1000 * 60 * 30; // 30 minutes cache
 
 /**
@@ -215,7 +295,27 @@ export async function calculateRoadDistanceAndCharge(
   const cacheKey = fullAddress.toLowerCase().replace(/\s+/g, " ");
   const cached = distanceCache.get(cacheKey);
   if (cached && Date.now() - cached.timestamp < CACHE_TTL_MS) {
-    return cached.result;
+    if (cached.distanceKm > DELIVERY_CONFIG.MAX_DELIVERY_DISTANCE_KM) {
+      return {
+        success: true,
+        available: false,
+        distanceKm: cached.distanceKm,
+        deliveryCharge: null,
+        formattedAddress: cached.displayName,
+        error: `Sorry, we currently deliver only within 40 km (Your location is ${cached.distanceKm} km away).`,
+      };
+    }
+    const breakdown = getDeliveryChargeBreakdown(cached.distanceKm);
+    return {
+      success: true,
+      available: true,
+      distanceKm: cached.distanceKm,
+      deliveryCharge: breakdown.total,
+      baseCharge: breakdown.baseCharge,
+      distanceCharge: breakdown.distanceCharge,
+      surges: breakdown.surges,
+      formattedAddress: cached.displayName,
+    };
   }
 
   const queryCandidates = buildGeocodingCandidates(input);
@@ -319,20 +419,23 @@ export async function calculateRoadDistanceAndCharge(
       formattedAddress: displayName,
       error: `Sorry, we currently deliver only within 40 km (Your location is ${distanceKm} km away).`,
     };
-    distanceCache.set(cacheKey, { result, timestamp: Date.now() });
+    distanceCache.set(cacheKey, { distanceKm, displayName, timestamp: Date.now() });
     return result;
   }
 
   // 4. Calculate delivery charge
-  const deliveryCharge = calculateDeliveryCharge(distanceKm);
+  const breakdown = getDeliveryChargeBreakdown(distanceKm);
   const result: DeliveryCalculationResult = {
     success: true,
     available: true,
     distanceKm,
-    deliveryCharge,
+    deliveryCharge: breakdown.total,
+    baseCharge: breakdown.baseCharge,
+    distanceCharge: breakdown.distanceCharge,
+    surges: breakdown.surges,
     formattedAddress: displayName,
   };
 
-  distanceCache.set(cacheKey, { result, timestamp: Date.now() });
+  distanceCache.set(cacheKey, { distanceKm, displayName, timestamp: Date.now() });
   return result;
 }

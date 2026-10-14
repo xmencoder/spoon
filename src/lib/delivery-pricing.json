@@ -1,0 +1,21 @@
+{
+  "baseFare": 50,
+  "baseDistanceKm": 1,
+  "perKmRate": 10,
+  "maxDistanceKm": 40,
+  "rainSurge": {
+    "enabled": false,
+    "amount": 25,
+    "label": "Rain Surcharge"
+  },
+  "trafficSurge": {
+    "enabled": false,
+    "amount": 20,
+    "label": "Heavy Traffic Surcharge"
+  },
+  "customSurge": {
+    "enabled": false,
+    "amount": 30,
+    "label": "Peak Festival Surcharge"
+  }
+}

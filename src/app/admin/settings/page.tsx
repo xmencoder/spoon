@@ -17,7 +17,14 @@ import {
   X,
   Truck,
   ShoppingBag,
+  Pencil,
+  CloudRain,
+  TrafficCone,
+  Zap,
 } from "lucide-react";
+import { DeliveryPricingModal } from "../DeliveryPricingModal";
+import { getAdminDeliveryPricingAction } from "../delivery-pricing-actions";
+import type { DeliveryPricingConfig } from "@/lib/delivery-types";
 
 export default function AdminSettingsPage() {
   const { restaurant, refreshRestaurant } = useAdmin();
@@ -34,6 +41,8 @@ export default function AdminSettingsPage() {
   const [isOpen, setIsOpen] = useState(true);
   const [deliveryEnabled, setDeliveryEnabled] = useState(true);
   const [takeawayEnabled, setTakeawayEnabled] = useState(true);
+  const [deliveryPricing, setDeliveryPricing] = useState<DeliveryPricingConfig | null>(null);
+  const [pricingModalOpen, setPricingModalOpen] = useState(false);
 
   // Logo State
   const [logoUrl, setLogoUrl] = useState<string | null>(null);
@@ -44,6 +53,14 @@ export default function AdminSettingsPage() {
   const [saving, setSaving] = useState(false);
   const [errorMsg, setErrorMsg] = useState<string | null>(null);
   const [successMsg, setSuccessMsg] = useState<string | null>(null);
+
+  useEffect(() => {
+    getAdminDeliveryPricingAction().then((data) => {
+      setDeliveryPricing(data);
+    }).catch((err) => {
+      console.error("Failed to load delivery pricing in settings:", err);
+    });
+  }, []);
 
   useEffect(() => {
     if (restaurant) {
@@ -332,6 +349,106 @@ export default function AdminSettingsPage() {
             </div>
           </div>
 
+          <hr className="border-spoon-border/60" />
+
+          {/* Section 3: Delivery Distance Formula & Weather/Traffic Surges */}
+          <div className="space-y-4">
+            <div className="flex flex-col sm:flex-row sm:items-center justify-between gap-2">
+              <div>
+                <h2 className="font-serif font-bold text-base text-spoon-dark flex items-center gap-2">
+                  <Truck className="h-4 w-4 text-spoon-caramel" />
+                  <span>Delivery Distance Formula & Surges</span>
+                </h2>
+                <p className="text-xs text-spoon-muted mt-0.5">
+                  Control base delivery fare, per-kilometer pricing, and toggle instant rain / heavy traffic extra money charges.
+                </p>
+              </div>
+
+              <Button
+                type="button"
+                variant="outline"
+                size="sm"
+                onClick={() => setPricingModalOpen(true)}
+                className="gap-1.5 text-xs font-bold self-start sm:self-auto bg-spoon-sand/30 hover:bg-spoon-sand/80 border-spoon-border"
+              >
+                <Pencil className="w-3.5 h-3.5" />
+                <span>Configure Rates & Surges</span>
+              </Button>
+            </div>
+
+            {deliveryPricing ? (
+              <div className="rounded-2xl border border-spoon-border bg-spoon-cream/40 p-4 space-y-3">
+                <div className="grid grid-cols-1 sm:grid-cols-3 gap-3">
+                  <div className="bg-white rounded-xl border border-spoon-border/70 p-3">
+                    <span className="text-[10px] font-bold uppercase tracking-wider text-spoon-muted block">
+                      Base Fare (Included Distance)
+                    </span>
+                    <span className="font-serif font-bold text-base text-spoon-dark">
+                      ₹{deliveryPricing.baseFare}
+                    </span>
+                    <span className="text-[10px] text-spoon-muted block">
+                      Up to {deliveryPricing.baseDistanceKm} km
+                    </span>
+                  </div>
+
+                  <div className="bg-white rounded-xl border border-spoon-border/70 p-3">
+                    <span className="text-[10px] font-bold uppercase tracking-wider text-spoon-muted block">
+                      Distance Rate
+                    </span>
+                    <span className="font-serif font-bold text-base text-spoon-dark">
+                      ₹{deliveryPricing.perKmRate} / km
+                    </span>
+                    <span className="text-[10px] text-spoon-muted block">
+                      Beyond {deliveryPricing.baseDistanceKm} km (max {deliveryPricing.maxDistanceKm} km)
+                    </span>
+                  </div>
+
+                  <div className="bg-white rounded-xl border border-spoon-border/70 p-3">
+                    <span className="text-[10px] font-bold uppercase tracking-wider text-spoon-muted block">
+                      Active Surges
+                    </span>
+                    <div className="flex flex-wrap gap-1 mt-1">
+                      {deliveryPricing.rainSurge?.enabled && (
+                        <span className="inline-flex items-center gap-1 text-[10px] font-bold bg-sky-50 text-sky-800 border border-sky-200 px-2 py-0.5 rounded-full">
+                          <CloudRain className="w-2.5 h-2.5" />
+                          <span>Rain (+₹{deliveryPricing.rainSurge.amount})</span>
+                        </span>
+                      )}
+                      {deliveryPricing.trafficSurge?.enabled && (
+                        <span className="inline-flex items-center gap-1 text-[10px] font-bold bg-amber-50 text-amber-800 border border-amber-200 px-2 py-0.5 rounded-full">
+                          <TrafficCone className="w-2.5 h-2.5" />
+                          <span>Traffic (+₹{deliveryPricing.trafficSurge.amount})</span>
+                        </span>
+                      )}
+                      {deliveryPricing.customSurge?.enabled && (
+                        <span className="inline-flex items-center gap-1 text-[10px] font-bold bg-purple-50 text-purple-800 border border-purple-200 px-2 py-0.5 rounded-full">
+                          <Zap className="w-2.5 h-2.5" />
+                          <span>{deliveryPricing.customSurge.label} (+₹{deliveryPricing.customSurge.amount})</span>
+                        </span>
+                      )}
+                      {!deliveryPricing.rainSurge?.enabled &&
+                        !deliveryPricing.trafficSurge?.enabled &&
+                        !deliveryPricing.customSurge?.enabled && (
+                          <span className="text-[10px] text-emerald-700 bg-emerald-50 px-2 py-0.5 rounded-full font-medium border border-emerald-200">
+                            ✓ Standard weather & traffic rates
+                          </span>
+                        )}
+                    </div>
+                  </div>
+                </div>
+
+                <div className="text-[11px] font-mono text-spoon-muted bg-white/80 rounded-xl p-2.5 border border-spoon-border/50">
+                  Formula: Customer Total = ₹{deliveryPricing.baseFare} + max(0, distance − {deliveryPricing.baseDistanceKm}) × ₹{deliveryPricing.perKmRate}/km
+                  {(deliveryPricing.rainSurge?.enabled || deliveryPricing.trafficSurge?.enabled || deliveryPricing.customSurge?.enabled) && (
+                    <span className="text-amber-800 font-bold ml-1">
+                      + Active Surges
+                    </span>
+                  )}
+                </div>
+              </div>
+            ) : null}
+          </div>
+
           {/* Submit Action */}
           <div className="flex items-center justify-end gap-3 pt-6 border-t border-spoon-border/60">
             <Button
@@ -355,6 +472,18 @@ export default function AdminSettingsPage() {
 
         </form>
       </div>
+
+      {deliveryPricing && (
+        <DeliveryPricingModal
+          isOpen={pricingModalOpen}
+          onClose={() => setPricingModalOpen(false)}
+          currentPricing={deliveryPricing}
+          onSuccess={(updated) => {
+            setDeliveryPricing(updated);
+            refreshRestaurant();
+          }}
+        />
+      )}
     </div>
   );
 }
