@@ -122,7 +122,7 @@ export function Header({ cartCount: initialCartCount }: HeaderProps) {
             <Link
               id="navbar-cart-icon"
               data-navbar-cart
-              href={`/store/${activeSlug}/cart`}
+              href="/cart"
               className={`relative p-1.5 text-[#E6DBC9] hover:text-white transition-all duration-200 flex items-center justify-center cursor-pointer group rounded-full ${
                 isBouncing ? "animate-cart-bounce text-white ring-2 ring-[#E8D5BC]/80 bg-[#68653F]" : ""
               }`}

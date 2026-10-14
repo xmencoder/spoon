@@ -42,7 +42,7 @@ export function Footer() {
                 </Link>
               </li>
               <li>
-                <Link href="/store/the-indulgent-spoon/cart" className="hover:text-[#C26B59] transition-colors">
+                <Link href="/cart" className="hover:text-[#C26B59] transition-colors">
                   Your Cart
                 </Link>
               </li>

@@ -1,13 +1,10 @@
-import { getDefaultRestaurant } from "@/lib/supabase/queries";
-import { redirect } from "next/navigation";
+import CartPageClient from "./CartPageClient";
 
-export default async function CartPage() {
-  const restaurant = await getDefaultRestaurant();
-  const slug =
-    restaurant?.slug ||
-    process.env.NEXT_PUBLIC_DEFAULT_RESTAURANT_SLUG ||
-    "the-indulgent-spoon";
+export const metadata = {
+  title: "Shopping Cart | The Indulgent Spoon",
+  description: "Review and customize your fresh artisanal bakery cart.",
+};
 
-  // Redirect to active customer cart route
-  redirect(`/store/${slug}/cart`);
+export default function CartPage() {
+  return <CartPageClient />;
 }

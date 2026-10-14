@@ -798,7 +798,7 @@ export default function ProductDetailClient({
                   </div>
                 </div>
                 <Link
-                  href={`/store/${slug}/cart`}
+                  href="/cart"
                   className="font-bold text-[#A34B3D] hover:text-[#7A362B] text-xs underline shrink-0 pl-2"
                 >
                   View Cart

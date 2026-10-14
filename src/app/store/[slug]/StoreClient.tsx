@@ -238,7 +238,7 @@ export default function StoreClient({
       {totalItems > 0 && (
         <div className="fixed bottom-0 left-0 right-0 z-50 p-4 sm:p-6">
           <Link
-            href={`/store/${slug}/cart`}
+            href="/cart"
             className="flex items-center justify-between max-w-lg mx-auto bg-[#C26B59] hover:bg-[#A95145] text-[#F5EBDD] rounded-2xl px-5 py-4 shadow-warm-xl transition-all"
           >
             <div className="flex items-center gap-3">

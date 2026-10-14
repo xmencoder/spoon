@@ -298,7 +298,7 @@ export function CartDrawer() {
             {/* CTAs */}
             <div className="space-y-2 pt-1">
               <Link
-                href={`/store/${activeSlug}/cart`}
+                href="/cart"
                 onClick={closeCartDrawer}
                 className="w-full flex items-center justify-center gap-2 rounded-xl bg-[#FAF5ED] border border-[#91885D]/40 hover:border-[#C26B59] text-[#29251F] hover:text-[#C26B59] py-2.5 text-xs font-bold transition-all shadow-xs"
               >
@@ -307,7 +307,7 @@ export function CartDrawer() {
               </Link>
 
               <Link
-                href={`/store/${activeSlug}/checkout`}
+                href="/checkout"
                 onClick={closeCartDrawer}
                 className="w-full flex items-center justify-center gap-2 rounded-xl bg-[#C26B59] hover:bg-[#A95145] text-[#F5EBDD] py-3 text-sm font-bold shadow-md transition-all active:scale-[0.99]"
               >
