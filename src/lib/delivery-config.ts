@@ -5,7 +5,7 @@
 
 export const BAKERY_LOCATION = {
   name: "The Indulgent Spoon",
-  address: "Mayfield Garden, Sector 51, Gurugram, Haryana, India",
+  address: "N 376, 2nd Floor, Mayfield Gardens, Sec 51, Gurgaon 122018",
   lat: 28.42749,
   lon: 77.06089,
 };

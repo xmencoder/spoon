@@ -40,6 +40,8 @@ import {
   getCustomerDeliverySlots,
   formatTimeFriendly,
   formatSlotWindow,
+  isSourdoughOrFocaccia,
+  getSourdoughSlotInfo,
 } from "@/lib/delivery-slots-service";
 import type { DeliverySlot } from "@/types/database";
 
@@ -124,6 +126,14 @@ export default function CheckoutPage() {
     maxCategoryName: string;
     categoryList: { name: string; hours: number }[];
   } | null>(null);
+
+  const hasSourdoughInCart = React.useMemo(() => {
+    return items.some((i) => isSourdoughOrFocaccia(i.product));
+  }, [items]);
+
+  const sourdoughSlotInfo = React.useMemo(() => {
+    return hasSourdoughInCart ? getSourdoughSlotInfo() : null;
+  }, [hasSourdoughInCart]);
 
   // Autocomplete Suggestions State
   const [suggestions, setSuggestions] = useState<AddressSuggestion[]>([]);
@@ -233,12 +243,15 @@ export default function CheckoutPage() {
         // 4. Calculate baking lead time in minutes (default 60 min if no special baking period)
         const bakingPeriodMinutes = maxBakingHours > 0 ? Math.round(maxBakingHours * 60) : 60;
 
-        // 5. Query delivery slots strictly starting after max baking time has elapsed
+        const hasSourdough = items.some((i) => isSourdoughOrFocaccia(i.product));
+
+        // 5. Query delivery slots strictly starting after max baking time has elapsed (with Sourdough Sunday Special logic)
         const slotData = await getCustomerDeliverySlots(
           restaurant.id,
           categoryIds,
-          5,
-          bakingPeriodMinutes
+          hasSourdough ? 2 : 5,
+          bakingPeriodMinutes,
+          hasSourdough
         );
 
         setAvailableDates(slotData.dates);
@@ -1200,8 +1213,8 @@ export default function CheckoutPage() {
               )}
             </div>
 
-            {/* Baking & Preparation Lead Time Notice */}
-            {cartBakingInfo && cartBakingInfo.maxHours > 0 && (
+            {/* Baking & Preparation Lead Time Notice (Hidden when sourdough/focaccia is in cart since Sunday Special applies) */}
+            {!hasSourdoughInCart && cartBakingInfo && cartBakingInfo.maxHours > 0 && (
               <div className="rounded-2xl border border-amber-300/80 bg-amber-50/90 p-4 text-xs space-y-2.5 animate-in fade-in shadow-2xs">
                 <div className="flex items-start gap-3">
                   <div className="flex h-8 w-8 items-center justify-center rounded-xl bg-amber-100 text-amber-800 shrink-0 mt-0.5 border border-amber-200">
@@ -1291,6 +1304,109 @@ export default function CheckoutPage() {
               </div>
             )}
 
+            {/* Sourdough Sunday Special Notice (Refined, clean bakery aesthetic without star logo) */}
+            {hasSourdoughInCart && sourdoughSlotInfo && (
+              <div className="rounded-3xl border border-[#C26B59]/35 bg-[#FFF9F5] p-5 text-xs space-y-3.5 animate-in fade-in shadow-warm-xs">
+                {/* Header row */}
+                <div className="flex flex-col sm:flex-row sm:items-center justify-between gap-2.5 pb-3 border-b border-[#91885D]/15">
+                  <div className="flex items-center gap-2.5">
+                    <span className="text-2xl leading-none" role="img" aria-label="Sourdough bread">
+                      🥖
+                    </span>
+                    <div>
+                      <div className="flex items-center gap-2 flex-wrap">
+                        <h3 className="font-serif font-bold text-base text-[#29251F] tracking-tight">
+                          Sunday Special Bake
+                        </h3>
+                        <span className="text-[10px] font-bold uppercase tracking-wider bg-[#C26B59] text-white px-2.5 py-0.5 rounded-full shadow-2xs">
+                          Sundays Only
+                        </span>
+                      </div>
+                      <p className="text-[11px] text-[#7A6E5D] mt-0.5 font-medium">
+                        Artisanal Sourdough &amp; Sourdough Focaccia
+                      </p>
+                    </div>
+                  </div>
+
+                  <div className="inline-flex items-center gap-1.5 self-start sm:self-auto text-[11px] font-bold text-[#8C3C2F] bg-[#F7EBE4] border border-[#E6CBC0] px-3 py-1 rounded-xl">
+                    <span>Showing next 2 Sunday slots</span>
+                  </div>
+                </div>
+
+                {/* Subtitle explanation */}
+                <p className="text-[11.5px] text-[#554D3F] leading-relaxed">
+                  Our sourdoughs undergo 36 hours of cold natural fermentation. Freshly baked exclusively for Sunday orders so you receive them at absolute peak flavor and crust.
+                </p>
+
+                {/* Dual Schedule Cards */}
+                <div className="grid grid-cols-1 sm:grid-cols-2 gap-3 pt-0.5">
+                  {/* Monday - Friday card */}
+                  <div
+                    className={`rounded-2xl p-3.5 transition-all border ${
+                      sourdoughSlotInfo.isSameWeekend
+                        ? "bg-[#FFF4EC] border-[#C26B59] shadow-xs ring-1.5 ring-[#C26B59]/30"
+                        : "bg-[#F7EFE4]/60 border-[#91885D]/25 opacity-70"
+                    }`}
+                  >
+                    <div className="flex items-center justify-between gap-2 mb-2">
+                      <span className="text-xs font-bold text-[#29251F] flex items-center gap-1.5">
+                        <span>🗓️</span>
+                        <span>Mon – Fri Orders</span>
+                      </span>
+                      {sourdoughSlotInfo.isSameWeekend && (
+                        <span className="text-[9.5px] font-extrabold uppercase tracking-wider bg-[#3B6E34] text-white px-2 py-0.5 rounded-full shadow-2xs shrink-0">
+                          Active Slot
+                        </span>
+                      )}
+                    </div>
+                    <div className="pt-2 border-t border-[#91885D]/15 space-y-0.5">
+                      <span className="text-[10px] font-bold uppercase tracking-wider text-[#7A6E5D] block">
+                        Delivery Day
+                      </span>
+                      <span className="font-serif font-bold text-sm text-[#A34B3D] block">
+                        {sourdoughSlotInfo.isSameWeekend ? sourdoughSlotInfo.formattedSlotDate : "This Coming Sunday"}
+                      </span>
+                      <p className="text-[10.5px] text-[#696053] leading-normal pt-0.5">
+                        Delivered this weekend
+                      </p>
+                    </div>
+                  </div>
+
+                  {/* Saturday & Sunday card */}
+                  <div
+                    className={`rounded-2xl p-3.5 transition-all border ${
+                      !sourdoughSlotInfo.isSameWeekend
+                        ? "bg-[#FFF4EC] border-[#C26B59] shadow-xs ring-1.5 ring-[#C26B59]/30"
+                        : "bg-[#F7EFE4]/60 border-[#91885D]/25 opacity-70"
+                    }`}
+                  >
+                    <div className="flex items-center justify-between gap-2 mb-2">
+                      <span className="text-xs font-bold text-[#29251F] flex items-center gap-1.5">
+                        <span>🗓️</span>
+                        <span>Sat &amp; Sun Orders</span>
+                      </span>
+                      {!sourdoughSlotInfo.isSameWeekend && (
+                        <span className="text-[9.5px] font-extrabold uppercase tracking-wider bg-[#3B6E34] text-white px-2 py-0.5 rounded-full shadow-2xs shrink-0">
+                          Active Slot
+                        </span>
+                      )}
+                    </div>
+                    <div className="pt-2 border-t border-[#91885D]/15 space-y-0.5">
+                      <span className="text-[10px] font-bold uppercase tracking-wider text-[#7A6E5D] block">
+                        Delivery Day
+                      </span>
+                      <span className="font-serif font-bold text-sm text-[#A34B3D] block">
+                        {!sourdoughSlotInfo.isSameWeekend ? sourdoughSlotInfo.formattedSlotDate : "Next Sunday"}
+                      </span>
+                      <p className="text-[10.5px] text-[#696053] leading-normal pt-0.5">
+                        Fermented for next week&apos;s bake
+                      </p>
+                    </div>
+                  </div>
+                </div>
+              </div>
+            )}
+
             {availableDates.length === 0 && !loadingSlots ? (
               <div className="rounded-2xl border border-amber-200 bg-amber-50 p-4 text-xs text-amber-900">
                 No {orderType === "delivery" ? "delivery" : "pickup"} slots available for the selected dates. Please contact us directly via WhatsApp.
@@ -1299,12 +1415,19 @@ export default function CheckoutPage() {
               <div className="space-y-4">
                 {/* Step A: Select Date */}
                 <div>
-                  <label className="text-[10px] font-bold uppercase tracking-wider text-[#696053] block mb-2">
-                    1. Select {orderType === "delivery" ? "Delivery" : "Pickup"} Date *
-                  </label>
+                  <div className="flex items-center justify-between mb-2">
+                    <label className="text-[10px] font-bold uppercase tracking-wider text-[#696053]">
+                      1. Select {orderType === "delivery" ? "Delivery" : "Pickup"} Date *
+                    </label>
+                    {hasSourdoughInCart && (
+                      <span className="text-[10px] font-bold text-[#C26B59] bg-[#C26B59]/10 px-2 py-0.5 rounded-full">
+                        Sunday Special Delivery Only
+                      </span>
+                    )}
+                  </div>
 
                   <div className="flex items-center gap-2 overflow-x-auto pb-2 scrollbar-thin">
-                    {availableDates.map((dateStr) => {
+                    {availableDates.map((dateStr, idx) => {
                       const d = new Date(dateStr + "T00:00:00");
                       const today = new Date();
                       today.setHours(0, 0, 0, 0);
@@ -1313,12 +1436,17 @@ export default function CheckoutPage() {
 
                       const isToday = d.toDateString() === today.toDateString();
                       const isTomorrow = d.toDateString() === tomorrow.toDateString();
+                      const isSunday = d.getDay() === 0;
 
-                      const dayName = isToday
+                      let dayName = isToday
                         ? "Today"
                         : isTomorrow
                         ? "Tomorrow"
                         : d.toLocaleDateString("en-IN", { weekday: "short" });
+
+                      if (hasSourdoughInCart && isSunday) {
+                        dayName = idx === 0 ? "This Sun" : idx === 1 ? "Next Sun" : "Sun";
+                      }
 
                       const dayNum = d.getDate();
                       const monthName = d.toLocaleDateString("en-IN", { month: "short" });
@@ -1329,7 +1457,7 @@ export default function CheckoutPage() {
                           key={dateStr}
                           type="button"
                           onClick={() => handleDateSelect(dateStr)}
-                          className={`shrink-0 flex flex-col items-center justify-center min-w-[76px] py-2.5 px-3 rounded-2xl border text-center transition-all cursor-pointer select-none ${
+                          className={`shrink-0 flex flex-col items-center justify-center min-w-[80px] py-2.5 px-3 rounded-2xl border text-center transition-all cursor-pointer select-none ${
                             isSelected
                               ? "bg-[#C26B59] text-white border-[#C26B59] shadow-warm-sm scale-[1.03]"
                               : "bg-[#FAF6EF] text-[#29251F] border-[#91885D]/35 hover:border-[#C26B59] hover:bg-white"
@@ -1352,6 +1480,15 @@ export default function CheckoutPage() {
                           >
                             {monthName}
                           </span>
+                          {hasSourdoughInCart && (
+                            <span
+                              className={`text-[8px] font-black uppercase tracking-tight px-1.5 py-0.5 rounded-full mt-1 ${
+                                isSelected ? "bg-white/25 text-white" : "bg-[#C26B59]/15 text-[#C26B59]"
+                              }`}
+                            >
+                              Special
+                            </span>
+                          )}
                         </button>
                       );
                     })}

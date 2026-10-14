@@ -197,7 +197,7 @@ export async function createOrder(
       delivery_address:
         data.orderType === "delivery" ? data.deliveryAddress.trim() : null,
       pickup_location:
-        data.orderType === "takeaway" ? "The Indulgent Spoon, DLF Phase 4, Gurugram" : null,
+        data.orderType === "takeaway" ? "The Indulgent Spoon, N 376, 2nd Floor, Mayfield Gardens, Sec 51, Gurgaon 122018" : null,
       order_type: data.orderType,
       subtotal: itemsSubtotal,
       delivery_charge: calculatedDeliveryCharge,
@@ -355,7 +355,8 @@ export async function createOrder(
       if (data.deliveryTimeSlot) {
         msg += `*Pickup Slot:* ⏰ ${data.deliveryTimeSlot}\n`;
       }
-      msg += `*Pickup Location:* The Indulgent Spoon, DLF Phase 4, Gurugram\n`;
+      msg += `*Pickup Location:* The Indulgent Spoon, N 376, 2nd Floor, Mayfield Gardens, Sec 51, Gurgaon 122018\n`;
+      msg += `*Maps:* https://www.google.com/maps/search/?api=1&query=N+376%2C+2nd+Floor%2C+Mayfield+Gardens%2C+Sector+51%2C+Gurgaon+122018\n`;
     }
 
     msg += `━━━━━━━━━━━━━━\n`;

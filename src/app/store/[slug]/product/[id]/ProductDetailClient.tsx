@@ -22,6 +22,8 @@ import {
   BakeryProductDetail,
 } from "@/lib/bakery-products";
 import type { Restaurant, Product } from "@/types/database";
+import { parseBadges, getBadgeColorClass } from "@/lib/badges";
+import { isSourdoughOrFocaccia, getSourdoughSlotInfo } from "@/lib/delivery-slots-service";
 
 interface Props {
   product: Product;
@@ -235,6 +237,13 @@ export default function ProductDetailClient({
     detail.sizes?.find((s) => s.isDefault)?.id || detail.sizes?.[0]?.id || "";
   const [selectedSizeId, setSelectedSizeId] = useState<string>(initialSizeId);
   const [selectedAddonIds, setSelectedAddonIds] = useState<string[]>([]);
+
+  const isSourdough =
+    isSourdoughOrFocaccia(product) ||
+    isSourdoughOrFocaccia(categoryName) ||
+    isSourdoughOrFocaccia(detail.name) ||
+    isSourdoughOrFocaccia(detail.category);
+  const sourdoughSlotInfo = isSourdough ? getSourdoughSlotInfo() : null;
 
   useEffect(() => {
     if (detail.sizes && detail.sizes.length > 0) {
@@ -489,26 +498,11 @@ export default function ProductDetailClient({
             <div className="flex items-center justify-between gap-4">
               <div className="flex flex-wrap items-center gap-2">
                 {/* Ribbon Badges */}
-                {((detail.badge || badgeProp) || "")
-                  .split(",")
-                  .map((b) => b.trim())
-                  .filter((b) => b && b !== "NONE")
+                {parseBadges((detail.badge || badgeProp) || "")
                   .map((b, bIdx) => (
                     <span
                       key={`ribbon-${bIdx}`}
-                      className={`inline-block px-3 py-1 rounded-full text-[11px] font-bold uppercase tracking-wider shadow-xs ${
-                        b === "BESTSELLER"
-                          ? "bg-[#8E2822] text-[#F5EBDD]"
-                          : b === "POPULAR"
-                          ? "bg-[#A33D31] text-[#F5EBDD]"
-                          : b === "CHEF'S PICK"
-                          ? "bg-[#B4832E] text-white"
-                          : b === "SUGAR FREE"
-                          ? "bg-[#0E7490] text-white"
-                          : b === "GLUTEN FREE"
-                          ? "bg-[#15803D] text-white"
-                          : "bg-[#A34B3D] text-[#F5EBDD]"
-                      }`}
+                      className={`inline-block px-3 py-1 rounded-full text-[11px] font-bold uppercase tracking-wider shadow-xs ${getBadgeColorClass(b)}`}
                     >
                       {b}
                     </span>
@@ -596,6 +590,65 @@ export default function ProductDetailClient({
                 (Inclusive of all taxes)
               </p>
             </div>
+
+            {/* ── SUNDAY SPECIAL DELIVERY NOTICE (Sourdough & Sourdough Focaccia) ── */}
+            {isSourdough && sourdoughSlotInfo && (
+              <div className="rounded-2xl border-2 border-[#C26B59]/40 bg-[#FFF7F2] p-4 sm:p-4.5 shadow-2xs space-y-2.5 animate-in fade-in">
+                <div className="flex items-center justify-between gap-2">
+                  <div className="flex items-center gap-2">
+                    <span className="flex h-7 w-7 items-center justify-center rounded-xl bg-[#C26B59] text-white shadow-2xs text-sm">
+                      🥖
+                    </span>
+                    <div>
+                      <span className="text-xs sm:text-sm font-serif font-bold text-[#29251F] block leading-tight">
+                        Sunday Special • Fresh Wild-Yeast Bake
+                      </span>
+                      <span className="text-[10.5px] font-medium text-[#7A6B5A]">
+                        Delivered exclusively on Sundays
+                      </span>
+                    </div>
+                  </div>
+                  <span className="text-[10px] font-bold text-white bg-[#C26B59] px-2.5 py-0.5 rounded-full uppercase tracking-wider shrink-0 shadow-2xs">
+                    Sundays Only
+                  </span>
+                </div>
+
+                {/* Highlighted Next Delivery Slot */}
+                <div className="rounded-xl bg-white/95 border border-[#C26B59]/25 p-3 flex flex-col sm:flex-row sm:items-center sm:justify-between gap-2">
+                  <div>
+                    <span className="text-[10px] font-bold uppercase tracking-wider text-[#7A6B5A] block">
+                      Next Delivery Slot
+                    </span>
+                    <div className="flex items-baseline gap-2 mt-0.5 flex-wrap">
+                      <span className="text-sm sm:text-base font-serif font-bold text-[#A34B3D]">
+                        {sourdoughSlotInfo.formattedSlotDate}
+                      </span>
+                      <span
+                        className={`text-[10px] font-bold px-2 py-0.5 rounded-md ${
+                          sourdoughSlotInfo.isSameWeekend
+                            ? "bg-amber-100 text-amber-900 border border-amber-300"
+                            : "bg-orange-100 text-orange-950 border border-orange-300"
+                        }`}
+                      >
+                        {sourdoughSlotInfo.isSameWeekend
+                          ? "⚡ This Weekend's Sunday"
+                          : "⏳ Next Weekend's Sunday"}
+                      </span>
+                    </div>
+                  </div>
+
+                  <div className="text-left sm:text-right text-[11px] text-[#696053]">
+                    <span className="block font-medium">Slots: 11 AM – 2 PM • 2 PM – 6 PM • 6 PM – 9 PM</span>
+                    <span className="text-[10px] text-[#7A6B5A]">Home Delivery &amp; Pickup</span>
+                  </div>
+                </div>
+
+                {/* Schedule explanation */}
+                <p className="text-[11px] text-[#706454] leading-relaxed">
+                  {sourdoughSlotInfo.notice}
+                </p>
+              </div>
+            )}
 
             {/* ── SIZE / PACK SELECTION ── */}
             {detail.sizes && detail.sizes.length > 0 && (

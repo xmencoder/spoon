@@ -26,6 +26,9 @@ import {
   ShieldCheck,
   Calendar,
   Download,
+  Navigation,
+  Copy,
+  Check,
 } from "lucide-react";
 import { generateOrderReceiptPdf } from "@/lib/pdf-generator";
 
@@ -90,6 +93,20 @@ export default function OrderSuccessReceiptPage() {
   }, [slug]);
 
   const [downloadingPdf, setDownloadingPdf] = useState(false);
+  const [copiedAddress, setCopiedAddress] = useState(false);
+
+  const BAKERY_PICKUP_ADDRESS = "N 376, 2nd Floor, Mayfield Gardens, Sec 51, Gurgaon 122018";
+  const GOOGLE_MAPS_URL = "https://www.google.com/maps/search/?api=1&query=N+376%2C+2nd+Floor%2C+Mayfield+Gardens%2C+Sector+51%2C+Gurgaon+122018";
+
+  const handleCopyAddress = async () => {
+    try {
+      await navigator.clipboard.writeText(`The Indulgent Spoon, ${BAKERY_PICKUP_ADDRESS}`);
+      setCopiedAddress(true);
+      setTimeout(() => setCopiedAddress(false), 2000);
+    } catch (e) {
+      console.error("Failed to copy address:", e);
+    }
+  };
 
   const handleDownloadPdf = () => {
     if (!receipt) return;
@@ -125,7 +142,8 @@ export default function OrderSuccessReceiptPage() {
         paymentVerifiedAt: new Date().toISOString(),
         bakeryName: receipt.restaurantName || "The Indulgent Spoon",
         bakeryPhone: receipt.restaurantPhone || "+91 9717123510",
-        bakeryAddress: "Mayfield Garden, Sector 51, Gurugram, Haryana",
+        bakeryAddress: BAKERY_PICKUP_ADDRESS,
+        pickupLocation: BAKERY_PICKUP_ADDRESS,
       });
 
       pdf.save(`Receipt-${receipt.orderId}.pdf`);
@@ -357,7 +375,81 @@ export default function OrderSuccessReceiptPage() {
                     </p>
                   </div>
                 )}
+
+                {receipt.orderType !== "delivery" && (
+                  <div>
+                    <span className="text-[10px] font-bold uppercase tracking-wider text-[#696053] block">
+                      Pickup Location
+                    </span>
+                    <p className="font-bold text-[#29251F]">The Indulgent Spoon</p>
+                    <p className="text-[11px] text-[#29251F] leading-snug mt-0.5">
+                      {BAKERY_PICKUP_ADDRESS}
+                    </p>
+                  </div>
+                )}
               </div>
+
+              {/* ── BAKERY PICKUP LOCATION & GOOGLE MAPS CARD (TAKEAWAY ONLY) ── */}
+              {receipt.orderType !== "delivery" && (
+                <div className="rounded-xl bg-gradient-to-br from-[#FFFDF8] to-[#F8F1E5] border border-[#C26B59]/35 p-3 sm:p-3.5 space-y-2.5 shadow-xs">
+                  <div className="flex items-start gap-2.5">
+                    <div className="w-8 h-8 rounded-lg bg-[#C26B59]/15 border border-[#C26B59]/30 flex items-center justify-center shrink-0 mt-0.5 text-[#C26B59]">
+                      <MapPin className="w-4 h-4" />
+                    </div>
+                    <div className="flex-1 min-w-0">
+                      <div className="flex items-center gap-1.5 flex-wrap">
+                        <span className="text-[10px] font-bold uppercase tracking-wider text-[#A34B3D]">
+                          Bakery Pickup Address
+                        </span>
+                        <span className="inline-flex items-center gap-1 px-1.5 py-0.2 rounded text-[8.5px] font-bold bg-[#4D7C47]/15 text-[#2D5A27] border border-[#4D7C47]/25">
+                          <span className="w-1.5 h-1.5 rounded-full bg-[#4D7C47]" />
+                          <span>Open for Pickup</span>
+                        </span>
+                      </div>
+                      <p className="font-serif font-bold text-sm text-[#29251F] mt-0.5">
+                        The Indulgent Spoon
+                      </p>
+                      <div className="text-[11.5px] text-[#423A2F] leading-relaxed mt-0.5 font-medium space-y-0.5">
+                        <p>N 376, 2nd Floor</p>
+                        <p>Mayfield Gardens, Sec 51</p>
+                        <p>Gurgaon 122018</p>
+                      </div>
+                    </div>
+                  </div>
+
+                  {/* Actions: Open in Google Maps + 1-Tap Copy */}
+                  <div className="flex flex-wrap items-center gap-2 pt-2 border-t border-[#91885D]/20">
+                    <a
+                      href={GOOGLE_MAPS_URL}
+                      target="_blank"
+                      rel="noopener noreferrer"
+                      className="inline-flex items-center gap-1.5 px-3 py-1.5 rounded-lg bg-[#C26B59] hover:bg-[#A95145] text-white text-[11px] font-bold shadow-xs hover:shadow-sm transition-all active:scale-95"
+                    >
+                      <Navigation className="w-3.5 h-3.5" />
+                      <span>Open in Google Maps</span>
+                      <ExternalLink className="w-3 h-3 opacity-80" />
+                    </a>
+
+                    <button
+                      type="button"
+                      onClick={handleCopyAddress}
+                      className="inline-flex items-center gap-1.5 px-2.5 py-1.5 rounded-lg bg-white hover:bg-[#FAF4EB] text-[#554D3F] border border-[#91885D]/30 text-[11px] font-semibold shadow-2xs transition-all active:scale-95 cursor-pointer"
+                    >
+                      {copiedAddress ? (
+                        <>
+                          <Check className="w-3.5 h-3.5 text-[#4D7C47]" />
+                          <span className="text-[#4D7C47] font-bold">Copied!</span>
+                        </>
+                      ) : (
+                        <>
+                          <Copy className="w-3.5 h-3.5 text-[#696053]" />
+                          <span>Copy Address</span>
+                        </>
+                      )}
+                    </button>
+                  </div>
+                </div>
+              )}
             </div>
 
             {/* Itemized Order Table */}

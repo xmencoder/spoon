@@ -5,6 +5,7 @@ import Link from "next/link";
 import Image from "next/image";
 import { useCart, DEFAULT_RESTAURANT_SLUG } from "@/lib/store/CartContext";
 import { formatPrice } from "@/lib/utils";
+import { isSourdoughOrFocaccia } from "@/lib/delivery-slots-service";
 import {
   X,
   ShoppingBag,
@@ -184,6 +185,13 @@ export function CartDrawer() {
                       {item.sizeLabel && (
                         <span className="inline-block mt-0.5 text-[10px] font-semibold bg-[#E8D5BC]/70 text-[#54483B] px-2 py-0.5 rounded-md border border-[#91885D]/20">
                           Size: {item.sizeLabel}
+                        </span>
+                      )}
+
+                      {/* Sourdough Sunday Special Badge */}
+                      {isSourdoughOrFocaccia(item.product) && (
+                        <span className="inline-flex items-center gap-1 mt-1 text-[9.5px] font-bold text-[#A34B3D] bg-[#A34B3D]/10 px-1.5 py-0.5 rounded border border-[#A34B3D]/25">
+                          🥖 Sunday Special Delivery
                         </span>
                       )}
 

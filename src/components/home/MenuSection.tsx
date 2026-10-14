@@ -19,6 +19,7 @@ import {
 import { useCart } from "@/lib/store/CartContext";
 import { createClient } from "@/lib/supabase/client";
 import type { Product, Category } from "@/types/database";
+import { parseBadges, getBadgeColorClass } from "@/lib/badges";
 
 export interface CategoryCard {
   id: string;
@@ -990,9 +991,16 @@ export function MenuSection({
                               <span className="inline-flex items-center gap-1 px-1.5 py-0.5 rounded-md text-[8.5px] font-bold text-white bg-[#4D7C47] shadow-sm"><Check className="w-2.5 h-2.5 stroke-[3]" /><span>{inCartCount} in Cart</span></span>
                             </div>
                           )}
-                          {item.badge && item.badge !== "NONE" && (
-                            <div className="absolute top-2 left-2 z-10">
-                              <span className={`inline-block px-2 py-0.5 rounded-[4px] text-[9px] font-bold uppercase tracking-wider text-white shadow-xs ${ item.badge === "BESTSELLER" ? "bg-[#8E2822]" : item.badge === "POPULAR" ? "bg-[#A33D31]" : "bg-[#B04336]" }`}>{item.badge}</span>
+                          {item.badge && item.badge !== "NONE" && parseBadges(item.badge).length > 0 && (
+                            <div className="absolute top-2 left-2 z-10 flex flex-wrap gap-1 max-w-[85%]">
+                              {parseBadges(item.badge).map((b, bIdx) => (
+                                <span
+                                  key={bIdx}
+                                  className={`inline-block px-2 py-0.5 rounded-[4px] text-[8.5px] font-bold uppercase tracking-wider shadow-xs ${getBadgeColorClass(b)}`}
+                                >
+                                  {b}
+                                </span>
+                              ))}
                             </div>
                           )}
                         </Link>
@@ -1046,9 +1054,16 @@ export function MenuSection({
                               <span className="inline-flex items-center gap-1.5 px-2.5 py-1 rounded-md text-[10px] font-bold text-white bg-[#4D7C47] shadow-sm border border-white/20"><Check className="w-3 h-3 stroke-[3]" /><span>{inCartCount} in Cart</span></span>
                             </div>
                           )}
-                          {item.badge && !isAlreadyInCart && (
-                            <div className="absolute top-3 left-3 z-10">
-                              <span className={`inline-block px-2.5 py-1 rounded-md text-[10px] font-bold uppercase tracking-wider text-white shadow-xs ${ item.badge === "POPULAR" ? "bg-[#A33D31]" : "bg-[#B04336]" }`}>{item.badge}</span>
+                          {item.badge && !isAlreadyInCart && parseBadges(item.badge).length > 0 && (
+                            <div className="absolute top-3 left-3 z-10 flex flex-wrap gap-1.5 max-w-[85%]">
+                              {parseBadges(item.badge).map((b, bIdx) => (
+                                <span
+                                  key={bIdx}
+                                  className={`inline-block px-2.5 py-1 rounded-md text-[10px] font-bold uppercase tracking-wider shadow-xs ${getBadgeColorClass(b)}`}
+                                >
+                                  {b}
+                                </span>
+                              ))}
                             </div>
                           )}
                           <button onClick={(e) => { e.preventDefault(); e.stopPropagation(); toggleFavorite(item.id); }} className="absolute top-3 right-3 w-8 h-8 rounded-full bg-black/25 backdrop-blur-md border border-white/20 flex items-center justify-center text-white hover:bg-black/40 hover:scale-110 active:scale-95 transition-all cursor-pointer z-10" aria-label="Add to favorites">
@@ -1140,32 +1155,16 @@ export function MenuSection({
                   )}
 
                   {/* Top-Left Badges */}
-                  {item.badge && item.badge !== "NONE" && (
-                    <div className="absolute top-2 left-2 z-10 flex flex-col items-start gap-1">
-                      {item.badge
-                        .split(",")
-                        .map((b) => b.trim())
-                        .filter((b) => b && b !== "NONE")
-                        .map((b, bIdx) => (
-                          <span
-                            key={bIdx}
-                            className={`inline-block px-2 py-0.5 rounded-[4px] text-[9px] font-bold uppercase tracking-wider text-white shadow-xs ${
-                              b === "BESTSELLER"
-                                ? "bg-[#8E2822]"
-                                : b === "POPULAR"
-                                ? "bg-[#A33D31]"
-                                : b === "CHEF'S PICK"
-                                ? "bg-[#B4832E]"
-                                : b === "SUGAR FREE"
-                                ? "bg-[#0E7490]"
-                                : b === "GLUTEN FREE"
-                                ? "bg-[#15803D]"
-                                : "bg-[#B04336]"
-                            }`}
-                          >
-                            {b}
-                          </span>
-                        ))}
+                  {item.badge && item.badge !== "NONE" && parseBadges(item.badge).length > 0 && (
+                    <div className="absolute top-2 left-2 z-10 flex flex-wrap items-start gap-1 max-w-[85%]">
+                      {parseBadges(item.badge).map((b, bIdx) => (
+                        <span
+                          key={bIdx}
+                          className={`inline-block px-2 py-0.5 rounded-[4px] text-[9px] font-bold uppercase tracking-wider shadow-xs ${getBadgeColorClass(b)}`}
+                        >
+                          {b}
+                        </span>
+                      ))}
                     </div>
                   )}
 
@@ -1324,18 +1323,17 @@ export function MenuSection({
                     </div>
                   )}
 
-                  {/* Top-Left Badge (POPULAR or NEW!) */}
-                  {item.badge && !isAlreadyInCart && (
-                    <div className="absolute top-3 left-3 z-10">
-                      <span
-                        className={`inline-block px-2.5 py-1 rounded-md text-[10px] font-bold uppercase tracking-wider text-white shadow-xs ${
-                          item.badge === "POPULAR"
-                            ? "bg-[#A33D31]"
-                            : "bg-[#B04336]"
-                        }`}
-                      >
-                        {item.badge}
-                      </span>
+                  {/* Top-Left Badges */}
+                  {item.badge && !isAlreadyInCart && parseBadges(item.badge).length > 0 && (
+                    <div className="absolute top-3 left-3 z-10 flex flex-wrap gap-1.5 max-w-[85%]">
+                      {parseBadges(item.badge).map((b, bIdx) => (
+                        <span
+                          key={bIdx}
+                          className={`inline-block px-2.5 py-1 rounded-md text-[10px] font-bold uppercase tracking-wider shadow-xs ${getBadgeColorClass(b)}`}
+                        >
+                          {b}
+                        </span>
+                      ))}
                     </div>
                   )}
 

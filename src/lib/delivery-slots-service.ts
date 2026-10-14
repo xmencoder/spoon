@@ -82,15 +82,122 @@ export function isSlotInPastOrCutoff(
 }
 
 /**
+ * Detect if a product, cart item, or category string represents Sourdough or Sourdough Focaccia
+ */
+export function isSourdoughOrFocaccia(item: any): boolean {
+  if (!item) return false;
+  const name = typeof item === "string" ? item : (item.name || item.title || "");
+  const category = item.category || item.categoryName || item.category_name || "";
+  const slug = item.categorySlug || item.category_slug || item.slug || item.id || "";
+  const desc = item.description || item.subtitle || "";
+
+  const combined = `${name} ${category} ${slug} ${desc}`.toLowerCase();
+  return (
+    combined.includes("sourdough") ||
+    combined.includes("focaccia") ||
+    combined.includes("foccia")
+  );
+}
+
+/**
+ * Sunday Special delivery slot date calculator:
+ * - Orders placed Monday through Friday (days 1-5): delivered this coming Sunday (same weekend).
+ * - Orders placed Saturday (day 6) or Sunday (day 0): delivered NEXT Sunday (next weekend).
+ */
+export function getNextSourdoughDeliveryDate(currentDate: Date = new Date()): Date {
+  const d = new Date(currentDate);
+  const day = d.getDay(); // 0 = Sun, 1 = Mon, ..., 6 = Sat
+  let daysUntilSunday: number;
+
+  if (day >= 1 && day <= 5) {
+    // Monday to Friday -> this week's Sunday
+    daysUntilSunday = 7 - day;
+  } else if (day === 6) {
+    // Saturday -> next week's Sunday (8 days away)
+    daysUntilSunday = 8;
+  } else {
+    // Sunday (day 0) -> next week's Sunday (7 days away)
+    daysUntilSunday = 7;
+  }
+
+  return new Date(d.getTime() + daysUntilSunday * 24 * 60 * 60 * 1000);
+}
+
+/**
+ * Returns an array of consecutive upcoming Sunday dates (YYYY-MM-DD)
+ * adhering to the Sourdough Sunday Special cutoff logic.
+ */
+export function getUpcomingSourdoughSundays(
+  count: number = 4,
+  currentDate: Date = new Date()
+): string[] {
+  const firstSunday = getNextSourdoughDeliveryDate(currentDate);
+  const sundays: string[] = [];
+
+  for (let i = 0; i < count; i++) {
+    const s = new Date(firstSunday.getTime() + i * 7 * 24 * 60 * 60 * 1000);
+    const y = s.getFullYear();
+    const m = String(s.getMonth() + 1).padStart(2, "0");
+    const dt = String(s.getDate()).padStart(2, "0");
+    sundays.push(`${y}-${m}-${dt}`);
+  }
+
+  return sundays;
+}
+
+/**
+ * Returns user-facing info regarding the Sourdough Sunday delivery slot
+ */
+export function getSourdoughSlotInfo(currentDate: Date = new Date()): {
+  slotDate: string;
+  formattedSlotDate: string;
+  isSameWeekend: boolean;
+  headline: string;
+  notice: string;
+} {
+  const day = currentDate.getDay();
+  const isSameWeekend = day >= 1 && day <= 5;
+  const nextSunday = getNextSourdoughDeliveryDate(currentDate);
+
+  const y = nextSunday.getFullYear();
+  const m = String(nextSunday.getMonth() + 1).padStart(2, "0");
+  const dt = String(nextSunday.getDate()).padStart(2, "0");
+  const slotDate = `${y}-${m}-${dt}`;
+
+  const formattedSlotDate = nextSunday.toLocaleDateString("en-IN", {
+    weekday: "long",
+    day: "numeric",
+    month: "short",
+  });
+
+  const headline = isSameWeekend
+    ? "This Sunday Special Bake"
+    : "Next Sunday Special Bake";
+
+  const notice = isSameWeekend
+    ? "Orders placed Monday–Friday are slow-fermented and delivered fresh this coming Sunday."
+    : "Orders placed on Saturday & Sunday require a 36-hour cold wild-yeast ferment and will be delivered next Sunday.";
+
+  return {
+    slotDate,
+    formattedSlotDate,
+    isSameWeekend,
+    headline,
+    notice,
+  };
+}
+
+/**
  * Customer query: Fetch available delivery dates and valid slots for a cart
- * Handles multi-category cart intersection, store-wide slots, and max baking time
- * Only returns the next available dates starting AFTER the required baking period.
+ * Handles multi-category cart intersection, store-wide slots, max baking time,
+ * and Sunday Special logic for Sourdough & Sourdough Focaccia.
  */
 export async function getCustomerDeliverySlots(
   restaurantId: string,
   categoryIds: (string | null | undefined)[],
   daysAhead: number = 5,
-  bakingPeriodMinutes: number = 60
+  bakingPeriodMinutes: number = 60,
+  isSourdoughCart: boolean = false
 ): Promise<{
   dates: string[];
   slotsByDate: Record<string, DeliverySlot[]>;
@@ -103,6 +210,77 @@ export async function getCustomerDeliverySlots(
   const day = String(now.getDate()).padStart(2, "0");
   const todayStr = `${year}-${month}-${day}`;
 
+  // If Sourdough or Sourdough Focaccia is in the cart, delivery is strictly on the NEXT 2 SUNDAYS ONLY
+  if (isSourdoughCart) {
+    const allowedSundays = getUpcomingSourdoughSundays(2, now);
+    const firstSundayStr = allowedSundays[0];
+    const lastSundayStr = allowedSundays[allowedSundays.length - 1];
+
+    const { data: rawSlots } = await supabase
+      .from("delivery_slots")
+      .select("*, category:categories(*)")
+      .eq("restaurant_id", restaurantId)
+      .gte("date", firstSundayStr)
+      .lte("date", lastSundayStr)
+      .eq("is_active", true)
+      .eq("is_closed", false)
+      .order("date", { ascending: true })
+      .order("start_time", { ascending: true });
+
+    const allSlots = (rawSlots || []) as DeliverySlot[];
+    const dateMap: Record<string, DeliverySlot[]> = {};
+
+    for (const slot of allSlots) {
+      if (!allowedSundays.includes(slot.date)) continue;
+      if (slot.current_order_count >= slot.capacity) continue;
+
+      if (!dateMap[slot.date]) {
+        dateMap[slot.date] = [];
+      }
+      const exists = dateMap[slot.date].some(
+        (s) => s.start_time === slot.start_time && s.end_time === slot.end_time
+      );
+      if (!exists) {
+        dateMap[slot.date].push(slot);
+      }
+    }
+
+    // Standard fallback windows for any Sunday that doesn't have custom slots
+    const standardWindows = [
+      { start: "11:00", end: "14:00" },
+      { start: "14:00", end: "18:00" },
+      { start: "18:00", end: "21:00" },
+    ];
+
+    const finalDates = allowedSundays.slice(0, 2);
+    const finalSlotsByDate: Record<string, DeliverySlot[]> = {};
+
+    for (const sundayDate of finalDates) {
+      if (dateMap[sundayDate] && dateMap[sundayDate].length > 0) {
+        finalSlotsByDate[sundayDate] = dateMap[sundayDate];
+      } else {
+        finalSlotsByDate[sundayDate] = standardWindows.map((win) => ({
+          id: `sourdough-sunday-${sundayDate}-${win.start}`,
+          restaurant_id: restaurantId,
+          category_id: null,
+          date: sundayDate,
+          start_time: win.start,
+          end_time: win.end,
+          capacity: 25,
+          current_order_count: 0,
+          is_active: true,
+          is_closed: false,
+        }));
+      }
+    }
+
+    return {
+      dates: finalDates,
+      slotsByDate: finalSlotsByDate,
+    };
+  }
+
+  // Standard non-sourdough cart logic:
   // Search ahead far enough to find `daysAhead` available dates even with 1-3 days baking time
   const leadTimeDays = Math.ceil(bakingPeriodMinutes / 1440);
   const searchDaysAhead = Math.max(14, leadTimeDays + daysAhead + 3);
@@ -192,7 +370,11 @@ export async function getCustomerDeliverySlots(
  * Generate standard fallback slots if none in DB yet
  * Strictly honors leadTimeMinutes so no slots appear before baking is complete.
  */
-function generateFallbackCustomerSlots(daysAhead: number = 5, leadTimeMinutes: number = 60): {
+function generateFallbackCustomerSlots(
+  daysAhead: number = 5,
+  leadTimeMinutes: number = 60,
+  isSourdoughCart: boolean = false
+): {
   dates: string[];
   slotsByDate: Record<string, DeliverySlot[]>;
 } {
@@ -206,6 +388,27 @@ function generateFallbackCustomerSlots(daysAhead: number = 5, leadTimeMinutes: n
   ];
 
   const now = new Date();
+
+  if (isSourdoughCart) {
+    const sundays = getUpcomingSourdoughSundays(2, now);
+    for (const sundayDate of sundays) {
+      dates.push(sundayDate);
+      slotsByDate[sundayDate] = standardWindows.map((win) => ({
+        id: `fallback-${sundayDate}-${win.start}`,
+        restaurant_id: "",
+        category_id: null,
+        date: sundayDate,
+        start_time: win.start,
+        end_time: win.end,
+        capacity: 20,
+        current_order_count: 0,
+        is_active: true,
+        is_closed: false,
+      }));
+    }
+    return { dates, slotsByDate };
+  }
+
   const leadTimeDays = Math.ceil(leadTimeMinutes / 1440);
   const maxSearchDays = Math.max(14, leadTimeDays + daysAhead + 3);
 

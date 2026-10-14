@@ -9,6 +9,7 @@ import {
   DEFAULT_RESTAURANT_SLUG,
 } from "@/lib/store/CartContext";
 import { formatPrice } from "@/lib/utils";
+import { isSourdoughOrFocaccia } from "@/lib/delivery-slots-service";
 import { createClient } from "@/lib/supabase/client";
 import type { Product, Category } from "@/types/database";
 import { Header } from "@/components/layout/Header";
@@ -271,8 +272,13 @@ export default function CartPage() {
                               </h3>
                             </Link>
                             {item.sizeLabel && (
-                              <span className="inline-block text-[11px] font-bold text-[#A34B3D] bg-[#A34B3D]/10 px-2 py-0.5 rounded-md mt-1">
+                              <span className="inline-block text-[11px] font-bold text-[#A34B3D] bg-[#A34B3D]/10 px-2 py-0.5 rounded-md mt-1 mr-2">
                                 Size: {item.sizeLabel}
+                              </span>
+                            )}
+                            {isSourdoughOrFocaccia(item.product) && (
+                              <span className="inline-flex items-center gap-1 text-[10px] font-bold text-[#A34B3D] bg-[#A34B3D]/10 px-2 py-0.5 rounded-md mt-1 border border-[#A34B3D]/25">
+                                🥖 Sunday Special Delivery
                               </span>
                             )}
                             {item.addons && item.addons.length > 0 && (

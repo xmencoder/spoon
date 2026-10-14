@@ -20,6 +20,7 @@ import type {
   ProductSizeOption,
   ProductAddonOption,
 } from "@/types/database";
+import { getBadgeColorClass } from "@/lib/badges";
 import { Button } from "@/components/ui/button";
 import { Input } from "@/components/ui/input";
 import {
@@ -764,6 +765,22 @@ export default function AdminEditProductPage() {
                   <option value="GLUTEN FREE">GLUTEN FREE (Emerald)</option>
                 </select>
               </div>
+
+              {(badge !== "NONE" || badgeSecondary !== "NONE") && (
+                <div className="col-span-full flex items-center gap-2 pt-2 pb-1">
+                  <span className="text-[11px] font-bold uppercase tracking-wider text-spoon-muted">Preview:</span>
+                  {badge !== "NONE" && (
+                    <span className={`inline-block px-2.5 py-1 rounded-md text-[10px] font-bold uppercase tracking-wider shadow-xs ${getBadgeColorClass(badge)}`}>
+                      {badge}
+                    </span>
+                  )}
+                  {badgeSecondary !== "NONE" && (
+                    <span className={`inline-block px-2.5 py-1 rounded-md text-[10px] font-bold uppercase tracking-wider shadow-xs ${getBadgeColorClass(badgeSecondary)}`}>
+                      {badgeSecondary}
+                    </span>
+                  )}
+                </div>
+              )}
             </div>
 
             {/* Menu Tags */}

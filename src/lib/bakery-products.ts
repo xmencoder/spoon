@@ -742,6 +742,46 @@ export const BAKERY_PRODUCTS: Record<string, BakeryProductDetail> = {
       "zero-sugar-hazelnut-spread",
     ],
   },
+  "artisanal-sourdough-focaccia": {
+    id: "artisanal-sourdough-focaccia",
+    name: "Artisanal Sourdough Focaccia",
+    subtitle:
+      "Deep dimpled, golden olive-oil crust with sea salt flakes, garden rosemary, and cherry tomatoes.",
+    price: 360,
+    category: "Sourdough",
+    categorySlug: "sourdough",
+    sizes: SOURDOUGH_SIZES,
+    addons: SOURDOUGH_ADDONS,
+    badge: "SUNDAY SPECIAL",
+    doodleTopRight: "Sunday Special ♡",
+    imageScript: "Cold fermented & oven crisp ♡",
+    rating: 4.9,
+    reviewCount: "410 reviews",
+    mainImage:
+      "https://images.unsplash.com/photo-1589367920969-ab8e050bbb04?w=800&auto=format&fit=crop&q=80",
+    galleryImages: [
+      "https://images.unsplash.com/photo-1589367920969-ab8e050bbb04?w=800&auto=format&fit=crop&q=80",
+      "https://images.unsplash.com/photo-1509440159596-0249088772ff?w=800&auto=format&fit=crop&q=80",
+    ],
+    storyTitle: "About This Sourdough Focaccia",
+    storyText:
+      "Naturally leavened using 100% wild yeast starter with extra virgin olive oil dimpled by hand. Fermented for 36 hours for exceptional aeration, crispy bottom crust, and melt-in-the-mouth softness.",
+    quote: "Pure olive oil, blistered crust, and slow weekend patience.",
+    featureBadges: [],
+    ingredients: STANDARD_INGREDIENTS,
+    allergenInfo: [
+      "Contains Wheat (Gluten).",
+      "100% Naturally Vegan, zero dairy, pure extra virgin olive oil.",
+    ],
+    storageCare: [
+      "Best enjoyed day of delivery. Warm in an oven or air fryer at 180°C for 3–4 minutes for maximum crunch.",
+      "Can be sliced and frozen for up to 3 weeks.",
+    ],
+    recommendedIds: [
+      "country-sourdough-batard",
+      "olive-rosemary-sourdough",
+    ],
+  },
 };
 
 // Also list the 5 recommended items for "You May Also Like"
@@ -818,7 +858,7 @@ export function getBakeryProductDetail(
     sizes = SPREAD_SIZES;
     addons = SPREAD_ADDONS;
     categorySlug = "spreads";
-  } else if (lower.includes("sourdough")) {
+  } else if (lower.includes("sourdough") || lower.includes("focaccia") || lower.includes("foccia")) {
     sizes = SOURDOUGH_SIZES;
     addons = SOURDOUGH_ADDONS;
     categorySlug = "sourdough";
