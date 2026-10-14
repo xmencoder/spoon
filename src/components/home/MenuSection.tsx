@@ -441,7 +441,11 @@ export function MenuSection({
     const inCartCount = getProductQuantity(id);
     if (inCartCount > 0) {
       const cartItem = cartItems.find(
-        (ci) => ci.product.id === id || ci.id === id || ci.id.startsWith(id)
+        (ci) =>
+          ci.product?.id === id ||
+          ci.id === id ||
+          ci.id.startsWith(`${id}__`) ||
+          (ci.id.startsWith(`${id}-`) && ci.product?.id === id)
       );
       if (cartItem) {
         increment(cartItem.id);
@@ -463,7 +467,11 @@ export function MenuSection({
     const inCartCount = getProductQuantity(id);
     if (inCartCount > 0) {
       const cartItem = cartItems.find(
-        (ci) => ci.product.id === id || ci.id === id || ci.id.startsWith(id)
+        (ci) =>
+          ci.product?.id === id ||
+          ci.id === id ||
+          ci.id.startsWith(`${id}__`) ||
+          (ci.id.startsWith(`${id}-`) && ci.product?.id === id)
       );
       if (cartItem) {
         // If 1 in cart, decrement removes it from cart, automatically switching button back to "Add to Cart"

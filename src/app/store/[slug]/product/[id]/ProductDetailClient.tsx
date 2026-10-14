@@ -281,7 +281,11 @@ export default function ProductDetailClient({
     const inCartQty = getProductQuantity(product.id);
     if (inCartQty > 0) {
       const cartItem = cartItems.find(
-        (ci) => ci.product.id === product.id || ci.id.startsWith(product.id)
+        (ci) =>
+          ci.product?.id === product.id ||
+          ci.id === product.id ||
+          ci.id.startsWith(`${product.id}__`) ||
+          ci.id.startsWith(`${product.id}-`)
       );
       if (cartItem) {
         increment(cartItem.id);
@@ -294,7 +298,11 @@ export default function ProductDetailClient({
     const inCartQty = getProductQuantity(product.id);
     if (inCartQty > 0) {
       const cartItem = cartItems.find(
-        (ci) => ci.product.id === product.id || ci.id.startsWith(product.id)
+        (ci) =>
+          ci.product?.id === product.id ||
+          ci.id === product.id ||
+          ci.id.startsWith(`${product.id}__`) ||
+          ci.id.startsWith(`${product.id}-`)
       );
       if (cartItem) {
         decrement(cartItem.id);
@@ -310,8 +318,6 @@ export default function ProductDetailClient({
     const selectedAddonObjects = (detail.addons || []).filter((a) =>
       selectedAddonIds.includes(a.id)
     );
-
-    const variantId = `${product.id}-${selectedSizeId || "default"}-${[...selectedAddonIds].sort().join("-")}`;
 
     const variantName = selectedSizeLabel
       ? `${detail.name} (${selectedSizeLabel}${
@@ -333,7 +339,7 @@ export default function ProductDetailClient({
 
     const configuredProduct: Product = {
       ...product,
-      id: variantId,
+      id: product.id,
       name: detail.name,
       price: unitPrice,
       description: variantDesc,

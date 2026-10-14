@@ -71,9 +71,11 @@ function cartReducer(state: CartState, action: CartAction): CartState {
         ? [...action.addons].map((a) => a.id).sort().join("-")
         : "";
       const sizeKey = action.sizeLabel || "default";
-      const itemId = `${action.product.id}-${sizeKey}-${addonKey}`;
+      const itemId = `${action.product.id}__${sizeKey}__${addonKey}`;
 
-      const existingIndex = state.items.findIndex((i) => i.id === itemId);
+      const existingIndex = state.items.findIndex(
+        (i) => i.id === itemId || (i.product?.id === action.product.id && i.id === `${action.product.id}-${sizeKey}-${addonKey}`)
+      );
 
       if (existingIndex > -1) {
         const updatedItems = [...state.items];
@@ -102,45 +104,61 @@ function cartReducer(state: CartState, action: CartAction): CartState {
     case "REMOVE_ITEM":
       return {
         ...state,
-        items: state.items.filter((i) => i.id !== action.itemId),
-      };
-
-    case "INCREMENT":
-      return {
-        ...state,
-        items: state.items.map((i) =>
-          i.id === action.itemId ? { ...i, quantity: i.quantity + 1 } : i
+        items: state.items.filter(
+          (i) => i.id !== action.itemId && i.product?.id !== action.itemId
         ),
       };
 
-    case "DECREMENT": {
-      const item = state.items.find((i) => i.id === action.itemId);
+    case "INCREMENT": {
+      const item = state.items.find(
+        (i) => i.id === action.itemId || i.product?.id === action.itemId
+      );
       if (!item) return state;
+      const targetId = item.id;
+      return {
+        ...state,
+        items: state.items.map((i) =>
+          i.id === targetId ? { ...i, quantity: i.quantity + 1 } : i
+        ),
+      };
+    }
+
+    case "DECREMENT": {
+      const item = state.items.find(
+        (i) => i.id === action.itemId || i.product?.id === action.itemId
+      );
+      if (!item) return state;
+      const targetId = item.id;
       if (item.quantity <= 1) {
         return {
           ...state,
-          items: state.items.filter((i) => i.id !== action.itemId),
+          items: state.items.filter((i) => i.id !== targetId),
         };
       }
       return {
         ...state,
         items: state.items.map((i) =>
-          i.id === action.itemId ? { ...i, quantity: i.quantity - 1 } : i
+          i.id === targetId ? { ...i, quantity: i.quantity - 1 } : i
         ),
       };
     }
 
     case "SET_QUANTITY": {
+      const item = state.items.find(
+        (i) => i.id === action.itemId || i.product?.id === action.itemId
+      );
+      if (!item) return state;
+      const targetId = item.id;
       if (action.quantity <= 0) {
         return {
           ...state,
-          items: state.items.filter((i) => i.id !== action.itemId),
+          items: state.items.filter((i) => i.id !== targetId),
         };
       }
       return {
         ...state,
         items: state.items.map((i) =>
-          i.id === action.itemId ? { ...i, quantity: action.quantity } : i
+          i.id === targetId ? { ...i, quantity: action.quantity } : i
         ),
       };
     }
@@ -210,25 +228,59 @@ function parseStoredCart(stored: string | null): CartItem[] {
   try {
     const raw = JSON.parse(stored);
     if (!Array.isArray(raw)) return [];
-    return raw.map((item: any) => {
+    const validItems: CartItem[] = [];
+
+    for (const item of raw) {
+      if (!item || typeof item !== "object") continue;
+      if (!item.product || typeof item.product !== "object") continue;
+
+      const productId =
+        typeof item.product.id === "string" ? item.product.id.trim() : "";
+      if (!productId) continue;
+
+      const qty =
+        typeof item.quantity === "number" ? Math.floor(item.quantity) : 0;
+      if (qty <= 0 || isNaN(qty)) continue;
+
       const unitPrice =
-        item.unitPrice !== undefined
+        typeof item.unitPrice === "number" && !isNaN(item.unitPrice) && item.unitPrice >= 0
           ? item.unitPrice
-          : item.product?.price || 0;
-      const itemId =
-        item.id ||
-        `${item.product?.id || "p"}-${item.sizeLabel || "default"}-${
-          item.addons ? item.addons.map((a: any) => a.id).join("-") : ""
-        }`;
-      return {
+          : typeof item.product.price === "number" && !isNaN(item.product.price)
+          ? item.product.price
+          : 0;
+
+      const sizeLabel =
+        typeof item.sizeLabel === "string" ? item.sizeLabel : undefined;
+      const addons = Array.isArray(item.addons)
+        ? item.addons.filter(
+            (a: any) =>
+              a &&
+              typeof a === "object" &&
+              typeof a.id === "string" &&
+              typeof a.label === "string"
+          )
+        : undefined;
+
+      const sizeKey = sizeLabel || "default";
+      const addonKey = addons
+        ? addons.map((a: any) => a.id).sort().join("-")
+        : "";
+      const itemId = item.id || `${productId}__${sizeKey}__${addonKey}`;
+
+      validItems.push({
         id: itemId,
-        product: item.product,
-        quantity: item.quantity || 1,
-        sizeLabel: item.sizeLabel,
-        addons: item.addons,
+        product: {
+          ...item.product,
+          id: productId,
+        },
+        quantity: qty,
+        sizeLabel,
+        addons,
         unitPrice,
-      };
-    });
+      });
+    }
+
+    return validItems;
   } catch {
     return [];
   }
@@ -270,6 +322,13 @@ export function CartProvider({
           } catch {}
         }
 
+        // If stored was corrupted or empty, clean up localStorage so no ghost data lingers
+        if (stored && parsedItems.length === 0) {
+          try {
+            localStorage.removeItem(storageKey);
+          } catch {}
+        }
+
         dispatch({
           type: "HYDRATE",
           items: parsedItems,
@@ -302,11 +361,19 @@ export function CartProvider({
   useEffect(() => {
     if (!isHydratedRef.current) return;
     try {
-      localStorage.setItem(storageKey, JSON.stringify(state.items));
-      localStorage.setItem(
-        giftNoteStorageKey,
-        JSON.stringify({ has: state.hasGiftNote, note: state.giftNote })
-      );
+      if (state.items.length === 0) {
+        localStorage.removeItem(storageKey);
+      } else {
+        localStorage.setItem(storageKey, JSON.stringify(state.items));
+      }
+      if (!state.hasGiftNote && !state.giftNote) {
+        localStorage.removeItem(giftNoteStorageKey);
+      } else {
+        localStorage.setItem(
+          giftNoteStorageKey,
+          JSON.stringify({ has: state.hasGiftNote, note: state.giftNote })
+        );
+      }
     } catch {
       // ignore storage errors
     }
@@ -329,7 +396,7 @@ export function CartProvider({
       const addonKey = options?.addons
         ? [...options.addons].map((a) => a.id).sort().join("-")
         : "";
-      const itemId = `${product.id}-${sizeKey}-${addonKey}`;
+      const itemId = `${product.id}__${sizeKey}__${addonKey}`;
 
       const itemSnapshot: CartItem = {
         id: itemId,
@@ -385,7 +452,13 @@ export function CartProvider({
       dispatch({ type: "SET_QUANTITY", itemId, quantity }),
     []
   );
-  const clearCart = useCallback(() => dispatch({ type: "CLEAR" }), []);
+  const clearCart = useCallback(() => {
+    dispatch({ type: "CLEAR" });
+    try {
+      localStorage.removeItem(storageKey);
+      localStorage.removeItem(giftNoteStorageKey);
+    } catch {}
+  }, [storageKey, giftNoteStorageKey]);
 
   const setHasGiftNote = useCallback(
     (has: boolean) => dispatch({ type: "SET_HAS_GIFT_NOTE", has }),
@@ -401,16 +474,23 @@ export function CartProvider({
 
   const getQuantity = useCallback(
     (id: string) => {
-      const matchById = state.items.find((i) => i.id === id);
+      if (!id || typeof id !== "string") return 0;
+      const targetId = id.trim();
+      if (!targetId) return 0;
+
+      const matchById = state.items.find((i) => i.id === targetId && i.quantity > 0);
       if (matchById) return matchById.quantity;
+
       return state.items
-        .filter(
-          (i) =>
-            i.product.id === id ||
-            i.id === id ||
-            i.id.startsWith(id + "-") ||
-            i.product.id.startsWith(id + "-")
-        )
+        .filter((i) => {
+          if (!i || !i.product || typeof i.quantity !== "number" || i.quantity <= 0) {
+            return false;
+          }
+          if (i.product.id === targetId || i.id === targetId) return true;
+          if (i.id.startsWith(`${targetId}__`)) return true;
+          if (i.id.startsWith(`${targetId}-`) && (i.product.id === targetId || !i.product.id)) return true;
+          return false;
+        })
         .reduce((sum, i) => sum + i.quantity, 0);
     },
     [state.items]
@@ -418,14 +498,20 @@ export function CartProvider({
 
   const getProductQuantity = useCallback(
     (productId: string) => {
+      if (!productId || typeof productId !== "string") return 0;
+      const targetId = productId.trim();
+      if (!targetId) return 0;
+
       return state.items
-        .filter(
-          (i) =>
-            i.product.id === productId ||
-            i.id === productId ||
-            i.id.startsWith(productId + "-") ||
-            i.product.id.startsWith(productId + "-")
-        )
+        .filter((i) => {
+          if (!i || !i.product || typeof i.quantity !== "number" || i.quantity <= 0) {
+            return false;
+          }
+          if (i.product.id === targetId || i.id === targetId) return true;
+          if (i.id.startsWith(`${targetId}__`)) return true;
+          if (i.id.startsWith(`${targetId}-`) && (i.product.id === targetId || !i.product.id)) return true;
+          return false;
+        })
         .reduce((sum, i) => sum + i.quantity, 0);
     },
     [state.items]
@@ -433,13 +519,19 @@ export function CartProvider({
 
   const hasItem = useCallback(
     (productId: string) => {
-      return state.items.some(
-        (i) =>
-          i.product.id === productId ||
-          i.id === productId ||
-          i.id.startsWith(productId + "-") ||
-          i.product.id.startsWith(productId + "-")
-      );
+      if (!productId || typeof productId !== "string") return false;
+      const targetId = productId.trim();
+      if (!targetId) return false;
+
+      return state.items.some((i) => {
+        if (!i || !i.product || typeof i.quantity !== "number" || i.quantity <= 0) {
+          return false;
+        }
+        if (i.product.id === targetId || i.id === targetId) return true;
+        if (i.id.startsWith(`${targetId}__`)) return true;
+        if (i.id.startsWith(`${targetId}-`) && (i.product.id === targetId || !i.product.id)) return true;
+        return false;
+      });
     },
     [state.items]
   );
