@@ -47,7 +47,7 @@ export interface CreateOrderResult {
 }
 
 /** Helper to get date string 'YYYY-MM-DD' in Indian Standard Time (Asia/Kolkata) */
-export function getISTDateString(date: Date = new Date()): string {
+function getISTDateString(date: Date = new Date()): string {
   return new Intl.DateTimeFormat("en-CA", {
     timeZone: "Asia/Kolkata",
     year: "numeric",
@@ -57,7 +57,7 @@ export function getISTDateString(date: Date = new Date()): string {
 }
 
 /** Helper to extract 'YYYY-MM-DD' from an order record */
-export function getOrderDateString(order: { delivery_date?: string | null; created_at?: string | null }): string {
+function getOrderDateString(order: { delivery_date?: string | null; created_at?: string | null }): string {
   if (order.delivery_date && /^\d{4}-\d{2}-\d{2}$/.test(order.delivery_date.trim())) {
     return order.delivery_date.trim();
   }
