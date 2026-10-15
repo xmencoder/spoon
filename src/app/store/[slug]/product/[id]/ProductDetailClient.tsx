@@ -25,6 +25,7 @@ import type { Restaurant, Product } from "@/types/database";
 import { parseBadges, getBadgeColorClass } from "@/lib/badges";
 import { isSourdoughOrFocaccia, getSourdoughSlotInfo } from "@/lib/delivery-slots-service";
 import { getCategoryRemainingStock } from "@/app/store/[slug]/actions";
+import { getProductDiscount } from "@/lib/discount";
 
 interface Props {
   product: Product;
@@ -278,7 +279,8 @@ export default function ProductDetailClient({
   const addonsTotal = (detail.addons || [])
     .filter((a) => selectedAddonIds.includes(a.id))
     .reduce((sum, a) => sum + a.price, 0);
-  const unitPrice = basePrice + addonsTotal;
+  const discountInfo = getProductDiscount(product, basePrice);
+  const unitPrice = discountInfo.discountedPrice + addonsTotal;
 
   const toggleAddon = (addonId: string) => {
     setSelectedAddonIds((prev) =>
@@ -546,6 +548,11 @@ export default function ProductDetailClient({
             <div className="flex items-center justify-between gap-4">
               <div className="flex flex-wrap items-center gap-2">
                 {/* Ribbon Badges */}
+                {discountInfo.hasDiscount && discountInfo.badgeLabel && (
+                  <span className="inline-block px-3 py-1 rounded-full text-[11px] font-bold text-[#A34B3D] bg-[#FAF2ED] border border-[#E8D2C5] shadow-xs">
+                    {discountInfo.badgeLabel}
+                  </span>
+                )}
                 {parseBadges((detail.badge || badgeProp) || "")
                   .map((b, bIdx) => (
                     <span
@@ -625,12 +632,22 @@ export default function ProductDetailClient({
             {/* Dynamic Price Block */}
             <div className="space-y-1 pt-1">
               <div className="flex items-baseline gap-2.5 flex-wrap">
-                <span className="font-serif text-3xl sm:text-4xl font-bold text-[#29251F]">
+                {discountInfo.hasDiscount && (
+                  <span className="line-through text-lg sm:text-xl text-[#9C9182] font-normal">
+                    ₹{basePrice + addonsTotal}
+                  </span>
+                )}
+                <span className="font-serif text-3xl sm:text-4xl font-bold text-[#A34B3D]">
                   ₹{unitPrice}
                 </span>
+                {discountInfo.hasDiscount && discountInfo.badgeLabel && (
+                  <span className="inline-flex items-center px-2.5 py-0.5 rounded-md text-xs font-bold text-[#A34B3D] bg-[#FAF2ED] border border-[#E8D2C5]">
+                    {discountInfo.badgeLabel}
+                  </span>
+                )}
                 {addonsTotal > 0 && (
                   <span className="text-xs text-[#7A6E5D] font-medium">
-                    (₹{basePrice} base + ₹{addonsTotal} add-ons)
+                    (₹{discountInfo.discountedPrice} base + ₹{addonsTotal} add-ons)
                   </span>
                 )}
                 {catRemaining != null && (

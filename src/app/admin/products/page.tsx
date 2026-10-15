@@ -32,6 +32,7 @@ import {
   X,
 } from "lucide-react";
 import { formatPrice } from "@/lib/utils";
+import { getProductDiscount } from "@/lib/discount";
 
 export default function AdminProductsPage() {
   const { restaurant } = useAdmin();
@@ -408,10 +409,25 @@ export default function AdminProductsPage() {
                           </div>
                           <span className="font-serif font-bold text-sm text-spoon-dark truncate">{item.name}</span>
                         </div>
-                        <div className="flex items-center gap-2 mt-0.5">
-                          <span className="rounded-md bg-spoon-sand/70 px-1.5 py-0.5 text-[10px] border border-spoon-border/60 text-spoon-dark font-medium">{categoryName}</span>
-                          <span className="font-bold text-sm text-spoon-dark">{formatPrice(item.price)}</span>
-                        </div>
+                        {(() => {
+                          const disc = getProductDiscount(item);
+                          return (
+                            <div className="flex items-center gap-2 mt-0.5 flex-wrap">
+                              <span className="rounded-md bg-spoon-sand/70 px-1.5 py-0.5 text-[10px] border border-spoon-border/60 text-spoon-dark font-medium">{categoryName}</span>
+                              {disc.hasDiscount ? (
+                                <div className="flex items-center gap-1.5">
+                                  <span className="line-through text-xs text-[#9C9182]">{formatPrice(disc.originalPrice)}</span>
+                                  <span className="font-bold text-sm text-[#A34B3D]">{formatPrice(disc.discountedPrice)}</span>
+                                  <span className="rounded bg-[#FAF2ED] border border-[#E8D2C5] px-1.5 py-0.2 text-[9.5px] font-bold text-[#A34B3D]">
+                                    {disc.shortBadge}
+                                  </span>
+                                </div>
+                              ) : (
+                                <span className="font-bold text-sm text-spoon-dark">{formatPrice(item.price)}</span>
+                              )}
+                            </div>
+                          );
+                        })()}
                         {sizeCount > 0 && (
                           <span className="text-[10px] text-spoon-muted">{sizeCount} sizes • {addonCount > 0 ? `${addonCount} add-ons` : "no add-ons"}</span>
                         )}
@@ -597,8 +613,26 @@ export default function AdminProductsPage() {
                         </td>
 
                         {/* Price */}
-                        <td className="px-6 py-4 font-bold text-sm text-spoon-dark">
-                          {formatPrice(item.price)}
+                        <td className="px-6 py-4 text-sm">
+                          {(() => {
+                            const disc = getProductDiscount(item);
+                            if (disc.hasDiscount) {
+                              return (
+                                <div className="space-y-1">
+                                  <div className="flex items-baseline gap-1.5">
+                                    <span className="line-through text-xs text-[#9C9182]">{formatPrice(disc.originalPrice)}</span>
+                                    <span className="font-bold text-sm text-[#A34B3D]">{formatPrice(disc.discountedPrice)}</span>
+                                  </div>
+                                  <span className="inline-block rounded-md bg-[#FAF2ED] border border-[#E8D2C5] px-1.5 py-0.5 text-[9.5px] font-bold text-[#A34B3D]">
+                                    {disc.badgeLabel}
+                                  </span>
+                                </div>
+                              );
+                            }
+                            return (
+                              <span className="font-bold text-spoon-dark">{formatPrice(item.price)}</span>
+                            );
+                          })()}
                         </td>
 
                         {/* Variants & Addons info */}

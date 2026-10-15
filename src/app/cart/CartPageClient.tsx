@@ -13,6 +13,7 @@ import { isSourdoughOrFocaccia } from "@/lib/delivery-slots-service";
 import { createClient } from "@/lib/supabase/client";
 import type { Product, Category } from "@/types/database";
 import { getCategoryRemainingStock } from "@/app/store/[slug]/actions";
+import { getProductDiscount } from "@/lib/discount";
 import { Header } from "@/components/layout/Header";
 import { Footer } from "@/components/layout/Footer";
 import {
@@ -172,11 +173,19 @@ export default function CartPageClient() {
     setFavorites((prev) => ({ ...prev, [id]: !prev[id] }));
   };
 
+  const totalDiscountSavings = useMemo(() => {
+    return items.reduce((sum, item) => {
+      const disc = getProductDiscount(item.product);
+      return sum + (disc.savings * item.quantity);
+    }, 0);
+  }, [items]);
+
   const handleAddRecommended = (product: Product, e?: React.MouseEvent) => {
     if (product.category_id && catStockMap[product.category_id]?.remaining <= 0) {
       return;
     }
-    addItem(product, 1, undefined, e);
+    const disc = getProductDiscount(product);
+    addItem(product, 1, { unitPrice: disc.discountedPrice }, e);
     setAddedRecId(product.id);
     setTimeout(() => setAddedRecId(null), 1500);
   };
@@ -269,6 +278,9 @@ export default function CartPageClient() {
                 <div className="divide-y divide-[#91885D]/15">
                   {items.map((item) => {
                     const lineTotal = item.unitPrice * item.quantity;
+                    const disc = getProductDiscount(item.product);
+                    const itemAddonsTotal = (item.addons || []).reduce((s, a) => s + a.price, 0);
+                    const originalUnitPrice = disc.originalPrice + itemAddonsTotal;
                     const itemCatStock = item.product.category_id ? catStockMap[item.product.category_id] : null;
                     const totalInCat = item.product.category_id ? (categoryCartQuantities[item.product.category_id] || 0) : 0;
                     const isCatExceeded = itemCatStock != null && totalInCat > itemCatStock.remaining;
@@ -310,6 +322,15 @@ export default function CartPageClient() {
                                 {item.product.name}
                               </h3>
                             </Link>
+                            {disc.hasDiscount && (
+                              <div className="mt-1 flex items-center gap-1.5 flex-wrap">
+                                <span className="inline-flex items-center gap-1 text-[10px] font-bold text-[#A34B3D] bg-[#FAF2ED] border border-[#E8D2C5] px-2 py-0.5 rounded-md shadow-2xs">
+                                  <span>🏷️</span>
+                                  <span>{disc.badgeLabel} Applied</span>
+                                  <span className="text-[#238234] font-semibold">(-{formatPrice(disc.savings * item.quantity)})</span>
+                                </span>
+                              </div>
+                            )}
                             {item.sizeLabel && (
                               <span className="inline-block text-[11px] font-bold text-[#A34B3D] bg-[#A34B3D]/10 px-2 py-0.5 rounded-md mt-1 mr-2">
                                 Size: {item.sizeLabel}
@@ -356,7 +377,16 @@ export default function CartPageClient() {
                         {/* Unit Price */}
                         <div className="w-full sm:col-span-2 flex sm:justify-center items-center justify-between sm:text-center text-xs font-semibold text-[#554D3F]">
                           <span className="sm:hidden text-[#8B7D6B]">Unit Price:</span>
-                          <span>{formatPrice(item.unitPrice)}</span>
+                          {disc.hasDiscount ? (
+                            <div className="flex sm:flex-col items-center sm:items-center gap-1.5 sm:gap-0.5">
+                              <span className="line-through text-[11px] text-[#9C9182] font-normal">
+                                {formatPrice(originalUnitPrice)}
+                              </span>
+                              <span className="font-bold text-[#A34B3D]">{formatPrice(item.unitPrice)}</span>
+                            </div>
+                          ) : (
+                            <span>{formatPrice(item.unitPrice)}</span>
+                          )}
                         </div>
 
                         {/* Quantity Stepper & Remove */}
@@ -441,6 +471,18 @@ export default function CartPageClient() {
                       {formatPrice(subtotal)}
                     </span>
                   </div>
+
+                  {totalDiscountSavings > 0 && (
+                    <div className="flex justify-between items-center text-xs text-[#238234] bg-[#F2F7F2] border border-[#CDE3CD] rounded-xl px-3 py-2 font-medium">
+                      <span className="flex items-center gap-1.5 font-bold">
+                        <span>🏷️</span>
+                        <span>Promotional Savings</span>
+                      </span>
+                      <span className="font-bold">
+                        -{formatPrice(totalDiscountSavings)}
+                      </span>
+                    </div>
+                  )}
 
                   {packagingFee > 0 && (
                     <div className="flex justify-between text-[#554D3F]">
@@ -624,9 +666,31 @@ export default function CartPageClient() {
 
                     {/* Price & Add Button */}
                     <div className="p-3.5 pt-0 flex items-center justify-between mt-2">
-                      <span className="font-serif font-bold text-xs sm:text-sm text-[#29251F]">
-                        {formatPrice(treat.price)}
-                      </span>
+                      {(() => {
+                        const recDisc = getProductDiscount(treat);
+                        if (recDisc.hasDiscount) {
+                          return (
+                            <div className="flex flex-col">
+                              <div className="flex items-baseline gap-1">
+                                <span className="line-through text-[11px] text-[#9C9182]">
+                                  {formatPrice(recDisc.originalPrice)}
+                                </span>
+                                <span className="font-serif font-bold text-xs sm:text-sm text-[#A34B3D]">
+                                  {formatPrice(recDisc.discountedPrice)}
+                                </span>
+                              </div>
+                              <span className="text-[9px] font-bold text-[#A34B3D] leading-tight">
+                                {recDisc.shortBadge}
+                              </span>
+                            </div>
+                          );
+                        }
+                        return (
+                          <span className="font-serif font-bold text-xs sm:text-sm text-[#29251F]">
+                            {formatPrice(treat.price)}
+                          </span>
+                        );
+                      })()}
 
                       {isRecCatSoldOut ? (
                         <span className="inline-flex items-center rounded-xl px-2.5 py-1.5 text-[10px] font-bold text-[#A95145] bg-[#A95145]/10 border border-[#A95145]/20 uppercase tracking-wider">

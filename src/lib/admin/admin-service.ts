@@ -269,6 +269,9 @@ export function unpackProductMetadata(product: any): Product {
         if (!p.badge) p.badge = meta.badge;
         if (p.order_limit === undefined || p.order_limit === null) p.order_limit = meta.order_limit;
         if (p.total_ordered === undefined || p.total_ordered === null) p.total_ordered = meta.total_ordered;
+        if (p.discount_percent === undefined || p.discount_percent === null) p.discount_percent = meta.discount_percent ?? null;
+        if (p.discount_amount === undefined || p.discount_amount === null) p.discount_amount = meta.discount_amount ?? null;
+        if (!p.discount_name) p.discount_name = meta.discount_name ?? null;
       }
       p.description = p.description.replace(/<!-- BAKERY_META:([\s\S]*?) -->/, "").trim();
     } catch {
@@ -288,6 +291,9 @@ export function unpackProductMetadata(product: any): Product {
   p.addons = Array.isArray(p.addons) ? p.addons : [];
   p.total_ordered = Number(p.total_ordered || 0);
   p.order_limit = p.order_limit != null && p.order_limit !== "" ? Number(p.order_limit) : null;
+  p.discount_percent = p.discount_percent != null && p.discount_percent !== "" ? Number(p.discount_percent) : null;
+  p.discount_amount = p.discount_amount != null && p.discount_amount !== "" ? Number(p.discount_amount) : null;
+  p.discount_name = p.discount_name ? String(p.discount_name).trim() : null;
 
   return p as Product;
 }
@@ -363,6 +369,9 @@ export async function createAdminProduct(
     is_veg?: boolean;
     story_text?: string | null;
     rating?: number;
+    discount_percent?: number | null;
+    discount_amount?: number | null;
+    discount_name?: string | null;
   },
   imageFile?: File | null
 ): Promise<Product> {
@@ -382,11 +391,38 @@ export async function createAdminProduct(
   
   const coverUrl = imageUrl || (galleryList.length > 0 ? galleryList[0] : null);
 
+  // Extract custom discount fields
+  const discountPercent = productData.discount_percent != null && !isNaN(Number(productData.discount_percent)) ? Number(productData.discount_percent) : null;
+  const discountAmount = productData.discount_amount != null && !isNaN(Number(productData.discount_amount)) ? Number(productData.discount_amount) : null;
+  const discountName = productData.discount_name ? String(productData.discount_name).trim() : null;
+
+  // Embed rich metadata into description comment for seamless resilience
+  const metaPayload = {
+    gallery_images: galleryList,
+    sizes: productData.sizes || [],
+    addons: productData.addons || [],
+    tags: productData.tags || [],
+    allergen_info: productData.allergen_info || [],
+    storage_care: productData.storage_care || [],
+    story_text: productData.story_text || null,
+    badge: productData.badge || null,
+    is_veg: productData.is_veg ?? true,
+    order_limit: productData.order_limit || null,
+    total_ordered: productData.total_ordered || 0,
+    discount_percent: discountPercent,
+    discount_amount: discountAmount,
+    discount_name: discountName,
+  };
+  const cleanDesc = (productData.description || "").replace(/<!-- BAKERY_META:([\s\S]*?) -->/, "").trim();
+  const descriptionWithMeta = cleanDesc
+    ? `${cleanDesc}\n<!-- BAKERY_META:${JSON.stringify(metaPayload)} -->`
+    : `<!-- BAKERY_META:${JSON.stringify(metaPayload)} -->`;
+
   // Attempt rich insert with all bakery attributes
   const fullPayload = {
     restaurant_id: restaurantId,
     name: productData.name.trim(),
-    description: productData.description?.trim() || null,
+    description: descriptionWithMeta,
     price: productData.price,
     category_id: productData.category_id || null,
     available: productData.available ?? true,
@@ -415,25 +451,6 @@ export async function createAdminProduct(
 
   if (error) {
     console.warn("Full payload insert notice, trying safe fallback insert:", error.message);
-    
-    // Embed rich metadata into description comment for seamless resilience
-    const metaPayload = {
-      gallery_images: galleryList,
-      sizes: productData.sizes || [],
-      addons: productData.addons || [],
-      tags: productData.tags || [],
-      allergen_info: productData.allergen_info || [],
-      storage_care: productData.storage_care || [],
-      story_text: productData.story_text || null,
-      badge: productData.badge || null,
-      is_veg: productData.is_veg ?? true,
-      order_limit: productData.order_limit || null,
-      total_ordered: productData.total_ordered || 0,
-    };
-    const cleanDesc = productData.description?.trim() || "";
-    const descriptionWithMeta = cleanDesc
-      ? `${cleanDesc}\n<!-- BAKERY_META:${JSON.stringify(metaPayload)} -->`
-      : `<!-- BAKERY_META:${JSON.stringify(metaPayload)} -->`;
 
     const basicPayload = {
       restaurant_id: restaurantId,
@@ -489,6 +506,45 @@ export async function updateAdminProduct(
     updates.gallery_images = [updates.gallery_images];
   }
 
+  // Extract custom discount fields
+  const discountPercent = updates.discount_percent !== undefined
+    ? (updates.discount_percent != null && !isNaN(Number(updates.discount_percent)) ? Number(updates.discount_percent) : null)
+    : null;
+  const discountAmount = updates.discount_amount !== undefined
+    ? (updates.discount_amount != null && !isNaN(Number(updates.discount_amount)) ? Number(updates.discount_amount) : null)
+    : null;
+  const discountName = updates.discount_name !== undefined
+    ? (updates.discount_name ? String(updates.discount_name).trim() : null)
+    : null;
+
+  delete (updates as any).discount_percent;
+  delete (updates as any).discount_amount;
+  delete (updates as any).discount_name;
+
+  // Build rich metadata payload and embed into description
+  const metaPayload = {
+    gallery_images: updates.gallery_images || (updates.image_url ? [updates.image_url] : []),
+    sizes: updates.sizes || [],
+    addons: updates.addons || [],
+    tags: updates.tags || [],
+    allergen_info: updates.allergen_info || [],
+    storage_care: updates.storage_care || [],
+    story_text: updates.story_text || null,
+    badge: updates.badge || null,
+    is_veg: updates.is_veg ?? true,
+    order_limit: updates.order_limit !== undefined ? updates.order_limit : null,
+    total_ordered: updates.total_ordered !== undefined ? updates.total_ordered : 0,
+    discount_percent: discountPercent,
+    discount_amount: discountAmount,
+    discount_name: discountName,
+  };
+  const cleanDesc = (updates.description || "").replace(/<!-- BAKERY_META:([\s\S]*?) -->/, "").trim();
+  const descriptionWithMeta = cleanDesc
+    ? `${cleanDesc}\n<!-- BAKERY_META:${JSON.stringify(metaPayload)} -->`
+    : `<!-- BAKERY_META:${JSON.stringify(metaPayload)} -->`;
+
+  updates.description = descriptionWithMeta;
+
   const supabase = createClient();
   const { data, error } = await supabase
     .from("products")
@@ -499,25 +555,6 @@ export async function updateAdminProduct(
 
   if (error) {
     console.warn("Full payload update notice, trying safe fallback update:", error.message);
-
-    // Fallback: Embed rich metadata into description comment for seamless resilience
-    const metaPayload = {
-      gallery_images: updates.gallery_images || (updates.image_url ? [updates.image_url] : []),
-      sizes: updates.sizes || [],
-      addons: updates.addons || [],
-      tags: updates.tags || [],
-      allergen_info: updates.allergen_info || [],
-      storage_care: updates.storage_care || [],
-      story_text: updates.story_text || null,
-      badge: updates.badge || null,
-      is_veg: updates.is_veg ?? true,
-      order_limit: updates.order_limit !== undefined ? updates.order_limit : null,
-      total_ordered: updates.total_ordered !== undefined ? updates.total_ordered : 0,
-    };
-    const cleanDesc = (updates.description || "").replace(/<!-- BAKERY_META:([\s\S]*?) -->/, "").trim();
-    const descriptionWithMeta = cleanDesc
-      ? `${cleanDesc}\n<!-- BAKERY_META:${JSON.stringify(metaPayload)} -->`
-      : `<!-- BAKERY_META:${JSON.stringify(metaPayload)} -->`;
 
     const basicUpdates: any = {};
     if (updates.name !== undefined) basicUpdates.name = updates.name;

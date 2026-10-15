@@ -76,6 +76,9 @@ export interface Product {
   story_text?: string | null;
   rating?: number | null;
   popular_rank?: number | null;
+  discount_percent?: number | null;
+  discount_amount?: number | null;
+  discount_name?: string | null;
   created_at?: string;
   updated_at?: string;
 }

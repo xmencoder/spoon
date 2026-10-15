@@ -40,6 +40,7 @@ import {
   Images,
   RotateCcw,
   BookmarkPlus,
+  Tag,
 } from "lucide-react";
 
 const DEFAULT_ALLERGEN_PRESETS = [
@@ -81,6 +82,12 @@ export default function AdminEditProductPage() {
   const [description, setDescription] = useState("");
   const [storyText, setStoryText] = useState("");
   const [price, setPrice] = useState("");
+  // Discount State
+  const [hasDiscount, setHasDiscount] = useState(false);
+  const [discountType, setDiscountType] = useState<"percent" | "fixed">("percent");
+  const [discountPercent, setDiscountPercent] = useState<string>("10");
+  const [discountAmount, setDiscountAmount] = useState<string>("50");
+  const [discountName, setDiscountName] = useState<string>("");
   const [categoryId, setCategoryId] = useState("");
   const [badge, setBadge] = useState<string>("NONE");
   const [badgeSecondary, setBadgeSecondary] = useState<string>("NONE");
@@ -159,6 +166,23 @@ export default function AdminEditProductPage() {
         setDescription(prod.description || "");
         setStoryText(prod.story_text || "");
         setPrice(prod.price.toString());
+
+        // Load discount if present
+        if (prod.discount_percent && prod.discount_percent > 0) {
+          setHasDiscount(true);
+          setDiscountType("percent");
+          setDiscountPercent(String(prod.discount_percent));
+        } else if (prod.discount_amount && prod.discount_amount > 0) {
+          setHasDiscount(true);
+          setDiscountType("fixed");
+          setDiscountAmount(String(prod.discount_amount));
+        } else {
+          setHasDiscount(false);
+          setDiscountPercent("10");
+          setDiscountAmount("50");
+        }
+        setDiscountName(prod.discount_name || "");
+
         const badges = (prod.badge || "")
           .split(",")
           .map((b: string) => b.trim())
@@ -539,6 +563,19 @@ export default function AdminEditProductPage() {
         [badge, badgeSecondary].filter((b) => b && b !== "NONE").join(",") ||
         null;
 
+      const finalDiscountPercent =
+        hasDiscount && discountType === "percent" && parseFloat(discountPercent) > 0
+          ? Math.round(parseFloat(discountPercent))
+          : null;
+      const finalDiscountAmount =
+        hasDiscount && discountType === "fixed" && parseFloat(discountAmount) > 0
+          ? Math.round(parseFloat(discountAmount))
+          : null;
+      const finalDiscountName =
+        hasDiscount && (finalDiscountPercent || finalDiscountAmount) && discountName.trim()
+          ? discountName.trim()
+          : null;
+
       const updateData: Partial<Product> = {
         name: name.trim(),
         description: description.trim() || null,
@@ -559,6 +596,9 @@ export default function AdminEditProductPage() {
         storage_care: storageCare,
         image_url: coverImageUrl,
         gallery_images: finalImageUrls,
+        discount_percent: finalDiscountPercent,
+        discount_amount: finalDiscountAmount,
+        discount_name: finalDiscountName,
       };
 
       await updateAdminProduct(productId, restaurant.id, updateData);
@@ -706,6 +746,190 @@ export default function AdminEditProductPage() {
                 className="text-xs font-bold"
               />
             </div>
+          </div>
+
+          {/* ── DISCOUNT & PROMOTION SECTION (OPTIONAL) ── */}
+          <div className="rounded-2xl border border-spoon-border/80 bg-[#FAF6F0]/80 p-4 sm:p-5 transition-all">
+            <div className="flex items-start justify-between gap-4">
+              <div className="space-y-0.5">
+                <div className="flex items-center gap-2">
+                  <span className="flex h-6 w-6 items-center justify-center rounded-lg bg-[#A34B3D]/10 text-[#A34B3D]">
+                    <Tag className="w-3.5 h-3.5" />
+                  </span>
+                  <label className="text-xs font-bold uppercase tracking-wider text-spoon-dark">
+                    Product Discount (Optional)
+                  </label>
+                </div>
+                <p className="text-[11px] text-spoon-muted">
+                  Offer a seasonal or promotional discount. Shows a strike-through original price and minimal artisanal badge in frontend and cart.
+                </p>
+              </div>
+
+              {/* Minimal Warm Toggle Switch */}
+              <button
+                type="button"
+                onClick={() => setHasDiscount(!hasDiscount)}
+                className={`relative inline-flex h-6 w-11 shrink-0 cursor-pointer rounded-full border-2 border-transparent transition-colors duration-200 ease-in-out focus:outline-none ${
+                  hasDiscount ? "bg-[#A34B3D]" : "bg-[#D9CFC4]"
+                }`}
+                role="switch"
+                aria-checked={hasDiscount}
+              >
+                <span
+                  className={`pointer-events-none inline-block h-5 w-5 transform rounded-full bg-white shadow-sm ring-0 transition duration-200 ease-in-out ${
+                    hasDiscount ? "translate-x-5" : "translate-x-0"
+                  }`}
+                />
+              </button>
+            </div>
+
+            {hasDiscount && (
+              <div className="mt-4 pt-4 border-t border-spoon-border/60 space-y-4 animate-in fade-in slide-in-from-top-2 duration-200">
+                <div className="grid grid-cols-1 sm:grid-cols-12 gap-4">
+                  {/* Discount Type Selector */}
+                  <div className="sm:col-span-5">
+                    <label className="block text-[11px] font-bold uppercase tracking-wider text-spoon-dark mb-1.5">
+                      Discount Mode
+                    </label>
+                    <div className="grid grid-cols-2 gap-1.5 p-1 bg-white rounded-xl border border-spoon-border">
+                      <button
+                        type="button"
+                        onClick={() => setDiscountType("percent")}
+                        className={`py-1.5 px-3 text-xs font-bold rounded-lg transition-all cursor-pointer ${
+                          discountType === "percent"
+                            ? "bg-[#A34B3D] text-white shadow-xs"
+                            : "text-spoon-dark hover:bg-spoon-sand/30"
+                        }`}
+                      >
+                        % Percentage
+                      </button>
+                      <button
+                        type="button"
+                        onClick={() => setDiscountType("fixed")}
+                        className={`py-1.5 px-3 text-xs font-bold rounded-lg transition-all cursor-pointer ${
+                          discountType === "fixed"
+                            ? "bg-[#A34B3D] text-white shadow-xs"
+                            : "text-spoon-dark hover:bg-spoon-sand/30"
+                        }`}
+                      >
+                        ₹ Fixed (Flat)
+                      </button>
+                    </div>
+                  </div>
+
+                  {/* Discount Value */}
+                  <div className="sm:col-span-7">
+                    <label className="block text-[11px] font-bold uppercase tracking-wider text-spoon-dark mb-1.5">
+                      {discountType === "percent" ? "Discount Percentage (%) *" : "Discount Amount (₹) *"}
+                    </label>
+                    <div className="relative">
+                      <Input
+                        type="number"
+                        min="1"
+                        max={discountType === "percent" ? "99" : parseFloat(price) || 9999}
+                        step="1"
+                        value={discountType === "percent" ? discountPercent : discountAmount}
+                        onChange={(e) =>
+                          discountType === "percent"
+                            ? setDiscountPercent(e.target.value)
+                            : setDiscountAmount(e.target.value)
+                        }
+                        placeholder={discountType === "percent" ? "10" : "50"}
+                        className="text-xs font-bold pr-10"
+                      />
+                      <span className="absolute right-3 top-1/2 -translate-y-1/2 text-xs font-bold text-spoon-muted">
+                        {discountType === "percent" ? "%" : "₹"}
+                      </span>
+                    </div>
+                  </div>
+                </div>
+
+                {/* Optional Discount Name / Campaign Title */}
+                <div>
+                  <div className="flex items-center justify-between mb-1.5">
+                    <label className="block text-[11px] font-bold uppercase tracking-wider text-spoon-dark">
+                      Campaign / Discount Name
+                    </label>
+                    <span className="text-[10px] text-spoon-muted font-medium italic">
+                      Optional (e.g. Diwali Discount, Weekend Treat)
+                    </span>
+                  </div>
+                  <Input
+                    value={discountName}
+                    onChange={(e) => setDiscountName(e.target.value)}
+                    placeholder="e.g. Diwali Discount, Weekend Treat (Leave blank for generic % off)"
+                    className="text-xs font-medium"
+                    maxLength={40}
+                  />
+                  <div className="flex flex-wrap gap-1.5 mt-2">
+                    <span className="text-[10px] text-spoon-muted self-center mr-1">Quick Suggestions:</span>
+                    {["Diwali Discount", "Festive Special", "Weekend Treat", "Early Bird", "Chef's Special"].map(
+                      (preset) => (
+                        <button
+                          key={preset}
+                          type="button"
+                          onClick={() => setDiscountName(preset)}
+                          className="text-[10.5px] font-medium px-2 py-0.5 rounded-md bg-white border border-spoon-border/80 text-spoon-dark hover:border-[#A34B3D]/50 hover:text-[#A34B3D] transition-colors cursor-pointer"
+                        >
+                          +{preset}
+                        </button>
+                      )
+                    )}
+                  </div>
+                </div>
+
+                {/* Live Calculated Price Preview */}
+                {(() => {
+                  const baseNum = parseFloat(price) || 0;
+                  const savings =
+                    discountType === "percent"
+                      ? Math.round((baseNum * (parseFloat(discountPercent) || 0)) / 100)
+                      : Math.min(baseNum, Math.round(parseFloat(discountAmount) || 0));
+                  const effectivePrice = Math.max(0, baseNum - savings);
+
+                  return (
+                    <div className="rounded-xl bg-white border border-spoon-border/80 p-3.5 flex flex-col sm:flex-row sm:items-center justify-between gap-3 shadow-2xs">
+                      <div className="space-y-0.5">
+                        <span className="text-[10px] font-bold uppercase tracking-wider text-spoon-muted block">
+                          Customer Price Preview
+                        </span>
+                        <div className="flex items-baseline gap-2">
+                          <span className="line-through text-xs text-[#9C9182]">
+                            ₹{baseNum}
+                          </span>
+                          <span className="font-serif text-lg font-bold text-[#A34B3D]">
+                            ₹{effectivePrice}
+                          </span>
+                          <span className="text-[11px] font-semibold text-[#238234]">
+                            (Customer saves ₹{savings})
+                          </span>
+                        </div>
+                      </div>
+
+                      {/* Customer Badge Preview */}
+                      <div className="sm:text-right">
+                        <span className="text-[10px] font-bold uppercase tracking-wider text-spoon-muted block mb-1">
+                          Artisanal Badge Preview
+                        </span>
+                        <span className="inline-flex items-center gap-1.5 px-2.5 py-1 rounded-md text-[11px] font-bold text-[#A34B3D] bg-[#FAF2ED] border border-[#E8D2C5]">
+                          {discountName.trim() ? (
+                            <>
+                              <span>{discountName.trim()}</span>
+                              <span className="text-[#C48473]">·</span>
+                            </>
+                          ) : null}
+                          <span>
+                            {discountType === "percent"
+                              ? `${discountPercent || 0}% OFF`
+                              : `₹${discountAmount || 0} OFF`}
+                          </span>
+                        </span>
+                      </div>
+                    </div>
+                  );
+                })()}
+              </div>
+            )}
           </div>
 
           <div className="grid grid-cols-1 gap-5 sm:grid-cols-3">

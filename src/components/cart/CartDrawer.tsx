@@ -6,6 +6,7 @@ import Image from "next/image";
 import { useCart, DEFAULT_RESTAURANT_SLUG } from "@/lib/store/CartContext";
 import { formatPrice } from "@/lib/utils";
 import { isSourdoughOrFocaccia } from "@/lib/delivery-slots-service";
+import { getProductDiscount } from "@/lib/discount";
 import {
   X,
   ShoppingBag,
@@ -146,7 +147,12 @@ export function CartDrawer() {
             </div>
           ) : (
             <div className="space-y-3 divide-y divide-[#91885D]/15">
-              {items.map((item) => (
+              {items.map((item) => {
+                const disc = getProductDiscount(item.product);
+                const itemAddonsTotal = (item.addons || []).reduce((s, a) => s + a.price, 0);
+                const originalUnitPrice = disc.originalPrice + itemAddonsTotal;
+
+                return (
                 <div key={item.id} className="pt-3 first:pt-0 flex gap-3">
                   {/* Item Image */}
                   <div className="relative h-18 w-18 shrink-0 rounded-xl overflow-hidden bg-[#E8D5BC] border border-[#91885D]/25">
@@ -180,6 +186,13 @@ export function CartDrawer() {
                           <Trash2 className="h-3.5 w-3.5" />
                         </button>
                       </div>
+
+                      {/* Discount badge if active */}
+                      {disc.hasDiscount && (
+                        <span className="inline-block mt-0.5 text-[9.5px] font-bold text-[#A34B3D] bg-[#FAF2ED] border border-[#E8D2C5] px-1.5 py-0.2 rounded shadow-2xs">
+                          {disc.badgeLabel} (-{formatPrice(disc.savings * item.quantity)})
+                        </span>
+                      )}
 
                       {/* Size pill if available */}
                       {item.sizeLabel && (
@@ -242,16 +255,24 @@ export function CartDrawer() {
                         <span className="font-serif font-bold text-sm text-[#29251F]">
                           {formatPrice(item.unitPrice * item.quantity)}
                         </span>
-                        {item.quantity > 1 && (
-                          <span className="block text-[10px] text-[#696053]">
-                            ({formatPrice(item.unitPrice)} each)
+                        {disc.hasDiscount ? (
+                          <span className="block text-[9.5px] text-[#A34B3D]">
+                            <span className="line-through text-[#9C9182] mr-1">{formatPrice(originalUnitPrice)}</span>
+                            {formatPrice(item.unitPrice)} ea
                           </span>
+                        ) : (
+                          item.quantity > 1 && (
+                            <span className="block text-[10px] text-[#696053]">
+                              ({formatPrice(item.unitPrice)} each)
+                            </span>
+                          )
                         )}
                       </div>
                     </div>
                   </div>
                 </div>
-              ))}
+              );
+              })}
             </div>
           )}
         </div>
@@ -267,6 +288,24 @@ export function CartDrawer() {
                   {formatPrice(subtotal)}
                 </span>
               </div>
+              {(() => {
+                const totalDiscountSavings = items.reduce((sum, it) => {
+                  const d = getProductDiscount(it.product);
+                  return sum + (d.savings * it.quantity);
+                }, 0);
+                if (totalDiscountSavings <= 0) return null;
+                return (
+                  <div className="flex justify-between text-[#238234] font-medium bg-[#F2F7F2] border border-[#CDE3CD] rounded-lg px-2 py-1 text-[11.5px]">
+                    <span className="flex items-center gap-1 font-bold">
+                      <span>🏷️</span>
+                      <span>Promotional Savings</span>
+                    </span>
+                    <span className="font-bold">
+                      -{formatPrice(totalDiscountSavings)}
+                    </span>
+                  </div>
+                );
+              })()}
               <div className="flex justify-between">
                 <span>Transaction Fees (4%)</span>
                 <span className="font-semibold text-[#29251F]">

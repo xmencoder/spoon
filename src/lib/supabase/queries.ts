@@ -94,6 +94,9 @@ function unpackProduct(product: any): Product {
         if (!p.badge) p.badge = meta.badge;
         if (p.order_limit === undefined || p.order_limit === null) p.order_limit = meta.order_limit;
         if (p.total_ordered === undefined || p.total_ordered === null) p.total_ordered = meta.total_ordered;
+        if (p.discount_percent === undefined || p.discount_percent === null) p.discount_percent = meta.discount_percent ?? null;
+        if (p.discount_amount === undefined || p.discount_amount === null) p.discount_amount = meta.discount_amount ?? null;
+        if (!p.discount_name) p.discount_name = meta.discount_name ?? null;
       }
       p.description = p.description.replace(/<!-- BAKERY_META:([\s\S]*?) -->/, "").trim();
     } catch {
@@ -113,6 +116,9 @@ function unpackProduct(product: any): Product {
   p.addons = Array.isArray(p.addons) ? p.addons : [];
   p.total_ordered = Number(p.total_ordered || 0);
   p.order_limit = p.order_limit != null && p.order_limit !== "" ? Number(p.order_limit) : null;
+  p.discount_percent = p.discount_percent != null && p.discount_percent !== "" ? Number(p.discount_percent) : null;
+  p.discount_amount = p.discount_amount != null && p.discount_amount !== "" ? Number(p.discount_amount) : null;
+  p.discount_name = p.discount_name ? String(p.discount_name).trim() : null;
 
   return p as Product;
 }

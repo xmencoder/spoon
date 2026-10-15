@@ -21,6 +21,7 @@ import { createClient } from "@/lib/supabase/client";
 import type { Product, Category } from "@/types/database";
 import { parseBadges, getBadgeColorClass } from "@/lib/badges";
 import { getCategoryRemainingStock } from "@/app/store/[slug]/actions";
+import { getProductDiscount } from "@/lib/discount";
 
 export interface CategoryCard {
   id: string;
@@ -87,10 +88,15 @@ export function buildCategoryCardsAndMenuItems(
       (pGallery.length > 0 ? pGallery[0] : "") ||
       "https://images.unsplash.com/photo-1578985545062-69928b1d9587?w=800&auto=format&fit=crop&q=80";
 
+    const discount = getProductDiscount(p);
+
     return {
       id: p.id,
       name: p.name,
-      price: Number(p.price),
+      price: discount.discountedPrice,
+      originalPrice: discount.originalPrice,
+      hasDiscount: discount.hasDiscount,
+      discountLabel: discount.badgeLabel,
       description: p.description || "",
       category: categorySlug,
       isPopular: p.featured,
@@ -116,6 +122,9 @@ export interface MenuItem {
   id: string;
   name: string;
   price: number;
+  originalPrice?: number;
+  hasDiscount?: boolean;
+  discountLabel?: string | null;
   description: string;
   category: string;
   isPopular?: boolean;
@@ -292,12 +301,18 @@ export function MenuSection({
             if (!item.tags || item.tags.length === 0) item.tags = meta.tags;
             if (!item.story_text) item.story_text = meta.story_text;
             if (!item.badge) item.badge = meta.badge;
+            if (item.discount_percent === undefined || item.discount_percent === null) item.discount_percent = meta.discount_percent ?? null;
+            if (item.discount_amount === undefined || item.discount_amount === null) item.discount_amount = meta.discount_amount ?? null;
+            if (!item.discount_name) item.discount_name = meta.discount_name ?? null;
           }
           item.description = item.description.replace(/<!-- BAKERY_META:([\s\S]*?) -->/, "").trim();
         } catch {
           // ignore
         }
       }
+      item.discount_percent = item.discount_percent != null && item.discount_percent !== "" ? Number(item.discount_percent) : null;
+      item.discount_amount = item.discount_amount != null && item.discount_amount !== "" ? Number(item.discount_amount) : null;
+      item.discount_name = item.discount_name ? String(item.discount_name).trim() : null;
       return item;
     }
 
@@ -608,7 +623,7 @@ export function MenuSection({
           sort_order: 0,
         };
 
-    addItem(productPayload, qtyToAdd, undefined, e);
+    addItem(productPayload, qtyToAdd, { unitPrice: item.price }, e);
 
     setAddedItem(item.id);
     setTimeout(() => {
@@ -1117,9 +1132,14 @@ export function MenuSection({
                               <span className="inline-flex items-center gap-1.5 px-2.5 py-1 rounded-md text-[10px] font-bold text-white bg-[#4D7C47] shadow-sm border border-white/20"><Check className="w-3 h-3 stroke-[3]" /><span>{inCartCount} in Cart</span></span>
                             </div>
                           ) : null}
-                          {item.badge && !isAlreadyInCart && !isCatSoldOut && parseBadges(item.badge).length > 0 && (
+                          {((item.badge && parseBadges(item.badge).length > 0) || (item.hasDiscount && item.discountLabel)) && !isAlreadyInCart && !isCatSoldOut && (
                             <div className="absolute top-3 left-3 z-10 flex flex-wrap gap-1.5 max-w-[85%]">
-                              {parseBadges(item.badge).map((b, bIdx) => (
+                              {item.hasDiscount && item.discountLabel && (
+                                <span className="inline-block px-2.5 py-1 rounded-md text-[10px] font-bold text-[#A34B3D] bg-[#FAF2ED] border border-[#E8D2C5] shadow-xs">
+                                  {item.discountLabel}
+                                </span>
+                              )}
+                              {item.badge && parseBadges(item.badge).map((b, bIdx) => (
                                 <span
                                   key={bIdx}
                                   className={`inline-block px-2.5 py-1 rounded-md text-[10px] font-bold uppercase tracking-wider shadow-xs ${getBadgeColorClass(b)}`}
@@ -1148,7 +1168,15 @@ export function MenuSection({
                             </div>
                             <div className="flex items-center gap-2 shrink-0">
                               <div className="flex flex-col items-end">
-                                <span className="font-serif text-base sm:text-lg font-bold text-[#29251F] whitespace-nowrap">₹{item.price}</span>
+                                <div className="flex items-baseline gap-1.5">
+                                  {item.hasDiscount && item.originalPrice && item.originalPrice > item.price && (
+                                    <span className="line-through text-xs font-normal text-[#9C9182]">₹{item.originalPrice}</span>
+                                  )}
+                                  <span className="font-serif text-base sm:text-lg font-bold text-[#29251F] whitespace-nowrap">₹{item.price}</span>
+                                </div>
+                                {item.hasDiscount && item.discountLabel && (
+                                  <span className="text-[9.5px] font-bold text-[#A34B3D] tracking-tight">{item.discountLabel}</span>
+                                )}
                                 {catRemaining != null && (
                                   <span className="text-[10px] font-bold text-[#C26B59] animate-pulse">Only {catRemaining} left!</span>
                                 )}
@@ -1246,9 +1274,14 @@ export function MenuSection({
                   ) : null}
 
                   {/* Top-Left Badges */}
-                  {item.badge && item.badge !== "NONE" && !isCatSoldOut && parseBadges(item.badge).length > 0 && (
+                  {((item.badge && item.badge !== "NONE" && parseBadges(item.badge).length > 0) || (item.hasDiscount && item.discountLabel)) && !isCatSoldOut && (
                     <div className="absolute top-2 left-2 z-10 flex flex-wrap items-start gap-1 max-w-[85%]">
-                      {parseBadges(item.badge).map((b, bIdx) => (
+                      {item.hasDiscount && item.discountLabel && (
+                        <span className="inline-block px-1.5 py-0.5 rounded-[4px] text-[8.5px] font-bold text-[#A34B3D] bg-[#FAF2ED] border border-[#E8D2C5] shadow-xs">
+                          {item.discountLabel}
+                        </span>
+                      )}
+                      {item.badge && item.badge !== "NONE" && parseBadges(item.badge).map((b, bIdx) => (
                         <span
                           key={bIdx}
                           className={`inline-block px-2 py-0.5 rounded-[4px] text-[9px] font-bold uppercase tracking-wider shadow-xs ${getBadgeColorClass(b)}`}
@@ -1314,10 +1347,22 @@ export function MenuSection({
                   {/* Bottom Action Row: Price + Stepper + Add Button */}
                   <div className="mt-3 pt-2 border-t border-[#EAE0D1] flex items-center justify-between gap-1">
                     {/* Price & remaining badge */}
-                    <div className="flex flex-col">
-                      <span className="font-serif text-sm font-bold text-[#29251F] whitespace-nowrap">
-                        ₹{item.price}
-                      </span>
+                    <div className="flex flex-col min-w-0">
+                      <div className="flex items-baseline gap-1">
+                        {item.hasDiscount && item.originalPrice && item.originalPrice > item.price && (
+                          <span className="line-through text-[11px] font-normal text-[#9C9182]">
+                            ₹{item.originalPrice}
+                          </span>
+                        )}
+                        <span className="font-serif text-sm font-bold text-[#29251F] whitespace-nowrap">
+                          ₹{item.price}
+                        </span>
+                      </div>
+                      {item.hasDiscount && item.discountLabel && (
+                        <span className="text-[9px] font-bold text-[#A34B3D] leading-tight truncate">
+                          {item.discountLabel}
+                        </span>
+                      )}
                       {catRemaining != null && (
                         <span className="text-[9px] font-bold text-[#C26B59] animate-pulse">Only {catRemaining} left!</span>
                       )}
@@ -1447,9 +1492,14 @@ export function MenuSection({
                   ) : null}
 
                   {/* Top-Left Badges */}
-                  {item.badge && !isAlreadyInCart && !isCatSoldOut && parseBadges(item.badge).length > 0 && (
+                  {((item.badge && parseBadges(item.badge).length > 0) || (item.hasDiscount && item.discountLabel)) && !isAlreadyInCart && !isCatSoldOut && (
                     <div className="absolute top-3 left-3 z-10 flex flex-wrap gap-1.5 max-w-[85%]">
-                      {parseBadges(item.badge).map((b, bIdx) => (
+                      {item.hasDiscount && item.discountLabel && (
+                        <span className="inline-block px-2.5 py-1 rounded-md text-[10px] font-bold text-[#A34B3D] bg-[#FAF2ED] border border-[#E8D2C5] shadow-xs">
+                          {item.discountLabel}
+                        </span>
+                      )}
+                      {item.badge && parseBadges(item.badge).map((b, bIdx) => (
                         <span
                           key={bIdx}
                           className={`inline-block px-2.5 py-1 rounded-md text-[10px] font-bold uppercase tracking-wider shadow-xs ${getBadgeColorClass(b)}`}
@@ -1510,9 +1560,21 @@ export function MenuSection({
                     </div>
                     <div className="flex items-center gap-2 shrink-0">
                       <div className="flex flex-col items-end">
-                        <span className="font-serif text-base sm:text-lg font-bold text-[#29251F] whitespace-nowrap">
-                          ₹{item.price}
-                        </span>
+                        <div className="flex items-baseline gap-1.5">
+                          {item.hasDiscount && item.originalPrice && item.originalPrice > item.price && (
+                            <span className="line-through text-xs font-normal text-[#9C9182]">
+                              ₹{item.originalPrice}
+                            </span>
+                          )}
+                          <span className="font-serif text-base sm:text-lg font-bold text-[#29251F] whitespace-nowrap">
+                            ₹{item.price}
+                          </span>
+                        </div>
+                        {item.hasDiscount && item.discountLabel && (
+                          <span className="text-[9.5px] font-bold text-[#A34B3D] tracking-tight">
+                            {item.discountLabel}
+                          </span>
+                        )}
                         {catRemaining != null && (
                           <span className="text-[10px] font-bold text-[#C26B59] animate-pulse">Only {catRemaining} left!</span>
                         )}
