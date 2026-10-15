@@ -821,76 +821,171 @@ export function MenuSection({
 
 
       <div className="relative mx-auto max-w-7xl px-3.5 sm:px-6 lg:px-8">
-        {/* ── HEADER ROW WITH VINTAGE CALLOUTS ── */}
-        <div className="relative mb-6 sm:mb-9 flex flex-col md:flex-row md:items-end md:justify-between gap-4 sm:gap-6">
-          {/* Left: Heading & Subheading */}
-          <div className="max-w-xl">
-            <span className="text-[10px] sm:text-xs font-semibold uppercase tracking-[0.22em] text-[#7A6F5D] block mb-1 sm:mb-2">
-              OUR MENU
-            </span>
-            <h2 className="font-serif text-[1.75rem] sm:text-4xl lg:text-[3.25rem] font-bold text-[#29251F] leading-[1.12] tracking-tight">
-              Made with love, <br />
-              <span className="relative inline-flex items-center gap-2 sm:gap-3">
-                Made to indulge
+        {/* ── HEADER ROW: CONDITIONAL BETWEEN MAIN PAGE & DEDICATED FULL MENU PAGE ── */}
+        {isFullMenu ? (
+          /* ── FULL MENU HERO: DISTINCT WEBSITE-LIKE DESIGN ── */
+          <div className="relative mb-8 sm:mb-12 rounded-3xl bg-gradient-to-br from-[#FFFDF9] via-[#FAF3E8] to-[#F2E5D2] border border-[#D9C8B5] p-6 sm:p-10 shadow-[0_4px_24px_rgba(41,37,31,0.06)] overflow-hidden">
+            {/* Ambient decorative background glows */}
+            <div className="pointer-events-none absolute -top-16 -right-16 w-56 h-56 rounded-full bg-[#A34B3D]/5 blur-2xl" />
+            <div className="pointer-events-none absolute -bottom-16 -left-16 w-56 h-56 rounded-full bg-[#5D6B3F]/10 blur-2xl" />
+
+            {/* Breadcrumb & Live Counter Bar */}
+            <div className="flex flex-wrap items-center justify-between gap-3 mb-4 sm:mb-6 border-b border-[#D8C7B3]/50 pb-3">
+              <div className="flex items-center gap-2 text-xs font-semibold tracking-wider uppercase text-[#7A6F5D]">
+                <Link href="/" className="hover:text-[#A34B3D] transition-colors">
+                  Home
+                </Link>
+                <span className="text-[#A89A88]">/</span>
+                <span className="text-[#A34B3D] font-bold">Full Bakery Menu</span>
+              </div>
+              <span className="inline-flex items-center gap-1.5 px-3 py-1 rounded-full bg-[#5D6B3F]/15 text-[#4D5A32] text-[10.5px] font-bold tracking-wider uppercase border border-[#5D6B3F]/25">
+                <span className="w-1.5 h-1.5 rounded-full bg-[#4D7C47] animate-pulse" />
+                <span>{activeMenuItems.length} Fresh Items Live</span>
+              </span>
+            </div>
+
+            <div className="flex flex-col lg:flex-row lg:items-center lg:justify-between gap-6 sm:gap-8">
+              {/* Left Column: Heading, Subheading & Reassurance Badges */}
+              <div className="max-w-2xl space-y-3 sm:space-y-4">
+                <span className="inline-block text-[10px] sm:text-[11px] font-bold uppercase tracking-[0.25em] text-[#8C765C] bg-[#ECE0D0]/80 px-3 py-1 rounded-full border border-[#D8CABE]">
+                  ✦ The Complete Artisanal Menu ✦
+                </span>
+
+                <h1 className="font-serif text-3xl sm:text-5xl lg:text-6xl font-bold text-[#29251F] leading-[1.1] tracking-tight">
+                  Made with love, <br />
+                  <span className="relative inline-flex items-center gap-2.5 sm:gap-3 text-[#A34B3D]">
+                    Made to indulge
+                    <svg
+                      className="w-6 h-6 sm:w-10 sm:h-10 text-[#A34B3D] inline-block -rotate-6 transform"
+                      viewBox="0 0 32 32"
+                      fill="none"
+                      stroke="currentColor"
+                      strokeWidth="2.2"
+                      strokeLinecap="round"
+                      strokeLinejoin="round"
+                    >
+                      <path d="M16 26 C12 22, 4 16, 4 9.5 A 6 6 0 0 1 16 7.5 A 6 6 0 0 1 28 9.5 C28 16, 20 22, 16 26 Z" />
+                    </svg>
+                  </span>
+                </h1>
+
+                <p className="text-sm sm:text-base text-[#5E5446] leading-relaxed font-normal max-w-xl">
+                  Browse our complete handcrafted selection — slow-fermented European sourdoughs, rich butter tea cakes, guilt-free spreads, and celebration desserts baked fresh daily in Gurugram.
+                </p>
+
+                {/* Highlights Pill Badges */}
+                <div className="flex flex-wrap items-center gap-2 pt-1 text-xs">
+                  <span className="inline-flex items-center gap-1.5 px-3 py-1 rounded-xl bg-white/90 border border-[#D8C7B3] text-[#4A4134] font-medium shadow-2xs">
+                    🍞 Freshly Baked Daily
+                  </span>
+                  <span className="inline-flex items-center gap-1.5 px-3 py-1 rounded-xl bg-white/90 border border-[#D8C7B3] text-[#4A4134] font-medium shadow-2xs">
+                    🧈 100% Pure Butter
+                  </span>
+                  <span className="inline-flex items-center gap-1.5 px-3 py-1 rounded-xl bg-white/90 border border-[#D8C7B3] text-[#4A4134] font-medium shadow-2xs">
+                    🌿 100% Eggless Options
+                  </span>
+                  <span className="inline-flex items-center gap-1.5 px-3 py-1 rounded-xl bg-white/90 border border-[#D8C7B3] text-[#4A4134] font-medium shadow-2xs">
+                    ⚡ Same-Day Delivery
+                  </span>
+                </div>
+              </div>
+
+              {/* Right Column: Circular Badge & Brand Stamp */}
+              <div className="flex sm:flex-row lg:flex-col items-center justify-start lg:justify-center gap-4 sm:gap-6 shrink-0 lg:border-l lg:border-[#D8C7B3]/60 lg:pl-8">
+                <div className="relative w-20 h-20 sm:w-28 sm:h-28 shrink-0">
+                  <Image
+                    src="/logo-brand.png"
+                    alt="The Indulgent Spoon"
+                    fill
+                    className="object-contain drop-shadow-md"
+                    sizes="112px"
+                    priority
+                  />
+                </div>
+                <div className="text-center sm:text-left lg:text-center">
+                  <p
+                    className="text-base sm:text-xl text-[#7A6348] italic font-serif leading-tight font-medium"
+                    style={{ fontFamily: "Georgia, serif" }}
+                  >
+                    Good Desserts, <br />Happier Days
+                  </p>
+                  <p className="text-[10px] text-[#8C7A64] uppercase tracking-widest font-bold mt-1">
+                    Gurugram • Mayfield Gardens
+                  </p>
+                </div>
+              </div>
+            </div>
+          </div>
+        ) : (
+          /* ── MAIN PAGE: OUR MENU SECTION HEADER ROW ── */
+          <div className="relative mb-6 sm:mb-9 flex flex-col md:flex-row md:items-end md:justify-between gap-4 sm:gap-6">
+            {/* Left: Heading & Subheading */}
+            <div className="max-w-xl">
+              <span className="text-[10px] sm:text-xs font-semibold uppercase tracking-[0.22em] text-[#7A6F5D] block mb-1 sm:mb-2">
+                OUR MENU
+              </span>
+              <h2 className="font-serif text-[1.75rem] sm:text-4xl lg:text-[3.25rem] font-bold text-[#29251F] leading-[1.12] tracking-tight">
+                Made with love, <br />
+                <span className="relative inline-flex items-center gap-2 sm:gap-3">
+                  Made to indulge
+                  <svg
+                    className="w-5 h-5 sm:w-8 sm:h-8 text-[#A34B3D] inline-block -rotate-6 transform"
+                    viewBox="0 0 32 32"
+                    fill="none"
+                    stroke="currentColor"
+                    strokeWidth="2.2"
+                    strokeLinecap="round"
+                    strokeLinejoin="round"
+                  >
+                    <path d="M16 26 C12 22, 4 16, 4 9.5 A 6 6 0 0 1 16 7.5 A 6 6 0 0 1 28 9.5 C28 16, 20 22, 16 26 Z" />
+                  </svg>
+                </span>
+              </h2>
+              <p className="mt-2 sm:mt-3.5 text-xs sm:text-base text-[#6B6152] font-medium tracking-wide">
+                Freshly baked. Honestly indulgent. Always special.
+              </p>
+            </div>
+
+            {/* Right: Handwritten note & circular stamp */}
+            <div className="flex items-center justify-end gap-3 sm:gap-8 self-end md:self-center -mt-2 sm:mt-0">
+              {/* Calligraphic script note */}
+              <div className="flex flex-col items-center -rotate-6 select-none">
+                <span
+                  className="text-xs sm:text-lg text-[#85725A] italic font-serif leading-tight font-medium"
+                  style={{ fontFamily: "Georgia, serif" }}
+                >
+                  Good Desserts
+                </span>
+                <span
+                  className="text-[10px] sm:text-base text-[#85725A] italic font-serif leading-tight font-medium"
+                  style={{ fontFamily: "Georgia, serif" }}
+                >
+                  Happier Days
+                </span>
                 <svg
-                  className="w-5 h-5 sm:w-8 sm:h-8 text-[#A34B3D] inline-block -rotate-6 transform"
-                  viewBox="0 0 32 32"
+                  className="w-3.5 h-3.5 sm:w-4 sm:h-4 text-[#85725A] mt-0.5 opacity-80"
+                  viewBox="0 0 24 24"
                   fill="none"
                   stroke="currentColor"
-                  strokeWidth="2.2"
-                  strokeLinecap="round"
-                  strokeLinejoin="round"
+                  strokeWidth="1.75"
                 >
-                  <path d="M16 26 C12 22, 4 16, 4 9.5 A 6 6 0 0 1 16 7.5 A 6 6 0 0 1 28 9.5 C28 16, 20 22, 16 26 Z" />
+                  <path d="M12 21 C9 18, 3 13, 3 8 A 4.5 4.5 0 0 1 12 6.5 A 4.5 4.5 0 0 1 21 8 C21 13, 15 18, 12 21 Z" />
                 </svg>
-              </span>
-            </h2>
-            <p className="mt-2 sm:mt-3.5 text-xs sm:text-base text-[#6B6152] font-medium tracking-wide">
-              Freshly baked. Honestly indulgent. Always special.
-            </p>
-          </div>
+              </div>
 
-          {/* Right: Handwritten note & circular stamp */}
-          <div className="flex items-center justify-end gap-3 sm:gap-8 self-end md:self-center -mt-2 sm:mt-0">
-            {/* Calligraphic script note */}
-            <div className="flex flex-col items-center -rotate-6 select-none">
-              <span
-                className="text-xs sm:text-lg text-[#85725A] italic font-serif leading-tight font-medium"
-                style={{ fontFamily: "Georgia, serif" }}
-              >
-                Good Desserts
-              </span>
-              <span
-                className="text-[10px] sm:text-base text-[#85725A] italic font-serif leading-tight font-medium"
-                style={{ fontFamily: "Georgia, serif" }}
-              >
-                Happier Days
-              </span>
-              <svg
-                className="w-3.5 h-3.5 sm:w-4 sm:h-4 text-[#85725A] mt-0.5 opacity-80"
-                viewBox="0 0 24 24"
-                fill="none"
-                stroke="currentColor"
-                strokeWidth="1.75"
-              >
-                <path d="M12 21 C9 18, 3 13, 3 8 A 4.5 4.5 0 0 1 12 6.5 A 4.5 4.5 0 0 1 21 8 C21 13, 15 18, 12 21 Z" />
-              </svg>
-            </div>
-
-
-            {/* Circular stamp badge — brand logo */}
-            <div className="relative w-16 h-16 sm:w-24 sm:h-24 select-none shrink-0">
-              <Image
-                src="/logo-brand.png"
-                alt="The Indulgent Spoon"
-                fill
-                className="object-contain drop-shadow-sm"
-                sizes="96px"
-              />
+              {/* Circular stamp badge — brand logo */}
+              <div className="relative w-16 h-16 sm:w-24 sm:h-24 select-none shrink-0">
+                <Image
+                  src="/logo-brand.png"
+                  alt="The Indulgent Spoon"
+                  fill
+                  className="object-contain drop-shadow-sm"
+                  sizes="96px"
+                />
+              </div>
             </div>
           </div>
-
-        </div>
+        )}
 
         {/* ══════════════════════════════════════════════════════ */}
         {/* ── CATEGORY NAV: FULL MENU = STICKY PILLS / HOME = SLIDER */}
