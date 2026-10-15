@@ -381,23 +381,24 @@ export async function sendCustomerConfirmationEmail(
 
     if (error) {
       console.error("[Email] Resend customer email error:", error);
-      // In Resend sandbox mode, if email cannot be delivered to an unverified address, route copy to owner
+      const ownerEmail =
+        process.env.KITCHEN_OWNER_EMAIL ||
+        process.env.ADMIN_EMAIL ||
+        "theindulgentspoonbyvasvi@gmail.com";
+
       if (error.message && error.message.includes("only send testing emails to your own email address")) {
-        const ownerEmail =
-          process.env.KITCHEN_OWNER_EMAIL ||
-          process.env.ADMIN_EMAIL ||
-          "theindulgentspoonbyvasvi@gmail.com";
-        console.log(`[Email] Sandbox mode: Forwarding customer confirmation email to ${ownerEmail}`);
-        const retryRes = await resend.emails.send({
+        console.warn(`[Email] RESEND SANDBOX RESTRICTION: Cannot deliver to customer ${data.customerEmail}. Forwarding test copy to owner ${ownerEmail}.`);
+        await resend.emails.send({
           from,
           to: ownerEmail,
           subject: `[Customer Copy: ${data.customerEmail}] ✓ Order Confirmed! — #${data.orderNumber}`,
           html: buildCustomerHtml(data),
           attachments,
         });
-        if (!retryRes.error) {
-          return { success: true, messageId: retryRes.data?.id };
-        }
+        return {
+          success: false,
+          error: `Resend sandbox restriction: Emails can only be delivered to ${ownerEmail}. To deliver to customer (${data.customerEmail}), please set GMAIL_APP_PASSWORD or verify your domain in Resend.`,
+        };
       }
       return { success: false, error: error.message };
     }
@@ -676,9 +677,10 @@ export async function sendOrderCompletedEmail(data: OrderCompletedEmailData): Pr
           subject: `[Customer Copy: ${data.customerEmail}] 🎉 Your Order #${data.orderNumber} is Completed!`,
           html,
         });
-        if (!retryRes.error) {
-          return { success: true, messageId: retryRes.data?.id };
-        }
+        return {
+          success: false,
+          error: `Resend sandbox restriction: Emails can only be delivered to ${ownerEmail}. To deliver to customer (${data.customerEmail}), please set GMAIL_APP_PASSWORD or verify your domain in Resend.`,
+        };
       }
       return { success: false, error: error.message };
     }
