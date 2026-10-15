@@ -44,6 +44,7 @@ import {
   getSourdoughSlotInfo,
 } from "@/lib/delivery-slots-service";
 import type { DeliverySlot } from "@/types/database";
+import { getProductDiscount } from "@/lib/discount";
 
 /**
  * Format a baking period in hours to a human-friendly string (e.g. 2 days, 4 hrs, 12 hrs)
@@ -134,6 +135,13 @@ export default function CheckoutPageClient() {
   const sourdoughSlotInfo = React.useMemo(() => {
     return hasSourdoughInCart ? getSourdoughSlotInfo() : null;
   }, [hasSourdoughInCart]);
+
+  const totalDiscountSavings = React.useMemo(() => {
+    return items.reduce((sum, item) => {
+      const disc = getProductDiscount(item.product);
+      return sum + (disc.savings * item.quantity);
+    }, 0);
+  }, [items]);
 
   // Autocomplete Suggestions State
   const [suggestions, setSuggestions] = useState<AddressSuggestion[]>([]);
@@ -1586,7 +1594,12 @@ export default function CheckoutPageClient() {
             Order Summary
           </h2>
           <div className="space-y-2.5">
-            {items.map((item) => (
+            {items.map((item) => {
+              const disc = getProductDiscount(item.product);
+              const itemAddonsTotal = (item.addons || []).reduce((s, a) => s + a.price, 0);
+              const originalUnitPrice = disc.originalPrice + itemAddonsTotal;
+
+              return (
               <div
                 key={item.id}
                 className="flex items-start gap-2.5 text-xs"
@@ -1621,12 +1634,27 @@ export default function CheckoutPageClient() {
                       + {item.addons.map((a) => `${a.label}`).join(", ")}
                     </p>
                   )}
+                  {disc.hasDiscount && (
+                    <div className="mt-0.5">
+                      <span className="inline-flex items-center gap-1 px-1.5 py-0.5 rounded text-[9.5px] font-bold text-[#A34B3D] bg-[#FAF2ED] border border-[#E8D2C5]">
+                        <span>{disc.badgeLabel}</span>
+                      </span>
+                    </div>
+                  )}
                 </div>
-                <span className="font-bold text-[#29251F] shrink-0">
-                  {formatPrice(item.unitPrice * item.quantity)}
-                </span>
+                <div className="text-right shrink-0">
+                  <span className="font-bold text-[#29251F] block">
+                    {formatPrice(item.unitPrice * item.quantity)}
+                  </span>
+                  {disc.hasDiscount && (
+                    <span className="text-[10px] text-[#8C827A] line-through block">
+                      {formatPrice(originalUnitPrice * item.quantity)}
+                    </span>
+                  )}
+                </div>
               </div>
-            ))}
+            );
+            })}
           </div>
 
           <div className="border-t border-[#91885D]/25 pt-3 space-y-1.5 text-xs">
@@ -1653,6 +1681,18 @@ export default function CheckoutPageClient() {
               <span>Subtotal ({totalItems} items)</span>
               <span>{formatPrice(subtotal)}</span>
             </div>
+
+            {totalDiscountSavings > 0 && (
+              <div className="flex justify-between items-center text-xs text-[#238234] bg-[#F2F7F2] border border-[#CDE3CD] rounded-xl px-2.5 py-1.5 font-medium">
+                <span className="flex items-center gap-1 font-bold">
+                  <span>🏷️</span>
+                  <span>Promotional Savings</span>
+                </span>
+                <span className="font-bold">
+                  -{formatPrice(totalDiscountSavings)}
+                </span>
+              </div>
+            )}
             <div className="flex justify-between text-[#696053]">
               <span>Delivery fee</span>
               <span>
