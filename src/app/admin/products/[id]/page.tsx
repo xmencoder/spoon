@@ -89,6 +89,7 @@ export default function AdminEditProductPage() {
   const [discountAmount, setDiscountAmount] = useState<string>("50");
   const [discountName, setDiscountName] = useState<string>("");
   const [categoryId, setCategoryId] = useState("");
+  const [originalCategoryId, setOriginalCategoryId] = useState<string | null>(null);
   const [badge, setBadge] = useState<string>("NONE");
   const [badgeSecondary, setBadgeSecondary] = useState<string>("NONE");
   const [tags, setTags] = useState<string[]>([]);
@@ -166,6 +167,8 @@ export default function AdminEditProductPage() {
         setDescription(prod.description || "");
         setStoryText(prod.story_text || "");
         setPrice(prod.price.toString());
+        setCategoryId(prod.category_id || "");
+        setOriginalCategoryId(prod.category_id || null);
 
         // Load discount if present
         if (prod.discount_percent && prod.discount_percent > 0) {
@@ -576,12 +579,14 @@ export default function AdminEditProductPage() {
           ? discountName.trim()
           : null;
 
+      const resolvedCategoryId = categoryId.trim() ? categoryId.trim() : (originalCategoryId || null);
+
       const updateData: Partial<Product> = {
         name: name.trim(),
         description: description.trim() || null,
         story_text: storyText.trim() || null,
         price: parsedPrice,
-        category_id: categoryId || null,
+        category_id: resolvedCategoryId,
         badge: finalBadge,
         order_limit: orderLimit.trim() ? parseInt(orderLimit, 10) : null,
         total_ordered: totalOrdered,
