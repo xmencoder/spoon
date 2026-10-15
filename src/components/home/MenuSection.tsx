@@ -831,7 +831,7 @@ export function MenuSection({
             <h2 className="font-serif text-[1.75rem] sm:text-4xl lg:text-[3.25rem] font-bold text-[#29251F] leading-[1.12] tracking-tight">
               Made with love, <br />
               <span className="relative inline-flex items-center gap-2 sm:gap-3">
-                Made to indulgence
+                Made to indulge
                 <svg
                   className="w-5 h-5 sm:w-8 sm:h-8 text-[#A34B3D] inline-block -rotate-6 transform"
                   viewBox="0 0 32 32"

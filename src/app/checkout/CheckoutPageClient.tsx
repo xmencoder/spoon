@@ -1695,9 +1695,8 @@ export default function CheckoutPageClient() {
         <div className="rounded-2xl bg-[#E8D5BC] border border-[#91885D]/30 p-4 text-xs text-[#29251F]/80 space-y-1.5">
           <p className="font-bold text-[#29251F] text-xs">How it works</p>
           <p>1. Tap &ldquo;Place Order &amp; View Digital Receipt&rdquo; below.</p>
-          <p>2. View your detailed artisanal digital receipt &amp; breakdown.</p>
-          <p>3. Pay securely online via Razorpay (UPI, Google Pay, PhonePe, Cards, Netbanking).</p>
-          <p>4. Freshly handcrafted by The Indulgent Spoon.</p>
+          <p>2. Pay securely online via Razorpay (UPI, Google Pay, PhonePe, Cards, Netbanking).</p>
+          <p>3. Freshly handcrafted by The Indulgent Spoon.</p>
         </div>
       </form>
 
