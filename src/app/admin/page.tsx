@@ -22,14 +22,12 @@ import {
   Power,
   RefreshCw,
   CalendarClock,
-  Pencil,
   CloudRain,
   TrafficCone,
   Zap,
   Truck,
 } from "lucide-react";
 import { formatPrice } from "@/lib/utils";
-import { DeliveryPricingModal } from "./DeliveryPricingModal";
 import { getAdminDeliveryPricingAction } from "./delivery-pricing-actions";
 import type { DeliveryPricingConfig } from "@/lib/delivery-types";
 
@@ -39,7 +37,6 @@ export default function AdminDashboardPage() {
   const [metricsLoading, setMetricsLoading] = useState(true);
   const [togglingStatus, setTogglingStatus] = useState(false);
   const [deliveryPricing, setDeliveryPricing] = useState<DeliveryPricingConfig | null>(null);
-  const [pricingModalOpen, setPricingModalOpen] = useState(false);
 
   const loadMetrics = async (restId: string) => {
     try {
@@ -365,14 +362,6 @@ export default function AdminDashboardPage() {
                   <span className="text-[10px] font-bold uppercase tracking-wider text-spoon-muted block">
                     Delivery Charge
                   </span>
-                  <button
-                    type="button"
-                    onClick={() => setPricingModalOpen(true)}
-                    className="inline-flex items-center gap-1 text-[11px] font-bold text-spoon-caramel hover:text-spoon-dark bg-spoon-sand/40 hover:bg-spoon-sand/80 px-2 py-0.5 rounded-md transition-colors cursor-pointer"
-                  >
-                    <Pencil className="w-3 h-3" />
-                    <span>Edit Rates & Surges</span>
-                  </button>
                 </div>
 
                 {deliveryPricing ? (
@@ -445,18 +434,6 @@ export default function AdminDashboardPage() {
           </div>
         </Card>
       </div>
-
-      {deliveryPricing && (
-        <DeliveryPricingModal
-          isOpen={pricingModalOpen}
-          onClose={() => setPricingModalOpen(false)}
-          currentPricing={deliveryPricing}
-          onSuccess={(updated) => {
-            setDeliveryPricing(updated);
-            refreshRestaurant();
-          }}
-        />
-      )}
     </div>
   );
 }
