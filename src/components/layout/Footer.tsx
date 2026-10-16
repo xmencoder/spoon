@@ -1,6 +1,24 @@
 import Image from "next/image";
 import Link from "next/link";
-import { UtensilsCrossed } from "lucide-react";
+import { UtensilsCrossed, Phone, ArrowUpRight } from "lucide-react";
+
+function InstagramIcon({ className = "h-4 w-4" }: { className?: string }) {
+  return (
+    <svg
+      className={className}
+      viewBox="0 0 24 24"
+      fill="none"
+      stroke="currentColor"
+      strokeWidth="2"
+      strokeLinecap="round"
+      strokeLinejoin="round"
+    >
+      <rect width="20" height="20" x="2" y="2" rx="5" ry="5" />
+      <path d="M16 11.37A4 4 0 1 1 12.63 8 4 4 0 0 1 16 11.37z" />
+      <line x1="17.5" x2="17.51" y1="6.5" y2="6.5" />
+    </svg>
+  );
+}
 
 export function Footer() {
   return (
@@ -8,7 +26,7 @@ export function Footer() {
       <div className="mx-auto max-w-7xl px-4 sm:px-6 lg:px-8">
         <div className="grid grid-cols-1 gap-10 md:grid-cols-12">
           {/* Brand Col */}
-          <div className="md:col-span-7 space-y-4 pr-0 md:pr-12">
+          <div className="md:col-span-5 space-y-4 pr-0 md:pr-6">
             <div className="flex items-center gap-3">
               <div className="flex h-10 w-10 items-center justify-center rounded-xl bg-[#F5EBDD] border border-[#91885D]/40 text-[#C26B59] shadow-2xs">
                 <UtensilsCrossed className="h-5 w-5" strokeWidth={1.75} />
@@ -22,16 +40,13 @@ export function Footer() {
                 </span>
               </div>
             </div>
-            <p className="text-sm text-[#29251F]/85 leading-relaxed max-w-lg">
+            <p className="text-sm text-[#29251F]/85 leading-relaxed max-w-md">
               Where wholesome and indulgent come together. From slow-fermented sourdough to healthier desserts and little treats worth craving, everything is made in small batches with plenty of care.
             </p>
           </div>
 
-          {/* Separator on desktop */}
-          <div className="hidden md:block md:col-span-1 border-r border-[#91885D]/30 h-full" />
-
-          {/* Nav Col */}
-          <div className="md:col-span-4 space-y-4">
+          {/* Quick Links Col */}
+          <div className="md:col-span-3 space-y-4">
             <h4 className="font-serif text-sm font-bold uppercase tracking-[0.18em] text-[#29251F]">
               Explore
             </h4>
@@ -55,6 +70,60 @@ export function Footer() {
                 </Link>
               </li>
             </ul>
+          </div>
+
+          {/* Contact & Connect Col */}
+          <div className="md:col-span-4 space-y-4">
+            <h4 className="font-serif text-sm font-bold uppercase tracking-[0.18em] text-[#29251F]">
+              Connect With Us
+            </h4>
+            <div className="space-y-2.5">
+              {/* Instagram */}
+              <a
+                href="https://www.instagram.com/the.indulgent.spoon/"
+                target="_blank"
+                rel="noopener noreferrer"
+                className="group flex items-center justify-between gap-3 p-3 rounded-2xl bg-[#F5EBDD]/70 border border-[#91885D]/30 hover:border-[#C26B59]/40 hover:bg-[#F5EBDD] transition-all shadow-2xs"
+              >
+                <div className="flex items-center gap-2.5">
+                  <div className="flex h-8 w-8 items-center justify-center rounded-xl bg-gradient-to-tr from-[#FD1D1D]/15 via-[#E1306C]/15 to-[#833AB4]/15 border border-[#E1306C]/30 text-[#C26B59] group-hover:scale-105 transition-transform">
+                    <InstagramIcon className="h-4 w-4 text-[#C26B59]" />
+                  </div>
+                  <div>
+                    <span className="text-[10px] font-bold uppercase tracking-wider text-[#696053] block">
+                      Instagram
+                    </span>
+                    <span className="text-xs font-bold text-[#29251F] group-hover:text-[#C26B59] transition-colors">
+                      @the.indulgent.spoon
+                    </span>
+                  </div>
+                </div>
+                <ArrowUpRight className="h-4 w-4 text-[#696053] group-hover:text-[#C26B59] group-hover:translate-x-0.5 group-hover:-translate-y-0.5 transition-all" />
+              </a>
+
+              {/* Phone */}
+              <a
+                href="tel:9717123510"
+                className="group flex items-center justify-between gap-3 p-3 rounded-2xl bg-[#F5EBDD]/70 border border-[#91885D]/30 hover:border-[#C26B59]/40 hover:bg-[#F5EBDD] transition-all shadow-2xs"
+              >
+                <div className="flex items-center gap-2.5">
+                  <div className="flex h-8 w-8 items-center justify-center rounded-xl bg-[#FAF5ED] border border-[#91885D]/30 text-[#C26B59] group-hover:scale-105 transition-transform">
+                    <Phone className="h-4 w-4 text-[#C26B59]" />
+                  </div>
+                  <div>
+                    <span className="text-[10px] font-bold uppercase tracking-wider text-[#696053] block">
+                      Phone / Orders
+                    </span>
+                    <span className="text-xs font-bold text-[#29251F] group-hover:text-[#C26B59] transition-colors">
+                      +91 97171 23510
+                    </span>
+                  </div>
+                </div>
+                <span className="text-[10px] font-bold text-[#C26B59] bg-[#C26B59]/10 border border-[#C26B59]/20 px-2 py-0.5 rounded-full">
+                  Call
+                </span>
+              </a>
+            </div>
           </div>
         </div>
 
