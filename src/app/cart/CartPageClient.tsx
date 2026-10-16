@@ -12,7 +12,7 @@ import { formatPrice } from "@/lib/utils";
 import { isSourdoughOrFocaccia } from "@/lib/delivery-slots-service";
 import { createClient } from "@/lib/supabase/client";
 import type { Product, Category } from "@/types/database";
-import { getCategoryRemainingStock } from "@/app/store/[slug]/actions";
+import { getCategoryRemainingStock, getProductDailyRemainingStock } from "@/app/store/[slug]/actions";
 import { getProductDiscount } from "@/lib/discount";
 import { Header } from "@/components/layout/Header";
 import { Footer } from "@/components/layout/Footer";
@@ -60,6 +60,9 @@ export default function CartPageClient() {
   const [catStockMap, setCatStockMap] = useState<
     Record<string, { limit: number; totalOrdered: number; remaining: number }>
   >({});
+  const [prodStockMap, setProdStockMap] = useState<
+    Record<string, { limit: number; totalOrderedToday: number; remaining: number }>
+  >({});
 
   // Fetch live products & categories from Supabase database
   useEffect(() => {
@@ -77,6 +80,7 @@ export default function CartPageClient() {
         const targetRestId = rest?.id;
         if (targetRestId) {
           getCategoryRemainingStock(targetRestId).then((map) => setCatStockMap(map));
+          getProductDailyRemainingStock(targetRestId).then((map) => setProdStockMap(map));
         }
 
         const [prodRes, catRes] = await Promise.all([
@@ -150,6 +154,17 @@ export default function CartPageClient() {
     return list;
   }, [categoryCartQuantities, catStockMap, categoryMap]);
 
+  const exceededProducts = useMemo(() => {
+    const list: { prodName: string; remaining: number; inCart: number }[] = [];
+    items.forEach((item) => {
+      const stock = prodStockMap[item.product.id];
+      if (stock && item.quantity > stock.remaining) {
+        list.push({ prodName: item.product.name, remaining: stock.remaining, inCart: item.quantity });
+      }
+    });
+    return list;
+  }, [items, prodStockMap]);
+
   // Detect which categories are represented in user's cart
   const userCartCategories = useMemo(() => {
     const matchedCategories = new Set<string>();
@@ -182,6 +197,9 @@ export default function CartPageClient() {
 
   const handleAddRecommended = (product: Product, e?: React.MouseEvent) => {
     if (product.category_id && catStockMap[product.category_id]?.remaining <= 0) {
+      return;
+    }
+    if (prodStockMap[product.id] && prodStockMap[product.id]?.remaining <= 0) {
       return;
     }
     const disc = getProductDiscount(product);
@@ -282,9 +300,13 @@ export default function CartPageClient() {
                     const itemAddonsTotal = (item.addons || []).reduce((s, a) => s + a.price, 0);
                     const originalUnitPrice = disc.originalPrice + itemAddonsTotal;
                     const itemCatStock = item.product.category_id ? catStockMap[item.product.category_id] : null;
+                    const itemProdStock = prodStockMap[item.product.id] || null;
                     const totalInCat = item.product.category_id ? (categoryCartQuantities[item.product.category_id] || 0) : 0;
                     const isCatExceeded = itemCatStock != null && totalInCat > itemCatStock.remaining;
-                    const canIncrement = itemCatStock == null || totalInCat < itemCatStock.remaining;
+                    const isProdExceeded = itemProdStock != null && item.quantity > itemProdStock.remaining;
+                    const canIncrement =
+                      (itemCatStock == null || totalInCat < itemCatStock.remaining) &&
+                      (itemProdStock == null || item.quantity < itemProdStock.remaining);
 
                     return (
                       <div
@@ -341,9 +363,19 @@ export default function CartPageClient() {
                                 ⚠️ Exceeds category limit ({itemCatStock.remaining} left)
                               </span>
                             )}
+                            {isProdExceeded && itemProdStock && (
+                              <span className="inline-block text-[10px] font-bold text-rose-700 bg-rose-100 border border-rose-300 px-2 py-0.5 rounded-md mt-1 mr-2">
+                                ⚠️ Exceeds daily product limit ({itemProdStock.remaining} left today)
+                              </span>
+                            )}
                             {!isCatExceeded && itemCatStock && itemCatStock.remaining <= 5 && (
                               <span className="inline-block text-[10px] font-bold text-[#C26B59] bg-[#C26B59]/10 px-2 py-0.5 rounded-md mt-1 mr-2">
                                 Only {itemCatStock.remaining} left in category
+                              </span>
+                            )}
+                            {!isProdExceeded && itemProdStock && itemProdStock.remaining <= 5 && (
+                              <span className="inline-block text-[10px] font-bold text-rose-700 bg-rose-50 border border-rose-200 px-2 py-0.5 rounded-md mt-1 mr-2">
+                                Only {itemProdStock.remaining} left today
                               </span>
                             )}
                             {isSourdoughOrFocaccia(item.product) && (
@@ -504,14 +536,19 @@ export default function CartPageClient() {
                 </div>
 
                 {/* ── PROCEED TO CHECKOUT BUTTON (CLEAN /checkout URL) ── */}
-                {exceededCategories.length > 0 ? (
-                  <div className="mt-6 w-full rounded-2xl bg-rose-50 border border-rose-300 p-4 text-center space-y-1">
+                {exceededCategories.length > 0 || exceededProducts.length > 0 ? (
+                  <div className="mt-6 w-full rounded-2xl bg-rose-50 border border-rose-300 p-4 text-center space-y-1.5">
                     <p className="text-xs font-bold text-rose-900">
-                      ⚠️ Order limit exceeded
+                      ⚠️ Daily order limit exceeded
                     </p>
                     {exceededCategories.map((ex, i) => (
-                      <p key={i} className="text-[11px] text-rose-700">
-                        &quot;{ex.catName}&quot;: you have {ex.inCart} in cart, but only {ex.remaining} remaining.
+                      <p key={`cat-${i}`} className="text-[11px] text-rose-700">
+                        Category &quot;{ex.catName}&quot;: you have {ex.inCart} in cart, but only {ex.remaining} remaining.
+                      </p>
+                    ))}
+                    {exceededProducts.map((ex, i) => (
+                      <p key={`prod-${i}`} className="text-[11px] text-rose-700">
+                        &quot;{ex.prodName}&quot;: you have {ex.inCart} in cart, but daily limit allows only {ex.remaining} remaining today.
                       </p>
                     ))}
                     <p className="text-[10px] text-rose-600 font-medium pt-1">
@@ -577,12 +614,14 @@ export default function CartPageClient() {
                 const isAlreadyInCart = recInCartQty > 0;
                 const categoryObj = treat.category_id ? categoryMap[treat.category_id] : null;
                 const isRecCatSoldOut = treat.category_id ? catStockMap[treat.category_id]?.remaining <= 0 : false;
+                const isRecProdSoldOut = prodStockMap[treat.id] ? prodStockMap[treat.id]?.remaining <= 0 : false;
+                const isRecSoldOut = isRecCatSoldOut || isRecProdSoldOut;
 
                 return (
                   <div
                     key={treat.id}
                     className={`group bg-[#FAF6EF] rounded-2xl border overflow-hidden transition-all duration-300 flex flex-col justify-between ${
-                      isRecCatSoldOut
+                      isRecSoldOut
                         ? "border-[#91885D]/15 opacity-60"
                         : "border-[#91885D]/25 shadow-2xs hover:shadow-md hover:border-[#91885D]/40"
                     }`}
@@ -692,7 +731,7 @@ export default function CartPageClient() {
                         );
                       })()}
 
-                      {isRecCatSoldOut ? (
+                      {isRecSoldOut ? (
                         <span className="inline-flex items-center rounded-xl px-2.5 py-1.5 text-[10px] font-bold text-[#A95145] bg-[#A95145]/10 border border-[#A95145]/20 uppercase tracking-wider">
                           Sold Out
                         </span>

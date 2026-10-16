@@ -30,6 +30,7 @@ import {
   ShieldAlert,
   Trophy,
   X,
+  Clock,
 } from "lucide-react";
 import { formatPrice } from "@/lib/utils";
 import { getProductDiscount } from "@/lib/discount";
@@ -414,6 +415,12 @@ export default function AdminProductsPage() {
                           return (
                             <div className="flex items-center gap-2 mt-0.5 flex-wrap">
                               <span className="rounded-md bg-spoon-sand/70 px-1.5 py-0.5 text-[10px] border border-spoon-border/60 text-spoon-dark font-medium">{categoryName}</span>
+                              {item.order_limit != null && item.order_limit > 0 ? (
+                                <span className="inline-flex items-center gap-1 rounded-md bg-rose-50 border border-rose-200/80 px-1.5 py-0.5 text-[9.5px] font-bold text-rose-700">
+                                  <Clock className="w-2.5 h-2.5" />
+                                  <span>{item.order_limit}/day</span>
+                                </span>
+                              ) : null}
                               {disc.hasDiscount ? (
                                 <div className="flex items-center gap-1.5">
                                   <span className="line-through text-xs text-[#9C9182]">{formatPrice(disc.originalPrice)}</span>
@@ -580,6 +587,16 @@ export default function AdminProductsPage() {
                                     <span>Featured</span>
                                   </span>
                                 )}
+
+                                {item.order_limit != null && item.order_limit > 0 && (
+                                  <span
+                                    className="inline-flex items-center gap-1 rounded bg-rose-50 text-rose-700 border border-rose-200/80 px-1.5 py-0.5 text-[8.5px] font-bold uppercase tracking-wider"
+                                    title="Daily limit refreshes every 24 hours at midnight IST"
+                                  >
+                                    <Clock className="h-2.5 w-2.5 text-rose-600" />
+                                    <span>Limit: {item.order_limit}/day</span>
+                                  </span>
+                                )}
                               </div>
 
                               <p className="text-[11px] text-spoon-muted line-clamp-1 max-w-sm mt-0.5">
@@ -686,6 +703,12 @@ export default function AdminProductsPage() {
                             />
                             <span>{item.available ? "Available" : "Sold Out"}</span>
                           </button>
+                          {item.order_limit != null && item.order_limit > 0 && (
+                            <div className="text-[10px] font-semibold text-rose-700 mt-1 flex items-center gap-1">
+                              <Clock className="w-2.5 h-2.5 text-rose-500" />
+                              <span>{item.order_limit}/day max</span>
+                            </div>
+                          )}
                         </td>
 
                         {/* Actions */}

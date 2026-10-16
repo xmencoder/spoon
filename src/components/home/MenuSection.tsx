@@ -20,7 +20,7 @@ import { useCart } from "@/lib/store/CartContext";
 import { createClient } from "@/lib/supabase/client";
 import type { Product, Category } from "@/types/database";
 import { parseBadges, getBadgeColorClass } from "@/lib/badges";
-import { getCategoryRemainingStock } from "@/app/store/[slug]/actions";
+import { getCategoryRemainingStock, getProductDailyRemainingStock } from "@/app/store/[slug]/actions";
 import { getProductDiscount } from "@/lib/discount";
 
 export interface CategoryCard {
@@ -260,29 +260,54 @@ export function MenuSection({
     Record<string, { limit: number; totalOrdered: number; remaining: number }>
   >({});
 
+  // Product daily order-limit remaining stock map: prodId → { limit, totalOrderedToday, remaining }
+  const [prodDailyStockMap, setProdDailyStockMap] = useState<
+    Record<string, { limit: number; totalOrderedToday: number; remaining: number }>
+  >({});
+
   useEffect(() => {
     const restId = restaurantId || globalCachedRestaurantId || initialRestaurantId;
     if (restId) {
       getCategoryRemainingStock(restId).then((map) => setCatStockMap(map));
+      getProductDailyRemainingStock(restId).then((map) => setProdDailyStockMap(map));
     }
   }, [restaurantId, initialRestaurantId]);
 
-  /** Returns true if the product's category has a limit that's been fully used up */
+  /** Returns true if the product or its category has a limit that's been fully used up for today */
   const isProductCatSoldOut = useCallback((itemId: string): boolean => {
+    // 1. Check Product daily limit
+    const prodStock = prodDailyStockMap[itemId];
+    if (prodStock != null && prodStock.remaining <= 0) return true;
+
+    // 2. Check Category limit
     const dbProd = liveDbProducts.find((p) => p.id === itemId);
     if (!dbProd || !dbProd.category_id) return false;
     const stock = catStockMap[dbProd.category_id];
     return stock != null && stock.remaining <= 0;
-  }, [liveDbProducts, catStockMap]);
+  }, [liveDbProducts, catStockMap, prodDailyStockMap]);
 
-  /** Returns remaining count for an item's category (null = no limit or not near limit) */
+  /** Returns remaining count for an item (product daily limit or category limit, null = no limit or > 5) */
   const getProductCatRemaining = useCallback((itemId: string): number | null => {
+    let minRemaining: number | null = null;
+
+    const prodStock = prodDailyStockMap[itemId];
+    if (prodStock != null) {
+      if (prodStock.remaining <= 0) return null;
+      if (prodStock.remaining <= 5) minRemaining = prodStock.remaining;
+    }
+
     const dbProd = liveDbProducts.find((p) => p.id === itemId);
-    if (!dbProd || !dbProd.category_id) return null;
-    const stock = catStockMap[dbProd.category_id];
-    if (!stock || stock.remaining <= 0 || stock.remaining > 5) return null;
-    return stock.remaining;
-  }, [liveDbProducts, catStockMap]);
+    if (dbProd && dbProd.category_id) {
+      const stock = catStockMap[dbProd.category_id];
+      if (stock && stock.remaining > 0 && stock.remaining <= 5) {
+        if (minRemaining === null || stock.remaining < minRemaining) {
+          minRemaining = stock.remaining;
+        }
+      }
+    }
+
+    return minRemaining;
+  }, [liveDbProducts, catStockMap, prodDailyStockMap]);
 
   // Fetch live products & categories from Supabase
   useEffect(() => {
@@ -484,6 +509,17 @@ export function MenuSection({
 
   const canIncrementItem = useCallback(
     (itemId: string): boolean => {
+      // 1. Check Product daily limit
+      const prodStock = prodDailyStockMap[itemId];
+      if (prodStock != null) {
+        if (prodStock.remaining <= 0) return false;
+        const inCartProdQty = getProductQuantity(itemId);
+        const localQty = quantities[itemId] !== undefined ? quantities[itemId] : 1;
+        const needed = inCartProdQty > 0 ? 1 : localQty;
+        if (inCartProdQty + needed > prodStock.remaining) return false;
+      }
+
+      // 2. Check Category limit
       const dbProd = liveDbProducts.find(
         (p) => p.id === itemId || p.name.trim().toLowerCase() === itemId.trim().toLowerCase()
       );
@@ -510,7 +546,7 @@ export function MenuSection({
         ? inCartCatQty < stock.remaining
         : inCartCatQty + localQty < stock.remaining;
     },
-    [liveDbProducts, catStockMap, cartItems, getProductQuantity, quantities]
+    [liveDbProducts, catStockMap, prodDailyStockMap, cartItems, getProductQuantity, quantities]
   );
 
   const handleIncrement = (id: string) => {
@@ -573,6 +609,18 @@ export function MenuSection({
 
   const handleAddToCart = (item: MenuItem, e?: React.MouseEvent) => {
     if (isProductCatSoldOut(item.id)) return;
+
+    // Check Product daily limit
+    const prodStock = prodDailyStockMap[item.id];
+    if (prodStock != null) {
+      const inCartCount = getProductQuantity(item.id);
+      const qty = getQty(item.id);
+      const qtyToAdd = inCartCount > 0 ? 1 : Math.max(1, qty);
+      if (inCartCount + qtyToAdd > prodStock.remaining) {
+        return;
+      }
+    }
+
     const matchingDbProduct = liveDbProducts.find(
       (p) => p.id === item.id || p.name.trim().toLowerCase() === item.name.trim().toLowerCase()
     );

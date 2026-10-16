@@ -937,6 +937,76 @@ export default function AdminEditProductPage() {
             )}
           </div>
 
+          {/* ── DAILY PRODUCT LIMIT (RESETS EVERY 24 HOURS) ── */}
+          <div className="rounded-2xl border border-spoon-border/80 bg-[#FAF6F0]/60 p-4 sm:p-5 space-y-3 transition-all">
+            <div className="flex items-start justify-between gap-4">
+              <div className="space-y-0.5">
+                <div className="flex items-center gap-2">
+                  <span className="flex h-6 w-6 items-center justify-center rounded-lg bg-rose-500/10 text-rose-600">
+                    <ShieldAlert className="w-3.5 h-3.5" />
+                  </span>
+                  <label className="text-xs font-bold uppercase tracking-wider text-spoon-dark">
+                    Daily Product Limit
+                  </label>
+                  {orderLimit && parseInt(orderLimit, 10) > 0 && (
+                    <span className="inline-flex items-center gap-1 text-[10px] font-bold text-rose-700 bg-rose-50 border border-rose-200 px-2 py-0.5 rounded-full">
+                      <span>Limit Active: {parseInt(orderLimit, 10)} units/day</span>
+                    </span>
+                  )}
+                </div>
+                <p className="text-[11px] text-spoon-muted">
+                  Set a daily batch limit for this bakery item. Once customer orders reach this number on any day, the product automatically shows &ldquo;Sold Out for Today&rdquo; and automatically resets every 24 hours at midnight (IST).
+                </p>
+              </div>
+            </div>
+
+            <div className="grid grid-cols-1 sm:grid-cols-2 gap-4 pt-1">
+              <div>
+                <label className="block text-[11px] font-semibold text-spoon-muted mb-1">
+                  Max Units Per Day (Leave blank for unlimited)
+                </label>
+                <div className="flex items-center gap-2">
+                  <Input
+                    type="number"
+                    min="1"
+                    step="1"
+                    value={orderLimit}
+                    onChange={(e) => setOrderLimit(e.target.value)}
+                    placeholder="e.g. 6 (blank = unlimited)"
+                    className="text-xs font-bold max-w-[220px] bg-white border-spoon-border focus:border-rose-400"
+                  />
+                  <span className="text-xs text-spoon-muted font-medium shrink-0">units/day</span>
+                  {orderLimit && (
+                    <button
+                      type="button"
+                      onClick={() => setOrderLimit("")}
+                      className="text-xs text-spoon-muted hover:text-rose-600 underline font-medium ml-2 cursor-pointer"
+                    >
+                      Clear Limit
+                    </button>
+                  )}
+                </div>
+              </div>
+
+              {orderLimit && parseInt(orderLimit, 10) > 0 ? (
+                <div className="rounded-xl bg-rose-50/80 border border-rose-200 p-3 flex items-start gap-2.5 text-xs text-rose-950">
+                  <ShieldAlert className="w-4 h-4 text-rose-600 shrink-0 mt-0.5" />
+                  <div className="space-y-0.5">
+                    <p className="font-bold">Daily Stock Control: {parseInt(orderLimit, 10)} units/day</p>
+                    <p className="text-[11px] text-rose-900/80 leading-relaxed">
+                      Only {parseInt(orderLimit, 10)} units can be ordered on any single day. Resets automatically every 24 hours (exact same logic as category limits).
+                    </p>
+                  </div>
+                </div>
+              ) : (
+                <div className="rounded-xl bg-spoon-sand/30 border border-spoon-border/60 p-3 flex items-center gap-2 text-xs text-spoon-muted">
+                  <span className="text-emerald-700 font-bold">✓ Unlimited</span>
+                  <span>No daily ordering cap. Available continuously until manually marked sold out.</span>
+                </div>
+              )}
+            </div>
+          </div>
+
           <div className="grid grid-cols-1 gap-5 sm:grid-cols-3">
             <div>
               <label className="block text-xs font-bold uppercase tracking-wider text-spoon-dark mb-1.5">

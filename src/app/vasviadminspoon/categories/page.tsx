@@ -37,7 +37,6 @@ import {
   CalendarClock,
   Timer,
   Hash,
-  ShieldAlert,
 } from "lucide-react";
 
 /** Format a baking period in hours to a human-friendly string */
@@ -68,7 +67,6 @@ export default function AdminCategoriesPage() {
   const [newCatImageFile, setNewCatImageFile] = useState<File | null>(null);
   const [newCatImagePreview, setNewCatImagePreview] = useState<string | null>(null);
   const [newCatBakingHours, setNewCatBakingHours] = useState<string>("");
-  const [newCatLimit, setNewCatLimit] = useState<string>("");
   const [creating, setCreating] = useState(false);
   const fileInputRef = useRef<HTMLInputElement>(null);
 
@@ -78,7 +76,6 @@ export default function AdminCategoriesPage() {
   const [editingImageFile, setEditingImageFile] = useState<File | null>(null);
   const [editingImagePreview, setEditingImagePreview] = useState<string | null>(null);
   const [editingBakingHours, setEditingBakingHours] = useState<string>("");
-  const [editingLimit, setEditingLimit] = useState<string>("");
   const [savingEdit, setSavingEdit] = useState(false);
   const editFileInputRef = useRef<HTMLInputElement>(null);
 
@@ -200,8 +197,7 @@ export default function AdminCategoriesPage() {
       }
 
       const bakingVal = newCatBakingHours.trim() !== "" ? parseFloat(newCatBakingHours) : null;
-      const limitVal = newCatLimit.trim() !== "" ? parseInt(newCatLimit, 10) : null;
-      const res = await createCategoryServerAction(restId, categoryName, uploadedUrl, bakingVal && !isNaN(bakingVal) ? bakingVal : null, limitVal && !isNaN(limitVal) ? limitVal : null);
+      const res = await createCategoryServerAction(restId, categoryName, uploadedUrl, bakingVal && !isNaN(bakingVal) ? bakingVal : null, null);
       if (!res.success) {
         throw new Error(res.error || "Failed to create category");
       }
@@ -210,7 +206,6 @@ export default function AdminCategoriesPage() {
       setNewCatImageFile(null);
       setNewCatImagePreview(null);
       setNewCatBakingHours("");
-      setNewCatLimit("");
       if (fileInputRef.current) fileInputRef.current.value = "";
 
       setSuccessMsg(`Category "${categoryName}" created successfully!`);
@@ -267,9 +262,6 @@ export default function AdminCategoriesPage() {
     setEditingBakingHours(
       cat.baking_period_hours != null ? String(cat.baking_period_hours) : ""
     );
-    setEditingLimit(
-      cat.category_limit != null ? String(cat.category_limit) : ""
-    );
   };
 
   const cancelEdit = () => {
@@ -278,7 +270,6 @@ export default function AdminCategoriesPage() {
     setEditingImageFile(null);
     setEditingImagePreview(null);
     setEditingBakingHours("");
-    setEditingLimit("");
   };
 
   // Save Inline Edit
@@ -309,13 +300,12 @@ export default function AdminCategoriesPage() {
       }
 
       const bakingVal = editingBakingHours.trim() !== "" ? parseFloat(editingBakingHours) : null;
-      const limitVal = editingLimit.trim() !== "" ? parseInt(editingLimit, 10) : null;
       const res = await updateCategoryServerAction(
         cat.id,
         editingName.trim(),
         uploadedUrl,
         bakingVal && !isNaN(bakingVal) ? bakingVal : null,
-        limitVal && !isNaN(limitVal) ? limitVal : null
+        null
       );
       if (!res.success) {
         throw new Error(res.error || "Failed to update category");
@@ -556,37 +546,6 @@ export default function AdminCategoriesPage() {
           </div>
         </div>
 
-        {/* Order Limit Row */}
-        <div className="flex flex-col sm:flex-row sm:items-center gap-3 pt-1 border-t border-spoon-border/50">
-          <div className="flex items-center gap-2 sm:w-56 shrink-0">
-            <ShieldAlert className="h-4 w-4 text-rose-500 shrink-0" />
-            <div>
-              <span className="text-xs font-bold text-spoon-dark block">Daily Order Limit</span>
-              <span className="text-[10px] text-spoon-muted">
-                Max total units allowed per day (resets daily)
-              </span>
-            </div>
-          </div>
-          <div className="flex items-center gap-2 flex-1">
-            <Input
-              type="number"
-              min="1"
-              step="1"
-              value={newCatLimit}
-              onChange={(e) => setNewCatLimit(e.target.value)}
-              placeholder="e.g. 10 (leave blank for unlimited)"
-              disabled={creating}
-              className="h-9 text-xs bg-white border-spoon-border focus:border-rose-400 max-w-[220px]"
-            />
-            <span className="text-xs text-spoon-muted shrink-0">units/day</span>
-            {newCatLimit && parseInt(newCatLimit, 10) > 0 && (
-              <span className="inline-flex items-center gap-1 text-[11px] font-semibold text-rose-700 bg-rose-50 border border-rose-200 px-2.5 py-1 rounded-full">
-                <ShieldAlert className="h-3 w-3" />
-                Daily Limit: {parseInt(newCatLimit, 10)} units/day
-              </span>
-            )}
-          </div>
-        </div>
       </form>
 
       {/* Messages */}
@@ -791,29 +750,6 @@ export default function AdminCategoriesPage() {
                                 </span>
                               )}
                             </div>
-                            {/* Order Limit */}
-                            <div className="flex items-center gap-2">
-                              <ShieldAlert className="h-3.5 w-3.5 text-rose-500 shrink-0" />
-                              <span className="text-[10px] font-semibold text-spoon-dark w-20 shrink-0">Daily Limit:</span>
-                              <Input
-                                type="number"
-                                min="1"
-                                step="1"
-                                value={editingLimit}
-                                onChange={(e) => setEditingLimit(e.target.value)}
-                                placeholder="blank = unlimited"
-                                disabled={savingEdit}
-                                title="Max total units per day (resets daily)"
-                                className="h-8 text-xs w-28 border-spoon-border focus:border-rose-400"
-                              />
-                              <span className="text-[10px] text-spoon-muted">units/day</span>
-                              {editingLimit && parseInt(editingLimit, 10) > 0 && (
-                                <span className="inline-flex items-center gap-1 text-[10px] font-semibold text-rose-700 bg-rose-50 border border-rose-200 px-2 py-0.5 rounded-full">
-                                  <ShieldAlert className="h-3 w-3" />
-                                  Max {parseInt(editingLimit, 10)}/day
-                                </span>
-                              )}
-                            </div>
                           </div>
                         </div>
                     ) : (
@@ -864,12 +800,6 @@ export default function AdminCategoriesPage() {
                             <span className="inline-flex items-center gap-1 text-[10px] font-semibold text-amber-800 bg-amber-50 border border-amber-200 px-2 py-0.5 rounded-full">
                               <Timer className="h-3 w-3" />
                               {formatBakingPeriod(cat.baking_period_hours)} baking
-                            </span>
-                          )}
-                          {cat.category_limit != null && cat.category_limit > 0 && (
-                            <span className="inline-flex items-center gap-1 text-[10px] font-semibold text-rose-700 bg-rose-50 border border-rose-200 px-2 py-0.5 rounded-full">
-                              <ShieldAlert className="h-3 w-3" />
-                              Limit: {cat.category_limit} units/day
                             </span>
                           )}
                         </div>

@@ -24,7 +24,7 @@ import {
 import type { Restaurant, Product } from "@/types/database";
 import { parseBadges, getBadgeColorClass } from "@/lib/badges";
 import { isSourdoughOrFocaccia, getSourdoughSlotInfo } from "@/lib/delivery-slots-service";
-import { getCategoryRemainingStock } from "@/app/store/[slug]/actions";
+import { getCategoryRemainingStock, getProductDailyRemainingStock } from "@/app/store/[slug]/actions";
 import { getProductDiscount } from "@/lib/discount";
 
 interface Props {
@@ -245,17 +245,29 @@ export default function ProductDetailClient({
     Record<string, { limit: number; totalOrdered: number; remaining: number }>
   >({});
 
+  // Product daily order-limit remaining stock map: prodId → { limit, totalOrderedToday, remaining }
+  const [prodDailyStockMap, setProdDailyStockMap] = useState<
+    Record<string, { limit: number; totalOrderedToday: number; remaining: number }>
+  >({});
+
   useEffect(() => {
     if (restaurant.id) {
       getCategoryRemainingStock(restaurant.id).then((map) => setCatStockMap(map));
+      getProductDailyRemainingStock(restaurant.id).then((map) => setProdDailyStockMap(map));
     }
   }, [restaurant.id]);
 
   const catStock = product.category_id ? catStockMap[product.category_id] : undefined;
+  const prodStock = prodDailyStockMap[product.id];
   const isCatSoldOut = catStock != null && catStock.remaining <= 0;
+  const isProdDailySoldOut = prodStock != null && prodStock.remaining <= 0;
   const catRemaining =
     catStock && catStock.remaining > 0 && catStock.remaining <= 5
       ? catStock.remaining
+      : null;
+  const prodRemaining =
+    prodStock && prodStock.remaining > 0 && prodStock.remaining <= 5
+      ? prodStock.remaining
       : null;
 
   const isSourdough =
@@ -305,10 +317,14 @@ export default function ProductDetailClient({
     .reduce((sum, ci) => sum + ci.quantity, 0);
 
   const canIncrement =
-    !catStock ||
-    (inCartQty > 0
-      ? inCartCategoryQty < catStock.remaining
-      : inCartCategoryQty + quantity < catStock.remaining);
+    (!catStock ||
+      (inCartQty > 0
+        ? inCartCategoryQty < catStock.remaining
+        : inCartCategoryQty + quantity < catStock.remaining)) &&
+    (!prodStock ||
+      (inCartQty > 0
+        ? inCartQty < prodStock.remaining
+        : quantity < prodStock.remaining));
 
   const handleNextImage = () => {
     setActiveImageIndex((prev) => (prev < gallery.length - 1 ? prev + 1 : 0));
@@ -350,11 +366,17 @@ export default function ProductDetailClient({
   };
 
   const handleAddToCart = () => {
-    if (isCatSoldOut) return;
+    if (isCatSoldOut || isProdDailySoldOut) return;
     const countToAdd = Math.max(1, quantity);
     if (
       catStock &&
       inCartCategoryQty + (inCartQty > 0 ? 1 : countToAdd) > catStock.remaining
+    ) {
+      return;
+    }
+    if (
+      prodStock &&
+      inCartQty + (inCartQty > 0 ? 1 : countToAdd) > prodStock.remaining
     ) {
       return;
     }
@@ -655,6 +677,11 @@ export default function ProductDetailClient({
                     Only {catRemaining} left in this category!
                   </span>
                 )}
+                {prodRemaining != null && (
+                  <span className="inline-flex items-center gap-1 text-[11px] font-bold text-rose-700 bg-rose-50 px-2.5 py-0.5 rounded-full border border-rose-200 animate-pulse">
+                    Only {prodRemaining} left today!
+                  </span>
+                )}
               </div>
               <p className="text-xs text-[#7D7261]">
                 (Inclusive of all taxes)
@@ -875,16 +902,19 @@ export default function ProductDetailClient({
               const isSoldOut =
                 !product.available ||
                 isCatSoldOut ||
-                (product.order_limit != null &&
-                  product.order_limit > 0 &&
-                  (product.total_ordered || 0) >= product.order_limit);
+                isProdDailySoldOut;
 
               if (isSoldOut) {
+                let soldOutText = "Sold Out (Currently Unavailable)";
+                if (isProdDailySoldOut && prodStock) {
+                  soldOutText = `Sold Out for Today (Daily Limit of ${prodStock.limit} reached)`;
+                } else if (isCatSoldOut) {
+                  soldOutText = `Sold Out (${categoryName || "Category"} Order Limit Reached)`;
+                }
+
                 return (
                   <div className="w-full py-4 px-6 rounded-xl bg-rose-950/10 border border-rose-900/20 text-rose-900 text-center font-bold text-sm tracking-wider uppercase">
-                    {isCatSoldOut
-                      ? `Sold Out (${categoryName || "Category"} Order Limit Reached)`
-                      : "Sold Out (Order Limit Reached or Product Unavailable)"}
+                    {soldOutText}
                   </div>
                 );
               }

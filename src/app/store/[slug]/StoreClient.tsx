@@ -7,7 +7,7 @@ import { useCart } from "@/lib/store/CartContext";
 import { formatPrice } from "@/lib/utils";
 import { Header } from "@/components/layout/Header";
 import type { Restaurant, Category, Product } from "@/types/database";
-import { getCategoryRemainingStock } from "./actions";
+import { getCategoryRemainingStock, getProductDailyRemainingStock } from "./actions";
 import {
   ShoppingBag,
   Plus,
@@ -60,10 +60,18 @@ export default function StoreClient({
     Record<string, { limit: number; totalOrdered: number; remaining: number }>
   >({});
 
+  // Product daily remaining stock map: prodId → { limit, totalOrderedToday, remaining }
+  const [prodDailyStockMap, setProdDailyStockMap] = useState<
+    Record<string, { limit: number; totalOrderedToday: number; remaining: number }>
+  >({});
+
   useEffect(() => {
     if (restaurant?.id) {
       getCategoryRemainingStock(restaurant.id).then((map) => {
         setCatStockMap(map);
+      });
+      getProductDailyRemainingStock(restaurant.id).then((map) => {
+        setProdDailyStockMap(map);
       });
     }
   }, [restaurant?.id]);
@@ -192,8 +200,12 @@ export default function StoreClient({
           <div className="grid grid-cols-1 sm:grid-cols-3 gap-4">
             {featured.map((product) => {
               const catStock = product.category_id ? catStockMap[product.category_id] : undefined;
+              const prodStock = prodDailyStockMap[product.id];
               const inCat = getCategoryCartCount(product.category_id);
-              const disabledIncrement = catStock != null && inCat >= catStock.remaining;
+              const inProd = getQuantity(product.id);
+              const disabledIncrement =
+                (catStock != null && inCat >= catStock.remaining) ||
+                (prodStock != null && inProd >= prodStock.remaining);
 
               return (
                 <FeaturedCard
@@ -201,6 +213,7 @@ export default function StoreClient({
                   product={product}
                   slug={slug}
                   catStock={catStock}
+                  prodStock={prodStock}
                   disabledIncrement={disabledIncrement}
                   onAdd={(e) => {
                     if (disabledIncrement) return;
@@ -254,8 +267,12 @@ export default function StoreClient({
           <div className="grid grid-cols-1 sm:grid-cols-2 lg:grid-cols-3 gap-4">
             {filtered.map((product) => {
               const catStock = product.category_id ? catStockMap[product.category_id] : undefined;
+              const prodStock = prodDailyStockMap[product.id];
               const inCat = getCategoryCartCount(product.category_id);
-              const disabledIncrement = catStock != null && inCat >= catStock.remaining;
+              const inProd = getQuantity(product.id);
+              const disabledIncrement =
+                (catStock != null && inCat >= catStock.remaining) ||
+                (prodStock != null && inProd >= prodStock.remaining);
 
               return (
                 <ProductCard
@@ -264,6 +281,7 @@ export default function StoreClient({
                   slug={slug}
                   categoryName={getCategoryName(product.category_id)}
                   catStock={catStock}
+                  prodStock={prodStock}
                   disabledIncrement={disabledIncrement}
                   onAdd={(e) => {
                     if (disabledIncrement) return;
@@ -310,6 +328,7 @@ function FeaturedCard({
   product,
   slug,
   catStock,
+  prodStock,
   onAdd,
   quantity,
   onIncrement,
@@ -319,19 +338,16 @@ function FeaturedCard({
   product: Product;
   slug: string;
   catStock?: { limit: number; totalOrdered: number; remaining: number };
+  prodStock?: { limit: number; totalOrderedToday: number; remaining: number };
   onAdd: (e?: React.MouseEvent) => void;
   quantity: number;
   onIncrement: () => void;
   onDecrement: () => void;
   disabledIncrement?: boolean;
 }) {
+  const isProdLimitSoldOut = prodStock != null && prodStock.remaining <= 0;
   const isCatSoldOut = catStock != null && catStock.remaining <= 0;
-  const isSoldOut =
-    !product.available ||
-    isCatSoldOut ||
-    (product.order_limit != null &&
-      product.order_limit > 0 &&
-      (product.total_ordered || 0) >= product.order_limit);
+  const isSoldOut = !product.available || isCatSoldOut || isProdLimitSoldOut;
 
   return (
     <div className="relative rounded-2xl overflow-hidden border border-[#91885D]/30 bg-[#F5EBDD] shadow-warm-sm group hover:border-[#91885D]/60 transition-all">
@@ -413,6 +429,7 @@ function ProductCard({
   slug,
   categoryName,
   catStock,
+  prodStock,
   onAdd,
   quantity,
   onIncrement,
@@ -423,24 +440,30 @@ function ProductCard({
   slug: string;
   categoryName: string;
   catStock?: { limit: number; totalOrdered: number; remaining: number };
+  prodStock?: { limit: number; totalOrderedToday: number; remaining: number };
   onAdd: (e?: React.MouseEvent) => void;
   quantity: number;
   onIncrement: () => void;
   onDecrement: () => void;
   disabledIncrement?: boolean;
 }) {
-  const isCatSoldOut =
-    catStock != null && catStock.remaining <= 0;
-  const isSoldOut =
-    !product.available ||
-    isCatSoldOut ||
-    (product.order_limit != null &&
-      product.order_limit > 0 &&
-      (product.total_ordered || 0) >= product.order_limit);
-  // Show a "X remaining" badge when close to cat limit (≤ 5 left)
-  const catRemaining = catStock && catStock.remaining > 0 && catStock.remaining <= 5
-    ? catStock.remaining
-    : null;
+  const isProdLimitSoldOut = prodStock != null && prodStock.remaining <= 0;
+  const isCatSoldOut = catStock != null && catStock.remaining <= 0;
+  const isSoldOut = !product.available || isCatSoldOut || isProdLimitSoldOut;
+
+  // Show a "X left today" badge when close to limit (≤ 5 left)
+  const remainingCount = (() => {
+    let r: number | null = null;
+    if (prodStock && prodStock.remaining > 0 && prodStock.remaining <= 5) {
+      r = prodStock.remaining;
+    }
+    if (catStock && catStock.remaining > 0 && catStock.remaining <= 5) {
+      if (r === null || catStock.remaining < r) {
+        r = catStock.remaining;
+      }
+    }
+    return r;
+  })();
 
   return (
     <div
@@ -505,9 +528,9 @@ function ProductCard({
           <span className="font-serif font-bold text-sm text-[#29251F]">
             {formatPrice(product.price)}
           </span>
-          {catRemaining != null && (
+          {remainingCount != null && (
             <span className="text-[10px] font-bold text-[#C26B59] bg-[#C26B59]/10 px-2 py-0.5 rounded-full border border-[#C26B59]/25 animate-pulse">
-              Only {catRemaining} left!
+              Only {remainingCount} left today!
             </span>
           )}
           {!isSoldOut ? (

@@ -90,13 +90,25 @@ export async function createOrder(
     const productIds = data.cartItems.map((ci) => ci.productId);
     const { data: prodInfo, error: prodInfoErr } = await admin
       .from('products')
-      .select('id, order_limit')
+      .select('id, description, order_limit')
       .in('id', productIds);
 
     if (!prodInfoErr && prodInfo) {
       const prodMap: Record<string, any> = {};
-      prodInfo.forEach((p) => {
-        prodMap[p.id] = p;
+      prodInfo.forEach((p: any) => {
+        let limit = p.order_limit != null && !isNaN(Number(p.order_limit)) ? Number(p.order_limit) : null;
+        if (!limit && p.description && p.description.includes("<!-- BAKERY_META:")) {
+          try {
+            const match = p.description.match(/<!-- BAKERY_META:([\s\S]*?) -->/);
+            if (match && match[1]) {
+              const meta = JSON.parse(match[1]);
+              if (meta.order_limit != null && !isNaN(Number(meta.order_limit))) {
+                limit = Number(meta.order_limit);
+              }
+            }
+          } catch {}
+        }
+        prodMap[p.id] = { ...p, order_limit: limit };
       });
 
       for (const ci of data.cartItems) {
@@ -596,3 +608,88 @@ export async function getCategoryRemainingStock(
     return {};
   }
 }
+
+/**
+ * Returns a map of productId → { limit, totalOrderedToday, remaining }
+ * for all products in a restaurant that have a daily order_limit set.
+ * Aggregates actual quantities from order_items (excluding cancelled orders)
+ * for a specific day (targetDate defaults to today in IST).
+ * Product limits automatically refresh every 24 hours at midnight IST.
+ */
+export async function getProductDailyRemainingStock(
+  restaurantId: string,
+  targetDate?: string
+): Promise<Record<string, { limit: number; totalOrderedToday: number; remaining: number }>> {
+  try {
+    const admin = createAdminClient();
+    const dateStr = (targetDate && /^\d{4}-\d{2}-\d{2}$/.test(targetDate.trim()))
+      ? targetDate.trim()
+      : getISTDateString();
+
+    // Fetch products for this restaurant
+    const { data: prods, error: prodErr } = await admin
+      .from("products")
+      .select("id, name, description, order_limit")
+      .eq("restaurant_id", restaurantId);
+
+    if (prodErr || !prods || prods.length === 0) return {};
+
+    // Filter to products that have a daily limit (from column or metadata)
+    const limitedProds: { id: string; name: string; limit: number }[] = [];
+    prods.forEach((p: any) => {
+      let limit: number | null = p.order_limit != null && !isNaN(Number(p.order_limit)) ? Number(p.order_limit) : null;
+      if (!limit && p.description && p.description.includes("<!-- BAKERY_META:")) {
+        try {
+          const match = p.description.match(/<!-- BAKERY_META:([\s\S]*?) -->/);
+          if (match && match[1]) {
+            const meta = JSON.parse(match[1]);
+            if (meta.order_limit != null && !isNaN(Number(meta.order_limit))) {
+              limit = Number(meta.order_limit);
+            }
+          }
+        } catch {}
+      }
+
+      if (limit != null && limit > 0) {
+        limitedProds.push({ id: p.id, name: p.name, limit });
+      }
+    });
+
+    if (limitedProds.length === 0) return {};
+
+    const prodIds = limitedProds.map((p) => p.id);
+
+    // Query order_items for these products from non-cancelled orders
+    const { data: items, error: itemsErr } = await admin
+      .from("order_items")
+      .select("product_id, quantity, orders!inner(id, status, delivery_date, created_at)")
+      .in("product_id", prodIds)
+      .neq("orders.status", "cancelled");
+
+    const orderedPerProd: Record<string, number> = {};
+    if (!itemsErr && items) {
+      items.forEach((it: any) => {
+        const oDate = getOrderDateString(it.orders);
+        if (oDate === dateStr && it.product_id) {
+          orderedPerProd[it.product_id] = (orderedPerProd[it.product_id] || 0) + (Number(it.quantity) || 0);
+        }
+      });
+    }
+
+    const result: Record<string, { limit: number; totalOrderedToday: number; remaining: number }> = {};
+    limitedProds.forEach((p) => {
+      const totalOrderedToday = orderedPerProd[p.id] || 0;
+      result[p.id] = {
+        limit: p.limit,
+        totalOrderedToday,
+        remaining: Math.max(0, p.limit - totalOrderedToday),
+      };
+    });
+
+    return result;
+  } catch (err) {
+    console.error("Error in getProductDailyRemainingStock:", err);
+    return {};
+  }
+}
+
