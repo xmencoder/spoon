@@ -40,7 +40,7 @@ export function buildCategoryCardsAndMenuItems(
   const categoryCards: CategoryCard[] = [
     {
       id: "popular",
-      name: "Popular",
+      name: "Bestseller",
       count: `${dbProducts.filter((p) => p.featured).length || dbProducts.length} items`,
       image:
         dbProducts.find((p) => p.featured)?.image_url ||
@@ -451,7 +451,7 @@ export function MenuSection({
       if (cat) {
         // If category from WhatWeSell is a name-based slug, try to find matching live category
         const matchingLiveCat = activeCategoryCards.find(
-          (c) => c.name.toLowerCase().replace(/\s+/g, "-") === cat || c.id === cat
+          (c) => c.name.toLowerCase().replace(/\s+/g, "-") === cat || c.id === cat || (cat === "bestseller" && c.id === "popular")
         );
         setActiveCategory(matchingLiveCat ? matchingLiveCat.id : cat);
         const el = document.getElementById("menu");
@@ -731,12 +731,12 @@ export function MenuSection({
       items: MenuItem[];
     }> = [];
 
-    // 1. Popular first
+    // 1. Bestseller first
     const popularItems = getCategoryItems("popular");
     if (popularItems.length > 0) {
       sections.push({
         id: "popular",
-        name: "Popular",
+        name: "Bestseller",
         items: popularItems,
       });
     }
@@ -1043,7 +1043,7 @@ export function MenuSection({
                     {secIdx === 0 ? (
                       <span className="inline-flex items-center gap-1.5 px-2.5 py-0.5 rounded-full bg-[#E5D7C3] text-[10px] sm:text-[11px] font-bold uppercase tracking-wider text-[#69553F]">
                         <span>✨</span>
-                        <span>Popular • Top Rated</span>
+                        <span>Bestseller • Top Rated</span>
                       </span>
                     ) : (
                       <span className="inline-flex items-center gap-1.5 px-2.5 py-0.5 rounded-full bg-[#EFE4D6] text-[9.5px] sm:text-[10px] font-semibold uppercase tracking-wider text-[#7C6C58]">
