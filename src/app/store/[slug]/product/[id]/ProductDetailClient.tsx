@@ -694,7 +694,7 @@ export default function ProductDetailClient({
               </p>
             </div>
 
-            {/* ── SUNDAY SPECIAL DELIVERY NOTICE (Sourdough & Sourdough Focaccia) ── */}
+            {/* ── SUNDAY SPECIAL DELIVERY NOTICE (Sourdough Bread / Loaves) ── */}
             {isSourdough && sourdoughSlotInfo && (
               <div className="rounded-2xl border-2 border-[#C26B59]/40 bg-[#FFF7F2] p-4 sm:p-4.5 shadow-2xs space-y-2.5 animate-in fade-in">
                 <div className="flex items-center justify-between gap-2">

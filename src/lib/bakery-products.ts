@@ -748,12 +748,12 @@ export const BAKERY_PRODUCTS: Record<string, BakeryProductDetail> = {
     subtitle:
       "Deep dimpled, golden olive-oil crust with sea salt flakes, garden rosemary, and cherry tomatoes.",
     price: 360,
-    category: "Sourdough",
-    categorySlug: "sourdough",
+    category: "Sourdough Focaccia",
+    categorySlug: "sourdough-focaccia",
     sizes: SOURDOUGH_SIZES,
     addons: SOURDOUGH_ADDONS,
-    badge: "SUNDAY SPECIAL",
-    doodleTopRight: "Sunday Special ♡",
+    badge: "FRESH BAKE",
+    doodleTopRight: "Slow Fermented ♡",
     imageScript: "Cold fermented & oven crisp ♡",
     rating: 4.9,
     reviewCount: "410 reviews",
@@ -858,7 +858,12 @@ export function getBakeryProductDetail(
     sizes = SPREAD_SIZES;
     addons = SPREAD_ADDONS;
     categorySlug = "spreads";
-  } else if (lower.includes("sourdough") || lower.includes("focaccia") || lower.includes("foccia")) {
+  } else if (lower.includes("focaccia") || lower.includes("foccia")) {
+    sizes = SOURDOUGH_SIZES;
+    addons = SOURDOUGH_ADDONS;
+    categorySlug = "sourdough-focaccia";
+    defaultPrice = fallbackPrice || 290;
+  } else if (lower.includes("sourdough")) {
     sizes = SOURDOUGH_SIZES;
     addons = SOURDOUGH_ADDONS;
     categorySlug = "sourdough";

@@ -82,22 +82,34 @@ export function isSlotInPastOrCutoff(
 }
 
 /**
- * Detect if a product, cart item, or category string represents Sourdough or Sourdough Focaccia
+ * Detect if a product, cart item, or category string represents Sourdough Sunday Special.
+ * NOTE: Sourdough Focaccia is explicitly excluded from Sunday Special.
+ * Focaccia delivery slots follow the category baking lead time configured on the admin categories page.
  */
-export function isSourdoughOrFocaccia(item: any): boolean {
+export function isSourdoughSpecial(item: any): boolean {
   if (!item) return false;
   const name = typeof item === "string" ? item : (item.name || item.title || "");
   const category = item.category || item.categoryName || item.category_name || "";
   const slug = item.categorySlug || item.category_slug || item.slug || item.id || "";
   const desc = item.description || item.subtitle || "";
+  const categoryId = item && typeof item === "object" ? item.category_id : "";
+
+  // The Sourdough Focaccia category ID in DB is d234b074-6f4b-47ae-848e-d801ebaa4d4f
+  if (categoryId === "d234b074-6f4b-47ae-848e-d801ebaa4d4f") {
+    return false;
+  }
 
   const combined = `${name} ${category} ${slug} ${desc}`.toLowerCase();
-  return (
-    combined.includes("sourdough") ||
-    combined.includes("focaccia") ||
-    combined.includes("foccia")
-  );
+
+  // Sourdough Focaccia is strictly excluded from Sunday Special
+  if (combined.includes("focaccia") || combined.includes("foccia")) {
+    return false;
+  }
+
+  return combined.includes("sourdough");
 }
+
+export const isSourdoughOrFocaccia = isSourdoughSpecial;
 
 /**
  * Sunday Special delivery slot date calculator:

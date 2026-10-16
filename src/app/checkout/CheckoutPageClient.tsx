@@ -1355,7 +1355,7 @@ export default function CheckoutPageClient() {
                         </span>
                       </div>
                       <p className="text-[11px] text-[#7A6E5D] mt-0.5 font-medium">
-                        Artisanal Sourdough &amp; Sourdough Focaccia
+                        Artisanal Wild-Yeast Sourdough
                       </p>
                     </div>
                   </div>
