@@ -126,13 +126,25 @@ export async function getDashboardMetrics(
 
   const { data: orders } = await supabase
     .from("orders")
-    .select("id, total, status, created_at")
+    .select("id, total, status, created_at, payment_status, approval_source, payment_verified_at")
     .eq("restaurant_id", restaurantId)
+    .neq("status", "payment_verification_pending")
     .gte("created_at", todayIso);
 
-  const todaysOrdersCount = orders?.length || 0;
+  const paidOrdersToday = (orders || []).filter((o: any) => {
+    const pStatus = (o.payment_status || "").toLowerCase();
+    if (pStatus === "unpaid" || pStatus === "pending") return false;
+    return (
+      pStatus === "paid" ||
+      pStatus === "verified" ||
+      o.approval_source === "RAZORPAY" ||
+      Boolean(o.payment_verified_at)
+    );
+  });
+
+  const todaysOrdersCount = paidOrdersToday.length;
   const todaysSalesTotal =
-    orders?.reduce((acc, curr) => acc + Number(curr.total || 0), 0) || 0;
+    paidOrdersToday.reduce((acc, curr) => acc + Number(curr.total || 0), 0);
 
   return {
     todaysOrdersCount,
@@ -663,18 +675,32 @@ export async function getAdminOrders(restaurantId: string): Promise<Order[]> {
     .from("orders")
     .select("*, order_items(*)")
     .eq("restaurant_id", restaurantId)
+    .neq("status", "payment_verification_pending")
     .order("created_at", { ascending: false });
+
+  const filterPaid = (list: any[]) =>
+    (list || []).filter((o) => {
+      const pStatus = (o.payment_status || "").toLowerCase();
+      if (pStatus === "unpaid" || pStatus === "pending") return false;
+      return (
+        pStatus === "paid" ||
+        pStatus === "verified" ||
+        o.approval_source === "RAZORPAY" ||
+        Boolean(o.payment_verified_at)
+      );
+    });
 
   if (error) {
     const { data: fallbackData, error: fallbackError } = await supabase
       .from("orders")
       .select("*")
       .eq("restaurant_id", restaurantId)
+      .neq("status", "payment_verification_pending")
       .order("created_at", { ascending: false });
     if (fallbackError) throw fallbackError;
-    return (fallbackData as Order[]) || [];
+    return filterPaid(fallbackData as Order[]);
   }
-  return (data as Order[]) || [];
+  return filterPaid(data as Order[]);
 }
 
 /**

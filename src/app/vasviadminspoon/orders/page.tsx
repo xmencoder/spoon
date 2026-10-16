@@ -40,14 +40,18 @@ import {
 } from "lucide-react";
 import { generateOrderReceiptPdf } from "@/lib/pdf-generator";
 
-// Helper: check if an order is paid via Razorpay / verified
+// Helper: check if an order is paid via Razorpay / auto-verified online
 export function isOrderPaid(order: Order): boolean {
+  if (!order) return false;
+  // Strictly exclude verification pending or unpaid orders
+  if (order.status === "payment_verification_pending") return false;
   const status = (order.payment_status || "").toLowerCase();
+  if (status === "unpaid" || status === "pending") return false;
   return (
     status === "paid" ||
     status === "verified" ||
     order.approval_source === "RAZORPAY" ||
-    !!order.payment_verified_at
+    Boolean(order.payment_verified_at)
   );
 }
 
@@ -179,7 +183,6 @@ export default function AdminOrdersPage() {
   const [searchQuery, setSearchQuery] = useState("");
   const [fulfillmentFilter, setFulfillmentFilter] = useState<"all" | "delivery" | "takeaway">("all");
   const [statusFilter, setStatusFilter] = useState<string>("all");
-  const [paymentFilter, setPaymentFilter] = useState<"all" | "paid" | "unpaid">("all");
 
   // Order Details Modal
   const [selectedOrder, setSelectedOrder] = useState<Order | null>(null);
@@ -195,12 +198,16 @@ export default function AdminOrdersPage() {
       setLoading(true);
       setErrorMsg(null);
       const res = await getAdminOrdersServerAction(restaurant.id);
+      let rawOrders: Order[] = [];
       if (res.success && res.data) {
-        setOrders(res.data as Order[]);
+        rawOrders = res.data as Order[];
       } else {
         const data = await getAdminOrders(restaurant.id);
-        setOrders(data as Order[]);
+        rawOrders = (data as Order[]) || [];
       }
+      // Strictly show ONLY orders that are paid via Razorpay (auto-verified online)
+      const paidOrders = rawOrders.filter(isOrderPaid);
+      setOrders(paidOrders);
     } catch (err: unknown) {
       console.error("Fetch orders error:", err);
       setErrorMsg(err instanceof Error ? err.message : "Failed to load orders");
@@ -412,13 +419,11 @@ export default function AdminOrdersPage() {
     }
   };
 
-  // Filtered Orders based on search query, payment filter, fulfillment filter, and status filter
+  // Filtered Orders based on search query, fulfillment filter, and status filter
   const filteredOrders = useMemo(() => {
     return orders.filter((order) => {
-      // 1. Payment Status Filter
-      const isPaid = isOrderPaid(order);
-      if (paymentFilter === "paid" && !isPaid) return false;
-      if (paymentFilter === "unpaid" && isPaid) return false;
+      // Must be paid via Razorpay (auto-verified online)
+      if (!isOrderPaid(order)) return false;
 
       // 2. Search Query
       if (searchQuery.trim()) {
@@ -451,24 +456,18 @@ export default function AdminOrdersPage() {
 
       return true;
     });
-  }, [orders, paymentFilter, searchQuery, fulfillmentFilter, statusFilter]);
+  }, [orders, searchQuery, fulfillmentFilter, statusFilter]);
 
-  // KPI Metrics (Calculated on All Orders)
+  // KPI Metrics (Calculated on Paid Orders)
   const metrics = useMemo(() => {
     const total = orders.length;
-    const paidCount = orders.filter(isOrderPaid).length;
-    const pendingCount = total - paidCount;
-    const totalRevenue = orders
-      .filter(isOrderPaid)
-      .reduce((sum, o) => sum + Number(o.total || 0), 0);
+    const totalRevenue = orders.reduce((sum, o) => sum + Number(o.total || 0), 0);
     const confirmedCount = orders.filter((o) => o.status === "confirmed").length;
     const completed = orders.filter(
       (o) => o.status === "delivered" || o.status === "completed"
     ).length;
     return {
       total,
-      paidCount,
-      pendingCount,
       totalRevenue,
       confirmedCount,
       completed,
@@ -487,45 +486,15 @@ export default function AdminOrdersPage() {
             </span>
           </h1>
           <p className="text-xs text-spoon-muted mt-1 hidden sm:block">
-            Real-time bakery order pipeline with live payment verification, preparation tracking & email updates.
+            Auto-verified Razorpay online orders with live preparation tracking & email updates.
           </p>
         </div>
 
         <div className="flex flex-wrap items-center gap-2">
-          {/* Quick Filter Buttons */}
-          <div className="inline-flex rounded-xl bg-spoon-sand/40 border border-spoon-border p-1">
-            <button
-              onClick={() => setPaymentFilter("all")}
-              className={`px-2.5 py-1.5 rounded-lg text-xs font-bold transition-all cursor-pointer ${
-                paymentFilter === "all"
-                  ? "bg-white text-spoon-dark shadow-2xs"
-                  : "text-spoon-muted hover:text-spoon-dark"
-              }`}
-            >
-              All ({metrics.total})
-            </button>
-            <button
-              onClick={() => setPaymentFilter("paid")}
-              className={`px-2.5 py-1.5 rounded-lg text-xs font-bold transition-all cursor-pointer flex items-center gap-1 ${
-                paymentFilter === "paid"
-                  ? "bg-emerald-600 text-white shadow-2xs"
-                  : "text-emerald-800 hover:text-emerald-950"
-              }`}
-            >
-              <Check className="w-3 h-3" />
-              <span>Paid ({metrics.paidCount})</span>
-            </button>
-            <button
-              onClick={() => setPaymentFilter("unpaid")}
-              className={`px-2.5 py-1.5 rounded-lg text-xs font-bold transition-all cursor-pointer flex items-center gap-1 ${
-                paymentFilter === "unpaid"
-                  ? "bg-amber-600 text-white shadow-2xs"
-                  : "text-amber-800 hover:text-amber-950"
-              }`}
-            >
-              <Clock className="w-3 h-3" />
-              <span>Pending ({metrics.pendingCount})</span>
-            </button>
+          {/* Quick Filter Badge */}
+          <div className="inline-flex items-center gap-1.5 px-3 py-1.5 rounded-xl bg-emerald-50 border border-emerald-200 text-xs font-bold text-emerald-800 shadow-2xs">
+            <Check className="w-3.5 h-3.5 text-emerald-600 stroke-[3]" />
+            <span>Auto-Verified Razorpay Orders ({metrics.total})</span>
           </div>
 
           <button
@@ -565,10 +534,10 @@ export default function AdminOrdersPage() {
       )}
 
       {/* ── KPI METRICS SUMMARY ROW ── */}
-      <div className="grid grid-cols-2 sm:grid-cols-5 gap-3">
+      <div className="grid grid-cols-2 sm:grid-cols-4 gap-3">
         <div className="p-3.5 rounded-2xl bg-white border border-spoon-border shadow-warm-xs">
           <span className="text-[10px] font-bold uppercase tracking-wider text-spoon-muted block">
-            Total Orders
+            Total Paid Orders
           </span>
           <span className="font-serif text-xl sm:text-2xl font-bold text-spoon-dark block mt-0.5">
             {metrics.total}
@@ -585,15 +554,6 @@ export default function AdminOrdersPage() {
         </div>
 
         <div className="p-3.5 rounded-2xl bg-white border border-spoon-border shadow-warm-xs">
-          <span className="text-[10px] font-bold uppercase tracking-wider text-amber-800 block">
-            Pending Payment
-          </span>
-          <span className={`font-serif text-xl sm:text-2xl font-bold block mt-0.5 ${metrics.pendingCount > 0 ? "text-amber-700 font-extrabold" : "text-spoon-dark"}`}>
-            {metrics.pendingCount}
-          </span>
-        </div>
-
-        <div className="p-3.5 rounded-2xl bg-white border border-spoon-border shadow-warm-xs">
           <span className="text-[10px] font-bold uppercase tracking-wider text-blue-800 block">
             Step 1: Confirmed
           </span>
@@ -602,7 +562,7 @@ export default function AdminOrdersPage() {
           </span>
         </div>
 
-        <div className="col-span-2 sm:col-span-1 p-3.5 rounded-2xl bg-white border border-spoon-border shadow-warm-xs">
+        <div className="p-3.5 rounded-2xl bg-white border border-spoon-border shadow-warm-xs">
           <span className="text-[10px] font-bold uppercase tracking-wider text-emerald-800 block">
             Step 2: Completed
           </span>
@@ -638,23 +598,12 @@ export default function AdminOrdersPage() {
           </div>
 
           {/* Filter Dropdowns */}
-          <div className="grid grid-cols-3 sm:flex sm:flex-wrap gap-2">
-            {/* Payment Filter Dropdown */}
-            <select
-              value={paymentFilter}
-              onChange={(e) => setPaymentFilter(e.target.value as any)}
-              className="h-9 rounded-xl border border-spoon-border bg-spoon-sand/20 px-2 text-[11px] font-bold text-spoon-dark focus:outline-none cursor-pointer"
-            >
-              <option value="all">All Payment</option>
-              <option value="paid">✓ Paid</option>
-              <option value="unpaid">⏳ Pending</option>
-            </select>
-
+          <div className="grid grid-cols-2 sm:flex sm:flex-wrap gap-2">
             {/* Fulfillment Filter */}
             <select
               value={fulfillmentFilter}
               onChange={(e) => setFulfillmentFilter(e.target.value as any)}
-              className="h-9 rounded-xl border border-spoon-border bg-spoon-sand/20 px-2 text-[11px] font-bold text-spoon-dark focus:outline-none cursor-pointer"
+              className="h-9 rounded-xl border border-spoon-border bg-spoon-sand/20 px-3 text-[11px] font-bold text-spoon-dark focus:outline-none cursor-pointer"
             >
               <option value="all">All Type</option>
               <option value="delivery">🛵 Delivery</option>
@@ -665,12 +614,11 @@ export default function AdminOrdersPage() {
             <select
               value={statusFilter}
               onChange={(e) => setStatusFilter(e.target.value)}
-              className="h-9 rounded-xl border border-spoon-border bg-spoon-sand/20 px-2 text-[11px] font-bold text-spoon-dark focus:outline-none cursor-pointer"
+              className="h-9 rounded-xl border border-spoon-border bg-spoon-sand/20 px-3 text-[11px] font-bold text-spoon-dark focus:outline-none cursor-pointer"
             >
               <option value="all">All Status</option>
               <option value="confirmed">✓ Confirmed</option>
               <option value="completed">🎉 Completed</option>
-              <option value="payment_verification_pending">⏳ Pending</option>
             </select>
           </div>
         </div>
@@ -897,32 +845,15 @@ export default function AdminOrdersPage() {
 
                         {/* 5. Payment Status */}
                         <td className="px-4 py-3.5">
-                          {isOrderPaid(order) ? (
-                            <div className="space-y-1">
-                              <span className="inline-flex items-center gap-1 px-2.5 py-1 rounded-full text-[10.5px] font-bold bg-emerald-50 text-emerald-800 border border-emerald-300">
-                                <Check className="w-3 h-3 text-emerald-600 stroke-[3]" />
-                                <span>Paid ({order.payment_method || "Razorpay"})</span>
-                              </span>
-                              <span className="block text-[9.5px] text-spoon-muted">
-                                {order.approval_source === "RAZORPAY" ? "Auto-verified online" : "Verified & Logged"}
-                              </span>
-                            </div>
-                          ) : (
-                            <div className="space-y-1.5">
-                              <span className="inline-flex items-center gap-1 px-2.5 py-1 rounded-full text-[10.5px] font-bold bg-amber-50 text-amber-800 border border-amber-300">
-                                <Clock className="w-3 h-3 text-amber-600" />
-                                <span>Verification Pending</span>
-                              </span>
-                              <button
-                                onClick={(e) => { e.stopPropagation(); handleVerifyPayment(order.id); }}
-                                disabled={actionInProgressId === order.id}
-                                className="inline-flex items-center gap-1 px-2 py-0.5 rounded-lg bg-emerald-700 hover:bg-emerald-800 text-white text-[10px] font-bold shadow-2xs transition-all cursor-pointer"
-                              >
-                                <Check className="w-2.5 h-2.5" />
-                                <span>Mark as Paid</span>
-                              </button>
-                            </div>
-                          )}
+                          <div className="space-y-1">
+                            <span className="inline-flex items-center gap-1 px-2.5 py-1 rounded-full text-[10.5px] font-bold bg-emerald-50 text-emerald-800 border border-emerald-300">
+                              <Check className="w-3 h-3 text-emerald-600 stroke-[3]" />
+                              <span>Paid ({order.payment_method || "Razorpay"})</span>
+                            </span>
+                            <span className="block text-[9.5px] text-spoon-muted">
+                              {order.approval_source === "RAZORPAY" ? "Auto-verified online" : "Verified & Logged"}
+                            </span>
+                          </div>
                         </td>
 
                         {/* 6. Kitchen Progress */}

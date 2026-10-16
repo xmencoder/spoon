@@ -435,10 +435,24 @@ export async function getAdminOrdersServerAction(restaurantId: string) {
       .from("orders")
       .select("*, order_items(*)")
       .eq("restaurant_id", restaurantId)
+      .neq("status", "payment_verification_pending")
       .order("created_at", { ascending: false });
 
     if (error) throw error;
-    return { success: true, data: data || [] };
+
+    // Strictly keep only orders paid via Razorpay (auto-verified online)
+    const paidOrders = (data || []).filter((o: any) => {
+      const pStatus = (o.payment_status || "").toLowerCase();
+      if (pStatus === "unpaid" || pStatus === "pending") return false;
+      return (
+        pStatus === "paid" ||
+        pStatus === "verified" ||
+        o.approval_source === "RAZORPAY" ||
+        Boolean(o.payment_verified_at)
+      );
+    });
+
+    return { success: true, data: paidOrders };
   } catch (err: any) {
     console.error("getAdminOrdersServerAction error:", err);
     return { success: false, error: err.message, data: [] };
