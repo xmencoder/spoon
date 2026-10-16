@@ -18,7 +18,7 @@ const DEFAULT_DELIVERY_PRICING: DeliveryPricingConfig = {
   baseFare: 50,
   baseDistanceKm: 1,
   perKmRate: 10,
-  maxDistanceKm: 40,
+  maxDistanceKm: 50,
   rainSurge: {
     enabled: false,
     amount: 25,
@@ -170,19 +170,41 @@ export function buildGeocodingCandidates(input: string | StructuredAddress): str
   let area = typeof input === "object" ? input.areaStreet || "" : "";
   let landmark = typeof input === "object" ? input.landmark || "" : "";
   let pincode = typeof input === "object" ? input.pincode || "" : "";
-  let city = typeof input === "object" ? input.city || "Gurugram" : "Gurugram";
+  let city = typeof input === "object" ? input.city || "" : "";
 
   const allText = `${area} ${fullStr} ${landmark}`.toLowerCase();
+  const cityLower = city.trim().toLowerCase();
 
-  // Intelligent city detection for 40km NCR delivery radius
+  // Intelligent city detection for NCR delivery radius
   let detectedCity = city.trim() || "Gurugram";
-  if (allText.includes("delhi") || allText.includes("new delhi") || (pincode && pincode.startsWith("11"))) {
-    detectedCity = "Delhi";
-  } else if (allText.includes("faridabad") || (pincode && pincode.startsWith("121"))) {
-    detectedCity = "Faridabad";
-  } else if (allText.includes("noida") || (pincode && (pincode.startsWith("201301") || pincode.startsWith("201303")))) {
+  if (
+    cityLower === "noida" ||
+    cityLower.includes("noida") ||
+    allText.includes("noida") ||
+    (pincode && pincode.startsWith("201"))
+  ) {
     detectedCity = "Noida";
-  } else if (allText.includes("gurugram") || allText.includes("gurgaon") || (pincode && pincode.startsWith("122"))) {
+  } else if (
+    cityLower === "delhi" ||
+    cityLower === "new delhi" ||
+    allText.includes("delhi") ||
+    allText.includes("new delhi") ||
+    (pincode && pincode.startsWith("11"))
+  ) {
+    detectedCity = "Delhi";
+  } else if (
+    cityLower === "faridabad" ||
+    allText.includes("faridabad") ||
+    (pincode && pincode.startsWith("121"))
+  ) {
+    detectedCity = "Faridabad";
+  } else if (
+    cityLower === "gurugram" ||
+    cityLower === "gurgaon" ||
+    allText.includes("gurugram") ||
+    allText.includes("gurgaon") ||
+    (pincode && pincode.startsWith("122"))
+  ) {
     detectedCity = "Gurugram";
   }
 
@@ -198,66 +220,79 @@ export function buildGeocodingCandidates(input: string | StructuredAddress): str
       .trim();
 
   const cleanedArea = cleanFlatPrefix(area || fullStr);
+  const stateContext = detectedCity === "Noida" ? "Uttar Pradesh, India" : "India";
 
-  // 2. Add raw cleaned area directly (e.g. "sultanpur delhi", "sultanpur delhi, India")
+  // Sector extraction (e.g. "Sector 100, Noida" or "Sector 100, Noida, Uttar Pradesh")
+  const sectorMatch = (area || fullStr).match(/(?:Sector|Sec\.?)\s*(\d+[a-zA-Z]?)/i);
+  if (sectorMatch) {
+    const sec = `Sector ${sectorMatch[1]}`;
+    if (pincode && pincode.length === 6) {
+      queries.push(`${sec}, ${pincode}, ${detectedCity}`);
+    }
+    queries.push(`${sec}, ${detectedCity}`);
+    queries.push(`${sec}, ${detectedCity}, ${stateContext}`);
+  }
+
+  // Cleaned area queries - ALWAYS qualify with city so generic sectors don't map to wrong cities
   if (cleanedArea && cleanedArea.length >= 3) {
-    queries.push(cleanedArea);
-    queries.push(`${cleanedArea}, India`);
-    queries.push(`${cleanedArea}, ${detectedCity}`);
-    if (pincode && pincode.length === 6 && pincode !== "122001") {
-      queries.push(`${cleanedArea}, ${pincode}, ${detectedCity}`);
-      queries.push(`${cleanedArea}, ${pincode}`);
+    const areaLower = cleanedArea.toLowerCase();
+    const hasCity = areaLower.includes(detectedCity.toLowerCase());
+
+    if (hasCity) {
+      queries.push(cleanedArea);
+      queries.push(`${cleanedArea}, India`);
+    } else {
+      queries.push(`${cleanedArea}, ${detectedCity}`);
+      queries.push(`${cleanedArea}, ${detectedCity}, ${stateContext}`);
+      if (pincode && pincode.length === 6 && pincode !== "122001") {
+        queries.push(`${cleanedArea}, ${pincode}, ${detectedCity}`);
+      }
     }
   }
 
-  // 3. Comma subparts from areaStreet (e.g. "Sector 47, Malibu Towne" -> ["Sector 47", "Malibu Towne"])
+  // Comma subparts with city
   const areaParts = (area || fullStr)
     .split(",")
     .map((p) => cleanFlatPrefix(p.trim()))
     .filter((p) => p.length >= 3);
 
   for (const part of areaParts) {
-    queries.push(`${part}, ${detectedCity}`);
-    queries.push(`${part}, India`);
+    if (!part.toLowerCase().includes(detectedCity.toLowerCase())) {
+      queries.push(`${part}, ${detectedCity}`);
+      queries.push(`${part}, ${detectedCity}, ${stateContext}`);
+    } else {
+      queries.push(part);
+    }
     if (pincode && pincode.length === 6 && pincode !== "122001") {
       queries.push(`${part}, ${pincode}, ${detectedCity}`);
     }
   }
 
-  // 4. Sector extraction (e.g. "Sector 47, Gurugram" or "Dwarka Sector 10")
-  const sectorMatch = (area || fullStr).match(/(?:Sector|Sec\.?)\s*(\d+[a-zA-Z]?)/i);
-  if (sectorMatch) {
-    queries.push(`Sector ${sectorMatch[1]}, ${detectedCity}`);
-    if (pincode && pincode.length === 6) {
-      queries.push(`Sector ${sectorMatch[1]}, ${pincode}, ${detectedCity}`);
-    }
-  }
-
-  // 5. DLF Phase extraction
+  // DLF Phase extraction (Gurugram only)
   const phaseMatch = (area || fullStr).match(/(?:DLF Phase|Phase)\s*(\d+[a-zA-Z]?)/i);
-  if (phaseMatch) {
+  if (phaseMatch && detectedCity === "Gurugram") {
     queries.push(`DLF Phase ${phaseMatch[1]}, Gurugram`);
   }
 
-  // 6. Landmark + City
+  // Landmark + City
   if (landmark && landmark.trim().length >= 3) {
     const cleanLandmark = landmark.replace(/^(?:near|opp|opposite|behind)\s+/i, "").trim();
     queries.push(`${cleanLandmark}, ${detectedCity}`);
-    queries.push(`${cleanLandmark}, India`);
+    queries.push(`${cleanLandmark}, ${detectedCity}, ${stateContext}`);
   }
 
-  // 7. Full raw string
+  // Full raw string with city
   if (fullStr && fullStr.length >= 3) {
-    queries.push(fullStr);
-    if (!fullStr.toLowerCase().includes("india")) {
-      queries.push(`${fullStr}, India`);
+    if (!fullStr.toLowerCase().includes(detectedCity.toLowerCase())) {
+      queries.push(`${fullStr}, ${detectedCity}`);
+    } else {
+      queries.push(fullStr);
     }
   }
 
-  // 8. Pincode + City + India
+  // Pincode + City + India
   if (pincode && /^[1-9][0-9]{5}$/.test(pincode.trim())) {
     queries.push(`${pincode.trim()}, ${detectedCity}, India`);
-    queries.push(`${pincode.trim()}, India`);
   }
 
   // Fallback to detected city center if nothing else
@@ -325,11 +360,23 @@ export async function calculateRoadDistanceAndCharge(
   let displayName: string | undefined = undefined;
 
   // 1. Geocode candidate queries using OpenStreetMap Nominatim
+  const isNoidaIntent =
+    (typeof input === "object" &&
+      (input.city?.toLowerCase() === "noida" ||
+        input.areaStreet?.toLowerCase().includes("noida") ||
+        Boolean(input.pincode?.startsWith("201")))) ||
+    (typeof input === "string" && input.toLowerCase().includes("noida"));
+
   for (const query of queryCandidates) {
     try {
+      const isQueryNoida = query.toLowerCase().includes("noida") || isNoidaIntent;
+      const viewbox = isQueryNoida
+        ? "77.20,28.75,77.65,28.25"
+        : "76.60,28.95,77.65,28.00";
+
       const nominatimUrl = `https://nominatim.openstreetmap.org/search?q=${encodeURIComponent(
         query
-      )}&format=json&limit=1&countrycodes=in&viewbox=76.60,28.85,77.52,28.00&bounded=0`;
+      )}&format=json&limit=1&countrycodes=in&viewbox=${viewbox}&bounded=0`;
 
       const controller = new AbortController();
       const timeout = setTimeout(() => controller.abort(), 3500);
@@ -348,6 +395,18 @@ export async function calculateRoadDistanceAndCharge(
         if (Array.isArray(data) && data.length > 0 && data[0].lat && data[0].lon) {
           const lat = parseFloat(data[0].lat);
           const lon = parseFloat(data[0].lon);
+          const foundName = (data[0].display_name || "").toLowerCase();
+
+          // If looking for a Noida address, do not falsely accept Gurgaon/Gurugram results
+          if (
+            isNoidaIntent &&
+            (foundName.includes("gurgaon") || foundName.includes("gurugram")) &&
+            !query.toLowerCase().includes("gurugram") &&
+            !query.toLowerCase().includes("gurgaon")
+          ) {
+            continue;
+          }
+
           // Verify coordinates are in reasonable India/NCR bounding region
           if (!isNaN(lat) && !isNaN(lon) && lat >= 8 && lat <= 36 && lon >= 68 && lon <= 98) {
             customerLat = lat;
@@ -409,15 +468,16 @@ export async function calculateRoadDistanceAndCharge(
     distanceKm = parseFloat((straightLineKm * 1.28).toFixed(1));
   }
 
-  // 3. Check 40 km limit
-  if (distanceKm > DELIVERY_CONFIG.MAX_DELIVERY_DISTANCE_KM) {
+  // 3. Check max delivery distance limit
+  const maxLimit = DELIVERY_CONFIG.MAX_DELIVERY_DISTANCE_KM;
+  if (distanceKm > maxLimit) {
     const result: DeliveryCalculationResult = {
       success: true,
       available: false,
       distanceKm,
       deliveryCharge: null,
       formattedAddress: displayName,
-      error: `Sorry, we currently deliver only within 40 km (Your location is ${distanceKm} km away).`,
+      error: `Sorry, we currently deliver only within ${maxLimit} km (Your location is ${distanceKm} km away).`,
     };
     distanceCache.set(cacheKey, { distanceKm, displayName, timestamp: Date.now() });
     return result;

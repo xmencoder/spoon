@@ -113,7 +113,7 @@ export default function CheckoutPageClient() {
   const [flatBuilding, setFlatBuilding] = useState("");
   const [areaStreet, setAreaStreet] = useState("");
   const [landmark, setLandmark] = useState("");
-  const [pincode, setPincode] = useState("122001");
+  const [pincode, setPincode] = useState("");
   const [city, setCity] = useState("Gurugram");
   const [addressType, setAddressType] = useState<"home" | "office" | "other">("home");
 
@@ -340,7 +340,7 @@ export default function CheckoutPageClient() {
       try {
         setIsSearchingSuggestions(true);
         const res = await fetch(
-          `/api/address-suggestions?q=${encodeURIComponent(query)}`
+          `/api/address-suggestions?q=${encodeURIComponent(query)}&city=${encodeURIComponent(city)}`
         );
         if (res.ok) {
           const data = await res.json();
@@ -397,11 +397,21 @@ export default function CheckoutPageClient() {
     let effectiveCity = city.trim();
     let effectivePincode = pincode.trim();
     const areaLower = areaStreet.toLowerCase();
+    const cityLower = effectiveCity.toLowerCase();
 
-    // Auto-align city if area is in Delhi or pincode is a Delhi code
-    if (areaLower.includes("delhi") || areaLower.includes("new delhi") || effectivePincode.startsWith("11")) {
+    // Preserve and auto-align city based on explicit selection, area name, or pincode
+    if (cityLower === "noida" || cityLower.includes("noida") || areaLower.includes("noida") || effectivePincode.startsWith("201")) {
+      effectiveCity = "Noida";
+      if (city !== "Noida") setCity("Noida");
+    } else if (cityLower === "delhi" || areaLower.includes("delhi") || areaLower.includes("new delhi") || (effectivePincode.startsWith("11") && cityLower !== "noida")) {
       effectiveCity = "Delhi";
       if (city !== "Delhi") setCity("Delhi");
+    } else if (cityLower === "faridabad" || areaLower.includes("faridabad") || effectivePincode.startsWith("121")) {
+      effectiveCity = "Faridabad";
+      if (city !== "Faridabad") setCity("Faridabad");
+    } else if (cityLower === "gurugram" || cityLower === "gurgaon" || areaLower.includes("gurugram") || areaLower.includes("gurgaon") || effectivePincode.startsWith("122")) {
+      effectiveCity = "Gurugram";
+      if (city !== "Gurugram") setCity("Gurugram");
     }
 
     const fullAddr = [
@@ -1123,12 +1133,22 @@ export default function CheckoutPageClient() {
                   type="text"
                   value={pincode}
                   onChange={(e) => {
-                    setPincode(e.target.value);
+                    const val = e.target.value.replace(/\D/g, "");
+                    setPincode(val);
+                    if (val.startsWith("201")) {
+                      setCity("Noida");
+                    } else if (val.startsWith("11") && city !== "Noida") {
+                      setCity("Delhi");
+                    } else if (val.startsWith("121") && city !== "Noida") {
+                      setCity("Faridabad");
+                    } else if (val.startsWith("122") && city !== "Noida") {
+                      setCity("Gurugram");
+                    }
                     handleAddressFieldChange();
                   }}
                   required
                   maxLength={6}
-                  placeholder="e.g. 122001"
+                  placeholder="e.g. 201304 / 122001"
                   className="w-full h-10 rounded-2xl border border-[#91885D]/35 bg-[#FAF6EF] px-4 text-xs font-bold text-[#29251F] placeholder:text-[#696053]/60 focus:outline-none focus:ring-2 focus:ring-[#C26B59]/30 transition"
                 />
               </div>
@@ -1139,15 +1159,22 @@ export default function CheckoutPageClient() {
                 </label>
                 <input
                   type="text"
+                  list="ncr-cities-list"
                   value={city}
                   onChange={(e) => {
                     setCity(e.target.value);
                     handleAddressFieldChange();
                   }}
                   required
-                  placeholder="Gurugram"
+                  placeholder="Noida / Gurugram / Delhi"
                   className="w-full h-10 rounded-2xl border border-[#91885D]/35 bg-[#FAF6EF] px-4 text-xs font-bold text-[#29251F] placeholder:text-[#696053]/60 focus:outline-none focus:ring-2 focus:ring-[#C26B59]/30 transition"
                 />
+                <datalist id="ncr-cities-list">
+                  <option value="Noida" />
+                  <option value="Gurugram" />
+                  <option value="Delhi" />
+                  <option value="Faridabad" />
+                </datalist>
               </div>
             </div>
 

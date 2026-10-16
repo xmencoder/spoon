@@ -2,7 +2,7 @@
   "baseFare": 50,
   "baseDistanceKm": 1,
   "perKmRate": 10,
-  "maxDistanceKm": 40,
+  "maxDistanceKm": 50,
   "rainSurge": {
     "enabled": false,
     "amount": 25,

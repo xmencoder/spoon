@@ -24,7 +24,7 @@ function calculateHaversineDistanceKm(
   return R * c;
 }
 
-// Curated instant suggestions for fast typing in Gurugram & Delhi NCR (within 40km)
+// Curated instant suggestions for fast typing in Gurugram, Delhi & Noida (NCR delivery radius)
 const POPULAR_NCR_LOCALITIES = [
   // Gurugram
   { name: "Mayfield Garden, Sector 51", city: "Gurugram", postcode: "122018" },
@@ -58,7 +58,29 @@ const POPULAR_NCR_LOCALITIES = [
   { name: "Sector 66", city: "Gurugram", postcode: "122018" },
   { name: "Sector 67", city: "Gurugram", postcode: "122018" },
   { name: "Sector 70, Sohna Road", city: "Gurugram", postcode: "122101" },
-  // Delhi (Within 40km radius)
+  // Noida (Comprehensive list within delivery radius)
+  { name: "Sector 100", city: "Noida", postcode: "201304" },
+  { name: "Sector 104", city: "Noida", postcode: "201304" },
+  { name: "Sector 18, Atta Market", city: "Noida", postcode: "201301" },
+  { name: "Sector 15", city: "Noida", postcode: "201301" },
+  { name: "Sector 16, Film City", city: "Noida", postcode: "201301" },
+  { name: "Sector 29", city: "Noida", postcode: "201301" },
+  { name: "Sector 50", city: "Noida", postcode: "201301" },
+  { name: "Sector 52", city: "Noida", postcode: "201301" },
+  { name: "Sector 62", city: "Noida", postcode: "201309" },
+  { name: "Sector 63", city: "Noida", postcode: "201301" },
+  { name: "Sector 75", city: "Noida", postcode: "201304" },
+  { name: "Sector 76", city: "Noida", postcode: "201304" },
+  { name: "Sector 78", city: "Noida", postcode: "201305" },
+  { name: "Sector 93A, Supertech Emerald", city: "Noida", postcode: "201304" },
+  { name: "Sector 128, Jaypee Greens", city: "Noida", postcode: "201304" },
+  { name: "Sector 137, Paras Tierea", city: "Noida", postcode: "201305" },
+  { name: "Sector 143", city: "Noida", postcode: "201305" },
+  { name: "Sector 150", city: "Noida", postcode: "201310" },
+  { name: "Sector 44", city: "Noida", postcode: "201301" },
+  { name: "Sector 45", city: "Noida", postcode: "201303" },
+  { name: "Greater Noida West (Noida Extension)", city: "Noida", postcode: "201318" },
+  // Delhi (Within delivery radius)
   { name: "Sultanpur", city: "Delhi", postcode: "110074" },
   { name: "Chhattarpur", city: "Delhi", postcode: "110074" },
   { name: "Chhatarpur Farms", city: "Delhi", postcode: "110074" },
@@ -91,6 +113,7 @@ const POPULAR_NCR_LOCALITIES = [
 export async function GET(req: NextRequest) {
   const { searchParams } = new URL(req.url);
   const q = searchParams.get("q")?.trim() || "";
+  const requestedCity = searchParams.get("city")?.trim() || "";
 
   if (!q || q.length < 2) {
     return NextResponse.json({ suggestions: [] });
@@ -105,11 +128,22 @@ export async function GET(req: NextRequest) {
 
   // 1. Check instant local list first
   const queryLower = q.toLowerCase();
-  const matchedLocal = POPULAR_NCR_LOCALITIES.filter((item) =>
-    item.name.toLowerCase().includes(queryLower)
-  );
+  const matchedLocal = POPULAR_NCR_LOCALITIES.filter((item) => {
+    const nameMatch = item.name.toLowerCase().includes(queryLower);
+    const cityMatch = item.city.toLowerCase().includes(queryLower);
+    return nameMatch || cityMatch;
+  });
 
-  for (const item of matchedLocal.slice(0, 4)) {
+  // Sort matches: if requestedCity is provided, put that city's items first
+  if (requestedCity) {
+    matchedLocal.sort((a, b) => {
+      const aMatchesCity = a.city.toLowerCase() === requestedCity.toLowerCase() ? 1 : 0;
+      const bMatchesCity = b.city.toLowerCase() === requestedCity.toLowerCase() ? 1 : 0;
+      return bMatchesCity - aMatchesCity;
+    });
+  }
+
+  for (const item of matchedLocal.slice(0, 5)) {
     results.push({
       title: item.name,
       subtitle: `${item.name}, ${item.city}${item.postcode ? ` — ${item.postcode}` : ""}`,
@@ -118,16 +152,22 @@ export async function GET(req: NextRequest) {
     });
   }
 
-  // 2. Query Nominatim for live OpenStreetMap suggestions with 40km viewbox around bakery
+  // 2. Query Nominatim for live OpenStreetMap suggestions with viewbox around bakery and NCR
   try {
-    // 40km viewbox around bakery (lat: 28.42749, lon: 77.06089)
-    // format: minLon, maxLat, maxLon, minLat
-    const viewboxParam = "&viewbox=76.60,28.85,77.52,28.00&bounded=0";
+    const isNoidaTarget =
+      requestedCity.toLowerCase() === "noida" || queryLower.includes("noida");
+
+    const viewboxParam = isNoidaTarget
+      ? "&viewbox=77.20,28.75,77.65,28.25&bounded=0"
+      : "&viewbox=76.60,28.95,77.65,28.00&bounded=0";
 
     const cleanQ = q.trim();
-    const nominatimQuery = cleanQ.toLowerCase().includes("india")
-      ? cleanQ
-      : `${cleanQ}, India`;
+    let nominatimQuery = cleanQ;
+    if (isNoidaTarget && !cleanQ.toLowerCase().includes("noida")) {
+      nominatimQuery = `${cleanQ}, Noida, Uttar Pradesh, India`;
+    } else if (!cleanQ.toLowerCase().includes("india")) {
+      nominatimQuery = `${cleanQ}, India`;
+    }
 
     const nominatimUrl = `https://nominatim.openstreetmap.org/search?q=${encodeURIComponent(
       nominatimQuery
@@ -152,7 +192,7 @@ export async function GET(req: NextRequest) {
           const lat = parseFloat(item.lat);
           const lon = parseFloat(item.lon);
 
-          // Filter by 40km delivery radius (allow up to 45km buffer for straight-line vs road)
+          // Filter by 50km delivery radius
           if (!isNaN(lat) && !isNaN(lon)) {
             const distanceKm = calculateHaversineDistanceKm(
               BAKERY_LOCATION.lat,
@@ -161,19 +201,21 @@ export async function GET(req: NextRequest) {
               lon
             );
 
-            if (distanceKm <= 46) {
+            if (distanceKm <= 52) {
               const name = item.name || item.display_name.split(",")[0].trim();
               const postcode = item.address?.postcode || "";
 
               // Determine city/state accurately
               const displayNameLower = (item.display_name || "").toLowerCase();
               let city = "Gurugram";
-              if (displayNameLower.includes("delhi") || postcode.startsWith("11")) {
-                city = "Delhi";
-              } else if (displayNameLower.includes("faridabad")) {
-                city = "Faridabad";
-              } else if (displayNameLower.includes("noida")) {
+              if (displayNameLower.includes("noida") || postcode.startsWith("201")) {
                 city = "Noida";
+              } else if (displayNameLower.includes("delhi") || postcode.startsWith("11")) {
+                city = "Delhi";
+              } else if (displayNameLower.includes("faridabad") || postcode.startsWith("121")) {
+                city = "Faridabad";
+              } else if (displayNameLower.includes("gurgaon") || displayNameLower.includes("gurugram") || postcode.startsWith("122")) {
+                city = "Gurugram";
               } else if (
                 item.address?.city ||
                 item.address?.town ||
@@ -185,8 +227,9 @@ export async function GET(req: NextRequest) {
                   item.address.state_district;
               }
 
-              // Avoid duplicates
-              if (!results.some((r) => r.title.toLowerCase() === name.toLowerCase())) {
+              // Deduplicate by title AND city (so Sector 100 Noida and Sector 100 Gurugram can both exist)
+              const dedupKey = `${name.toLowerCase()} - ${city.toLowerCase()}`;
+              if (!results.some((r) => `${r.title.toLowerCase()} - ${r.city.toLowerCase()}` === dedupKey)) {
                 results.push({
                   title: name,
                   subtitle: item.display_name,
