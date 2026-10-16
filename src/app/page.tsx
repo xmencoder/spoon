@@ -7,7 +7,18 @@ import { FounderNoteSection } from "@/components/home/FounderNoteSection";
 import { OrderNowButton } from "@/components/home/OrderNowButton";
 import { getDefaultRestaurant, getCategories, getProducts } from "@/lib/supabase/queries";
 
+import type { Metadata } from "next";
+
 export const dynamic = 'force-dynamic';
+
+export const metadata: Metadata = {
+  title: "The Indulgent Spoon | Cakes, Desserts & Bakery",
+  description:
+    "Discover delicious cakes, desserts and bakery treats from The Indulgent Spoon. Explore our menu and order online for delivery across our service areas in Delhi NCR.",
+  alternates: {
+    canonical: "/",
+  },
+};
 
 export default async function Home() {
   const slug =

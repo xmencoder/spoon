@@ -6,9 +6,26 @@ import { getDefaultRestaurant, getCategories, getProducts } from "@/lib/supabase
 export const dynamic = 'force-dynamic';
 
 export const metadata = {
-  title: "Full Menu | The Indulgent Spoon",
+  title: "Full Bakery Menu — Cakes, Sourdough & Desserts",
   description:
-    "Browse our complete artisanal bakery menu — cakes, sourdough, muffins, cookies, spreads, and zero-sugar treats handcrafted daily.",
+    "Browse our complete artisanal bakery menu — handcrafted cakes, sourdough loaves, muffins, cookies, spreads, and zero-sugar treats delivered across Delhi NCR.",
+  alternates: {
+    canonical: "/full-menu",
+  },
+  openGraph: {
+    title: "Full Bakery Menu — Cakes, Sourdough & Desserts | The Indulgent Spoon",
+    description:
+      "Browse our complete artisanal bakery menu — handcrafted cakes, sourdough loaves, muffins, cookies, spreads, and zero-sugar treats delivered across Delhi NCR.",
+    url: "https://theindulgentspoon.in/full-menu",
+    images: [
+      {
+        url: "/main_photo_f.jpeg",
+        width: 1200,
+        height: 630,
+        alt: "The Indulgent Spoon Bakery Menu",
+      },
+    ],
+  },
 };
 
 export default async function FullMenuPage() {

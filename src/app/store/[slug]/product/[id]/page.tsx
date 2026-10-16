@@ -43,11 +43,35 @@ export async function generateMetadata({ params }: Props): Promise<Metadata> {
   }
 
   const title = dbProduct?.name || "Artisanal Bakery Creation";
-  const description = dbProduct?.description || "Order freshly prepared artisanal bakery creations online.";
+  const description =
+    dbProduct?.description ||
+    "Order freshly prepared artisanal bakery creations online from The Indulgent Spoon for delivery across Delhi NCR.";
+  const canonicalUrl = `/store/${slug}/product/${id}`;
+  const imageUrl = dbProduct?.image_url || "/main_photo_f.jpeg";
 
   return {
-    title: `${title} — The Indulgent Spoon`,
+    title,
     description,
+    alternates: {
+      canonical: canonicalUrl,
+    },
+    openGraph: {
+      title,
+      description,
+      url: `https://theindulgentspoon.in${canonicalUrl}`,
+      images: [
+        {
+          url: imageUrl,
+          alt: dbProduct?.name || "The Indulgent Spoon",
+        },
+      ],
+    },
+    twitter: {
+      card: "summary_large_image",
+      title,
+      description,
+      images: [imageUrl],
+    },
   };
 }
 
@@ -118,14 +142,51 @@ export default async function ProductDetailPage({ params }: Props) {
     }
   }
 
+  const productJsonLd = {
+    "@context": "https://schema.org",
+    "@type": "Product",
+    name: product.name,
+    description:
+      product.description ||
+      "Artisanal bakery creation handcrafted with premium ingredients by The Indulgent Spoon.",
+    image: product.image_url
+      ? [
+          product.image_url.startsWith("http")
+            ? product.image_url
+            : `https://theindulgentspoon.in${product.image_url}`,
+        ]
+      : ["https://theindulgentspoon.in/main_photo_f.jpeg"],
+    brand: {
+      "@type": "Brand",
+      name: "The Indulgent Spoon",
+    },
+    offers: {
+      "@type": "Offer",
+      url: `https://theindulgentspoon.in/store/${slug}/product/${id}`,
+      priceCurrency: "INR",
+      price: product.price,
+      availability:
+        product.available !== false
+          ? "https://schema.org/InStock"
+          : "https://schema.org/OutOfStock",
+      itemCondition: "https://schema.org/NewCondition",
+    },
+  };
+
   return (
-    <ProductDetailClient
-      product={product}
-      restaurant={restaurant}
-      categoryName={categoryName}
-      slug={slug}
-      badge={badge}
-      recommendedProducts={otherProducts}
-    />
+    <>
+      <script
+        type="application/ld+json"
+        dangerouslySetInnerHTML={{ __html: JSON.stringify(productJsonLd) }}
+      />
+      <ProductDetailClient
+        product={product}
+        restaurant={restaurant}
+        categoryName={categoryName}
+        slug={slug}
+        badge={badge}
+        recommendedProducts={otherProducts}
+      />
+    </>
   );
 }
