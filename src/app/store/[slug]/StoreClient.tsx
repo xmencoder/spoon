@@ -451,13 +451,13 @@ function ProductCard({
   const isCatSoldOut = catStock != null && catStock.remaining <= 0;
   const isSoldOut = !product.available || isCatSoldOut || isProdLimitSoldOut;
 
-  // Show a "X left today" badge when close to limit (≤ 5 left)
+  // Show a "X left today" badge when close to limit (≤ 2 left)
   const remainingCount = (() => {
     let r: number | null = null;
-    if (prodStock && prodStock.remaining > 0 && prodStock.remaining <= 5) {
+    if (prodStock && prodStock.remaining > 0 && prodStock.remaining <= 2) {
       r = prodStock.remaining;
     }
-    if (catStock && catStock.remaining > 0 && catStock.remaining <= 5) {
+    if (catStock && catStock.remaining > 0 && catStock.remaining <= 2) {
       if (r === null || catStock.remaining < r) {
         r = catStock.remaining;
       }

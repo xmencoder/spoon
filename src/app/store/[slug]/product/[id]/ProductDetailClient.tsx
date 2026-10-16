@@ -262,11 +262,11 @@ export default function ProductDetailClient({
   const isCatSoldOut = catStock != null && catStock.remaining <= 0;
   const isProdDailySoldOut = prodStock != null && prodStock.remaining <= 0;
   const catRemaining =
-    catStock && catStock.remaining > 0 && catStock.remaining <= 5
+    catStock && catStock.remaining > 0 && catStock.remaining <= 2
       ? catStock.remaining
       : null;
   const prodRemaining =
-    prodStock && prodStock.remaining > 0 && prodStock.remaining <= 5
+    prodStock && prodStock.remaining > 0 && prodStock.remaining <= 2
       ? prodStock.remaining
       : null;
 

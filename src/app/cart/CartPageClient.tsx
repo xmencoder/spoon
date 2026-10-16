@@ -368,12 +368,12 @@ export default function CartPageClient() {
                                 ⚠️ Exceeds daily product limit ({itemProdStock.remaining} left today)
                               </span>
                             )}
-                            {!isCatExceeded && itemCatStock && itemCatStock.remaining <= 5 && (
+                            {!isCatExceeded && itemCatStock && itemCatStock.remaining <= 2 && (
                               <span className="inline-block text-[10px] font-bold text-[#C26B59] bg-[#C26B59]/10 px-2 py-0.5 rounded-md mt-1 mr-2">
                                 Only {itemCatStock.remaining} left in category
                               </span>
                             )}
-                            {!isProdExceeded && itemProdStock && itemProdStock.remaining <= 5 && (
+                            {!isProdExceeded && itemProdStock && itemProdStock.remaining <= 2 && (
                               <span className="inline-block text-[10px] font-bold text-rose-700 bg-rose-50 border border-rose-200 px-2 py-0.5 rounded-md mt-1 mr-2">
                                 Only {itemProdStock.remaining} left today
                               </span>
