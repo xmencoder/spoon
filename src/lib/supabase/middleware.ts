@@ -37,23 +37,30 @@ export async function updateSession(request: NextRequest) {
     data: { user },
   } = await supabase.auth.getUser();
 
-  const isAccessingAdmin = request.nextUrl.pathname.startsWith("/admin");
-  const isLoginPage = request.nextUrl.pathname === "/admin/login";
+  // Block any attempt to access old /admin routes and bounce to homepage
+  if (request.nextUrl.pathname.startsWith("/admin")) {
+    const url = request.nextUrl.clone();
+    url.pathname = "/";
+    return NextResponse.redirect(url);
+  }
+
+  const isAccessingAdmin = request.nextUrl.pathname.startsWith("/vasviadminspoon");
+  const isLoginPage = request.nextUrl.pathname === "/vasviadminspoon/login";
 
   // If user is not authenticated and trying to access protected admin pages
   if (isAccessingAdmin && !isLoginPage && !user) {
     // Only enforce redirect when actual credentials are configured
     if (process.env.NEXT_PUBLIC_SUPABASE_URL && process.env.NEXT_PUBLIC_SUPABASE_URL !== "https://placeholder-url.supabase.co") {
       const url = request.nextUrl.clone();
-      url.pathname = "/admin/login";
+      url.pathname = "/vasviadminspoon/login";
       return NextResponse.redirect(url);
     }
   }
 
-  // If already authenticated and visiting /admin/login, redirect to /admin dashboard
+  // If already authenticated and visiting /vasviadminspoon/login, redirect to /vasviadminspoon dashboard
   if (isLoginPage && user) {
     const url = request.nextUrl.clone();
-    url.pathname = "/admin";
+    url.pathname = "/vasviadminspoon";
     return NextResponse.redirect(url);
   }
 

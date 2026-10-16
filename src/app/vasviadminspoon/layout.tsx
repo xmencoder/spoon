@@ -186,19 +186,19 @@ function AdminLayoutInner({ children }: { children: React.ReactNode }) {
   const pathname = usePathname();
   const { restaurant, loading, refreshRestaurant, signOut } = useAdmin();
 
-  const isLoginPage = pathname === "/admin/login";
+  const isLoginPage = pathname === "/vasviadminspoon/login";
   if (isLoginPage) {
     return <>{children}</>;
   }
 
   const navItems = [
-    { label: "Dashboard", href: "/admin", icon: LayoutDashboard },
-    { label: "Products", href: "/admin/products", icon: Utensils },
-    { label: "Categories", href: "/admin/categories", icon: FolderTree },
-    { label: "Delivery Slots", href: "/admin/delivery", icon: CalendarClock },
-    { label: "Orders", href: "/admin/orders", icon: ShoppingBag },
-    { label: "Bulk Enquiries", href: "/admin/bulk-orders", icon: Gift },
-    { label: "Settings", href: "/admin/settings", icon: Settings },
+    { label: "Dashboard", href: "/vasviadminspoon", icon: LayoutDashboard },
+    { label: "Products", href: "/vasviadminspoon/products", icon: Utensils },
+    { label: "Categories", href: "/vasviadminspoon/categories", icon: FolderTree },
+    { label: "Delivery Slots", href: "/vasviadminspoon/delivery", icon: CalendarClock },
+    { label: "Orders", href: "/vasviadminspoon/orders", icon: ShoppingBag },
+    { label: "Bulk Enquiries", href: "/vasviadminspoon/bulk-orders", icon: Gift },
+    { label: "Settings", href: "/vasviadminspoon/settings", icon: Settings },
   ];
 
   return (
@@ -269,8 +269,8 @@ function AdminLayoutInner({ children }: { children: React.ReactNode }) {
           {navItems.map((item) => {
             const Icon = item.icon;
             const isActive =
-              item.href === "/admin"
-                ? pathname === "/admin"
+              item.href === "/vasviadminspoon"
+                ? pathname === "/vasviadminspoon"
                 : pathname.startsWith(item.href);
 
             return (

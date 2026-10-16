@@ -59,7 +59,7 @@ export function AdminProvider({ children }: { children: React.ReactNode }) {
 
   useEffect(() => {
     // Only load if not on login page and not initialized yet
-    if (pathname !== "/admin/login") {
+    if (pathname !== "/vasviadminspoon/login") {
       if (!initialized) {
         loadData();
       }
@@ -72,7 +72,7 @@ export function AdminProvider({ children }: { children: React.ReactNode }) {
     setUser(null);
     setRestaurant(null);
     setInitialized(false);
-    router.push("/admin/login");
+    router.push("/vasviadminspoon/login");
   };
 
   return (

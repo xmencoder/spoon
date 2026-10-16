@@ -25,7 +25,7 @@ export async function GET(req: NextRequest) {
         <h2 style="color:#C26B59;">Unauthorized or Invalid Link</h2>
         <p>${verification.error || "The link is invalid or has expired."}</p>
         <div style="margin-top:20px;">
-          <a href="/admin/orders" style="background:#634832;color:#FFF;text-decoration:none;padding:10px 18px;border-radius:8px;font-weight:bold;font-size:12px;">
+          <a href="/vasviadminspoon/orders" style="background:#634832;color:#FFF;text-decoration:none;padding:10px 18px;border-radius:8px;font-weight:bold;font-size:12px;">
             Go to Admin Orders
           </a>
         </div>
@@ -57,7 +57,7 @@ export async function GET(req: NextRequest) {
               ✓ Live Order Tracking Active
             </p>
             <div style="margin-top:28px;">
-              <a href="/admin/orders" style="background:#634832;color:#FFF;text-decoration:none;padding:10px 20px;border-radius:10px;font-weight:bold;font-size:13px;">
+              <a href="/vasviadminspoon/orders" style="background:#634832;color:#FFF;text-decoration:none;padding:10px 20px;border-radius:10px;font-weight:bold;font-size:13px;">
                 Open Admin Dashboard
               </a>
             </div>
@@ -81,7 +81,7 @@ export async function GET(req: NextRequest) {
               Order has been marked as <strong>Payment Not Received</strong>.
             </p>
             <div style="margin-top:28px;">
-              <a href="/admin/orders" style="background:#634832;color:#FFF;text-decoration:none;padding:10px 20px;border-radius:10px;font-weight:bold;font-size:13px;">
+              <a href="/vasviadminspoon/orders" style="background:#634832;color:#FFF;text-decoration:none;padding:10px 20px;border-radius:10px;font-weight:bold;font-size:13px;">
                 Open Admin Dashboard
               </a>
             </div>

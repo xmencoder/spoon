@@ -49,7 +49,7 @@ export async function getOwnerRestaurant(userId: string): Promise<Restaurant | n
 export async function requireAuth() {
   const user = await getCurrentUser();
   if (!user) {
-    redirect("/admin/login");
+    redirect("/vasviadminspoon/login");
   }
   return user;
 }

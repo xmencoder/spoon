@@ -3,16 +3,20 @@
 import React, { useState, useEffect } from "react";
 import Link from "next/link";
 import Image from "next/image";
-import { useRouter } from "next/navigation";
+import { useRouter, useParams } from "next/navigation";
 import { useAdmin } from "@/lib/admin/AdminContext";
 import {
   getAdminCategories,
   createAdminCategory,
-  createAdminProduct,
+  getAdminProductById,
+  updateAdminProduct,
+  deleteAdminProduct,
+  resetProductOrderCount,
 } from "@/lib/admin/admin-service";
 import { validateImageFile, uploadProductImage } from "@/lib/supabase/storage";
 import type {
   Category,
+  Product,
   ProductSizeOption,
   ProductAddonOption,
 } from "@/types/database";
@@ -26,14 +30,15 @@ import {
   AlertCircle,
   X,
   CheckCircle2,
-  Plus,
   Trash2,
   Sparkles,
-  ShieldAlert,
   Layers,
   ShoppingBag,
+  ShieldAlert,
+  Plus,
   Star,
   Images,
+  RotateCcw,
   BookmarkPlus,
   Tag,
 } from "lucide-react";
@@ -60,15 +65,17 @@ interface GalleryItem {
   id: string;
   previewUrl: string;
   file?: File;
-  isCover?: boolean;
 }
 
-export default function AdminNewProductPage() {
+export default function AdminEditProductPage() {
+  const params = useParams();
+  const productId = params?.id as string;
+
   const { restaurant } = useAdmin();
   const router = useRouter();
 
   const [categories, setCategories] = useState<Category[]>([]);
-  const [loadingCategories, setLoadingCategories] = useState(true);
+  const [loading, setLoading] = useState(true);
 
   // Form State - Basic
   const [name, setName] = useState("");
@@ -82,39 +89,41 @@ export default function AdminNewProductPage() {
   const [discountAmount, setDiscountAmount] = useState<string>("50");
   const [discountName, setDiscountName] = useState<string>("");
   const [categoryId, setCategoryId] = useState("");
-  const [badge, setBadge] = useState<string>("POPULAR");
+  const [originalCategoryId, setOriginalCategoryId] = useState<string | null>(null);
+  const [badge, setBadge] = useState<string>("NONE");
   const [badgeSecondary, setBadgeSecondary] = useState<string>("NONE");
-  const [tags, setTags] = useState<string[]>(["100% Eggless", "Artisan Classic"]);
+  const [tags, setTags] = useState<string[]>([]);
   const [tagInput, setTagInput] = useState("");
   const [isVeg, setIsVeg] = useState(true);
   const [available, setAvailable] = useState(true);
   const [featured, setFeatured] = useState(false);
   const [sortOrder, setSortOrder] = useState("0");
   const [orderLimit, setOrderLimit] = useState("");
+  const [totalOrdered, setTotalOrdered] = useState(0);
+  const [resettingCount, setResettingCount] = useState(false);
+
+  // Category quick creation state
+  const [newCatInput, setNewCatInput] = useState("");
+  const [showAddCat, setShowAddCat] = useState(false);
+  const [creatingCategory, setCreatingCategory] = useState(false);
 
   // Multi-Image Gallery State
   const [galleryList, setGalleryList] = useState<GalleryItem[]>([]);
   const [urlInput, setUrlInput] = useState("");
 
   // Sizes & Variants
-  const [sizes, setSizes] = useState<ProductSizeOption[]>([
-    { id: "size-350g", label: "350 gms", isDefault: true },
-  ]);
+  const [sizes, setSizes] = useState<ProductSizeOption[]>([]);
 
   // Add-ons
   const [addons, setAddons] = useState<ProductAddonOption[]>([]);
 
   // Allergen Info & Presets
-  const [allergenInfo, setAllergenInfo] = useState<string[]>([
-    "Contains Wheat (Gluten), Dairy (Butter & Milk)",
-  ]);
+  const [allergenInfo, setAllergenInfo] = useState<string[]>([]);
   const [allergenInput, setAllergenInput] = useState("");
   const [customPresets, setCustomPresets] = useState<string[]>([]);
 
   // Storage & Care Presets
-  const [storageCare, setStorageCare] = useState<string[]>([
-    "Room Temperature: 3–4 days in airtight container",
-  ]);
+  const [storageCare, setStorageCare] = useState<string[]>([]);
   const [storageInput, setStorageInput] = useState("");
   const [customStoragePresets, setCustomStoragePresets] = useState<string[]>([]);
 
@@ -135,26 +144,98 @@ export default function AdminNewProductPage() {
 
   // Status
   const [submitting, setSubmitting] = useState(false);
+  const [deleting, setDeleting] = useState(false);
+  const [showDeleteModal, setShowDeleteModal] = useState(false);
   const [errorMsg, setErrorMsg] = useState<string | null>(null);
   const [successMsg, setSuccessMsg] = useState<string | null>(null);
 
-  const [newCatInput, setNewCatInput] = useState("");
-  const [showAddCat, setShowAddCat] = useState(false);
-  const [creatingCategory, setCreatingCategory] = useState(false);
-
   useEffect(() => {
-    if (restaurant?.id) {
-      getAdminCategories(restaurant.id)
-        .then((cats) => {
+    async function loadData() {
+      if (!productId) return;
+      try {
+        setLoading(true);
+        setErrorMsg(null);
+
+        // Fetch product
+        const prod = await getAdminProductById(productId);
+        if (!prod) {
+          setErrorMsg("Product not found");
+          return;
+        }
+
+        setName(prod.name);
+        setDescription(prod.description || "");
+        setStoryText(prod.story_text || "");
+        setPrice(prod.price.toString());
+        setCategoryId(prod.category_id || "");
+        setOriginalCategoryId(prod.category_id || null);
+
+        // Load discount if present
+        if (prod.discount_percent && prod.discount_percent > 0) {
+          setHasDiscount(true);
+          setDiscountType("percent");
+          setDiscountPercent(String(prod.discount_percent));
+        } else if (prod.discount_amount && prod.discount_amount > 0) {
+          setHasDiscount(true);
+          setDiscountType("fixed");
+          setDiscountAmount(String(prod.discount_amount));
+        } else {
+          setHasDiscount(false);
+          setDiscountPercent("10");
+          setDiscountAmount("50");
+        }
+        setDiscountName(prod.discount_name || "");
+
+        const badges = (prod.badge || "")
+          .split(",")
+          .map((b: string) => b.trim())
+          .filter((b: string) => b && b !== "NONE");
+        setBadge(badges[0] || "NONE");
+        setBadgeSecondary(badges[1] || "NONE");
+        setTags(prod.tags || ["100% Eggless", "Artisan Classic"]);
+        setIsVeg(prod.is_veg ?? true);
+        setAvailable(prod.available);
+        setFeatured(prod.featured);
+        setSortOrder(prod.sort_order?.toString() || "0");
+        setOrderLimit(prod.order_limit != null ? prod.order_limit.toString() : "");
+        setTotalOrdered(prod.total_ordered || 0);
+
+        // Load gallery images
+        const existingImages: string[] = [];
+        if (prod.gallery_images && prod.gallery_images.length > 0) {
+          existingImages.push(...prod.gallery_images);
+        } else if (prod.image_url) {
+          existingImages.push(prod.image_url);
+        }
+
+        setGalleryList(
+          existingImages.map((url, i) => ({
+            id: `existing-${i}-${Math.random().toString(36).substring(2, 6)}`,
+            previewUrl: url,
+          }))
+        );
+
+        // Sizes & Add-ons
+        setSizes(prod.sizes || [{ id: "size-350g", label: "350 gms", isDefault: true }]);
+        setAddons(Array.isArray(prod.addons) ? prod.addons : []);
+        setAllergenInfo(prod.allergen_info || ["Contains Wheat (Gluten), Dairy (Butter & Milk)"]);
+        setStorageCare(prod.storage_care || ["Room Temperature: 3–4 days in airtight container"]);
+
+        // Fetch categories
+        if (restaurant?.id) {
+          const cats = await getAdminCategories(restaurant.id);
           setCategories(cats);
-          if (cats.length > 0) {
-            setCategoryId((prev) => prev || cats[0].id);
-          }
-        })
-        .catch((err) => console.error("Error loading categories:", err))
-        .finally(() => setLoadingCategories(false));
+        }
+      } catch (err: unknown) {
+        console.error("Error loading product:", err);
+        setErrorMsg(err instanceof Error ? err.message : "Failed to load product");
+      } finally {
+        setLoading(false);
+      }
     }
-  }, [restaurant?.id]);
+
+    loadData();
+  }, [productId, restaurant?.id]);
 
   // Inline Category Creator
   const handleQuickCreateCategory = async () => {
@@ -177,7 +258,24 @@ export default function AdminNewProductPage() {
     }
   };
 
-  // Multi-Image File Selection Handler
+  // Reset Total Ordered Counter
+  const handleResetOrderCount = async () => {
+    if (!productId) return;
+    try {
+      setResettingCount(true);
+      await resetProductOrderCount(productId);
+      setTotalOrdered(0);
+      setSuccessMsg("Order count reset to 0! Product restocked.");
+      setTimeout(() => setSuccessMsg(null), 3000);
+    } catch (err: unknown) {
+      console.error("Failed to reset count:", err);
+      setErrorMsg("Failed to reset count");
+    } finally {
+      setResettingCount(false);
+    }
+  };
+
+  // Multiple File Selection
   const handleMultipleFiles = (e: React.ChangeEvent<HTMLInputElement>) => {
     const files = e.target.files;
     if (!files || files.length === 0) return;
@@ -206,7 +304,7 @@ export default function AdminNewProductPage() {
     e.target.value = "";
   };
 
-  // Add Direct Image URL
+  // Add Direct URL
   const handleAddImageUrl = () => {
     if (!urlInput.trim()) return;
     const url = urlInput.trim();
@@ -220,7 +318,7 @@ export default function AdminNewProductPage() {
     setUrlInput("");
   };
 
-  // Make an image the primary cover photo
+  // Set Cover Photo
   const handleSetCover = (index: number) => {
     if (index === 0) return;
     setGalleryList((prev) => {
@@ -230,7 +328,7 @@ export default function AdminNewProductPage() {
     });
   };
 
-  // Remove single image from gallery
+  // Remove single image
   const handleRemoveImage = (index: number) => {
     setGalleryList((prev) => {
       const target = prev[index];
@@ -241,7 +339,7 @@ export default function AdminNewProductPage() {
     });
   };
 
-  // Preset Handlers
+  // Presets
   const applyTeaCakePreset = () => {
     setSizes([{ id: "size-350g", label: "350 gms", isDefault: true }]);
     setAddons([
@@ -323,7 +421,7 @@ export default function AdminNewProductPage() {
     setAddons(addons.filter((_, i) => i !== index));
   };
 
-  // Add Allergen Info
+  // Allergen Info & Presets
   const handleAddAllergen = () => {
     if (allergenInput.trim() && !allergenInfo.includes(allergenInput.trim())) {
       setAllergenInfo([...allergenInfo, allergenInput.trim()]);
@@ -433,13 +531,13 @@ export default function AdminNewProductPage() {
     }
 
     if (!name.trim()) {
-      setErrorMsg("Product title is required.");
+      setErrorMsg("Product name is required.");
       return;
     }
 
     const parsedPrice = parseFloat(price);
     if (isNaN(parsedPrice) || parsedPrice < 0) {
-      setErrorMsg("Please enter a valid base price.");
+      setErrorMsg("Please enter a valid non-negative price.");
       return;
     }
 
@@ -447,7 +545,7 @@ export default function AdminNewProductPage() {
       setSubmitting(true);
       setErrorMsg(null);
 
-      // Process all images (Supabase storage with automatic Data URL fallback)
+      // Upload any new local files
       const finalImageUrls: string[] = [];
       for (const item of galleryList) {
         if (item.file) {
@@ -481,15 +579,17 @@ export default function AdminNewProductPage() {
           ? discountName.trim()
           : null;
 
-      await createAdminProduct(restaurant.id, {
+      const resolvedCategoryId = categoryId.trim() ? categoryId.trim() : (originalCategoryId || null);
+
+      const updateData: Partial<Product> = {
         name: name.trim(),
-        description: description.trim(),
-        story_text: storyText.trim(),
+        description: description.trim() || null,
+        story_text: storyText.trim() || null,
         price: parsedPrice,
-        category_id: categoryId || null,
+        category_id: resolvedCategoryId,
         badge: finalBadge,
         order_limit: orderLimit.trim() ? parseInt(orderLimit, 10) : null,
-        total_ordered: 0,
+        total_ordered: totalOrdered,
         is_veg: isVeg,
         available,
         featured,
@@ -504,42 +604,78 @@ export default function AdminNewProductPage() {
         discount_percent: finalDiscountPercent,
         discount_amount: finalDiscountAmount,
         discount_name: finalDiscountName,
-      });
+      };
 
-      setSuccessMsg("Product created successfully with all photos & options! Redirecting...");
+      await updateAdminProduct(productId, restaurant.id, updateData);
+
+      setSuccessMsg("Product updated successfully! Redirecting...");
       setTimeout(() => {
-        router.push("/admin/products");
-      }, 1000);
+        router.push("/vasviadminspoon/products");
+      }, 900);
     } catch (err: unknown) {
-      console.error("Create product failed:", err);
+      console.error("Update product failed:", err);
       setErrorMsg(
-        err instanceof Error ? err.message : "Failed to create product"
+        err instanceof Error ? err.message : "Failed to update product"
       );
     } finally {
       setSubmitting(false);
     }
   };
 
+  const handleDelete = async () => {
+    try {
+      setDeleting(true);
+      setErrorMsg(null);
+      await deleteAdminProduct(productId);
+      setShowDeleteModal(false);
+      router.push("/vasviadminspoon/products");
+    } catch (err: unknown) {
+      console.error("Delete failed:", err);
+      setErrorMsg(err instanceof Error ? err.message : "Failed to delete product");
+      setDeleting(false);
+    }
+  };
+
+  if (loading) {
+    return (
+      <div className="flex h-64 flex-col items-center justify-center gap-3">
+        <Loader2 className="h-8 w-8 animate-spin text-spoon-caramel" />
+        <span className="text-xs font-semibold text-spoon-muted">
+          Loading product details...
+        </span>
+      </div>
+    );
+  }
+
   return (
     <div className="max-w-4xl space-y-6 pb-12">
       {/* Header */}
-      <div className="flex items-center justify-between pb-2 border-b border-spoon-border/60">
+      <div className="flex flex-col sm:flex-row sm:items-center justify-between gap-4 pb-2 border-b border-spoon-border/60">
         <div className="flex items-center gap-3">
           <Link
-            href="/admin/products"
+            href="/vasviadminspoon/products"
             className="flex h-9 w-9 items-center justify-center rounded-xl bg-spoon-sand text-spoon-dark hover:bg-spoon-border transition-colors shadow-2xs"
           >
             <ArrowLeft className="h-4 w-4" />
           </Link>
           <div>
             <h1 className="font-serif text-2xl sm:text-3xl font-bold text-spoon-dark">
-              Add New Bakery Item
+              Edit Bakery Product
             </h1>
             <p className="text-xs text-spoon-muted">
-              Configure product details, multiple gallery images, pack sizes, and custom add-ons.
+              Modify dish title, multiple photography gallery, pricing, pack sizes, and add-ons.
             </p>
           </div>
         </div>
+
+        <button
+          type="button"
+          onClick={() => setShowDeleteModal(true)}
+          className="inline-flex items-center gap-1.5 self-start sm:self-auto rounded-xl border border-rose-200 bg-rose-50 px-3 py-2 text-xs font-bold text-rose-700 hover:bg-rose-100 transition-colors shadow-2xs"
+        >
+          <Trash2 className="h-3.5 w-3.5" />
+          <span>Delete Product</span>
+        </button>
       </div>
 
       {/* Messages */}
@@ -558,7 +694,7 @@ export default function AdminNewProductPage() {
       )}
 
       <form onSubmit={handleSubmit} className="space-y-6">
-        {/* 1. BASIC INFORMATION CARD */}
+        {/* 1. BASIC INFO */}
         <div className="rounded-3xl border border-spoon-border bg-white p-6 sm:p-8 shadow-warm-sm space-y-5">
           <div className="flex items-center justify-between border-b border-spoon-border/50 pb-3">
             <h2 className="font-serif text-lg font-bold text-spoon-dark flex items-center gap-2">
@@ -803,63 +939,21 @@ export default function AdminNewProductPage() {
 
           <div className="grid grid-cols-1 gap-5 sm:grid-cols-3">
             <div>
-              <div className="flex items-center justify-between mb-1.5">
-                <label className="block text-xs font-bold uppercase tracking-wider text-spoon-dark">
-                  Category
-                </label>
-                <button
-                  type="button"
-                  onClick={() => setShowAddCat(!showAddCat)}
-                  className="text-[11px] font-bold text-spoon-caramel hover:text-spoon-dark transition-colors flex items-center gap-1 cursor-pointer"
-                >
-                  <Plus className="w-3 h-3" />
-                  <span>{showAddCat ? "Select Existing" : "+ New Category"}</span>
-                </button>
-              </div>
-
-              {showAddCat ? (
-                <div className="flex gap-1.5">
-                  <Input
-                    value={newCatInput}
-                    onChange={(e) => setNewCatInput(e.target.value)}
-                    placeholder="Category name..."
-                    className="text-xs"
-                    autoFocus
-                    onKeyDown={(e) => {
-                      if (e.key === "Enter") {
-                        e.preventDefault();
-                        handleQuickCreateCategory();
-                      }
-                    }}
-                  />
-                  <Button
-                    type="button"
-                    onClick={handleQuickCreateCategory}
-                    disabled={creatingCategory || !newCatInput.trim()}
-                    className="shrink-0 bg-spoon-caramel hover:bg-spoon-dark text-white text-xs px-3 h-9"
-                  >
-                    {creatingCategory ? <Loader2 className="w-3 h-3 animate-spin" /> : "Add"}
-                  </Button>
-                </div>
-              ) : (
-                <select
-                  value={categoryId}
-                  onChange={(e) => setCategoryId(e.target.value)}
-                  className="w-full rounded-2xl border border-spoon-border bg-white px-3.5 py-2.5 text-xs font-semibold text-spoon-dark focus:outline-none focus:ring-2 focus:ring-spoon-caramel/20"
-                >
-                  {loadingCategories ? (
-                    <option>Loading categories...</option>
-                  ) : categories.length === 0 ? (
-                    <option value="">No categories (Click + New Category above)</option>
-                  ) : (
-                    categories.map((cat) => (
-                      <option key={cat.id} value={cat.id}>
-                        {cat.name}
-                      </option>
-                    ))
-                  )}
-                </select>
-              )}
+              <label className="block text-xs font-bold uppercase tracking-wider text-spoon-dark mb-1.5">
+                Category
+              </label>
+              <select
+                value={categoryId}
+                onChange={(e) => setCategoryId(e.target.value)}
+                className="w-full rounded-2xl border border-spoon-border bg-white px-3.5 py-2.5 text-xs font-semibold text-spoon-dark focus:outline-none focus:ring-2 focus:ring-spoon-caramel/20"
+              >
+                <option value="">Uncategorized</option>
+                {categories.map((cat) => (
+                  <option key={cat.id} value={cat.id}>
+                    {cat.name}
+                  </option>
+                ))}
+              </select>
             </div>
 
             <div className="grid grid-cols-1 sm:grid-cols-2 gap-4">
@@ -1017,37 +1111,9 @@ export default function AdminNewProductPage() {
                 type="number"
                 value={sortOrder}
                 onChange={(e) => setSortOrder(e.target.value)}
-                placeholder="1"
+                placeholder="0"
                 className="text-xs"
               />
-            </div>
-          </div>
-
-          {/* Daily Order / Stock Limit */}
-          <div className="rounded-2xl bg-spoon-sand/50 border border-spoon-border/80 p-4 space-y-2">
-            <div className="flex items-center justify-between">
-              <div>
-                <label className="block text-xs font-bold uppercase tracking-wider text-spoon-dark">
-                  Daily Order Limit / Batch Size
-                </label>
-                <p className="text-[11px] text-spoon-muted mt-0.5">
-                  Set the maximum number of orders for this item. Once orders reach this number, it automatically marks as <strong className="text-[#A34B3D]">SOLD OUT</strong> on the website!
-                </p>
-              </div>
-            </div>
-            <div className="flex items-center gap-3 pt-1">
-              <Input
-                type="number"
-                min="1"
-                step="1"
-                value={orderLimit}
-                onChange={(e) => setOrderLimit(e.target.value)}
-                placeholder="e.g. 10 (Leave blank for Unlimited orders)"
-                className="max-w-xs text-xs font-bold bg-white"
-              />
-              <span className="text-xs font-medium text-spoon-muted">
-                {orderLimit ? `Max ${orderLimit} orders per day` : "Unlimited daily orders"}
-              </span>
             </div>
           </div>
 
@@ -1058,7 +1124,7 @@ export default function AdminNewProductPage() {
             <Input
               value={description}
               onChange={(e) => setDescription(e.target.value)}
-              placeholder="Soft, buttery & loaded with choco chips. The Nanz Original."
+              placeholder="Soft, buttery & loaded with choco chips."
               className="text-xs"
             />
           </div>
@@ -1073,7 +1139,7 @@ export default function AdminNewProductPage() {
                 <span>2. Product Photography & Gallery ({galleryList.length} photos)</span>
               </h2>
               <p className="text-[11px] text-spoon-muted">
-                Add multiple angles and showcase images. The <strong>first image</strong> serves as the main Cover Photo.
+                Add multiple images. The <strong>first image</strong> serves as the primary Cover Photo on the menu.
               </p>
             </div>
           </div>
@@ -1086,7 +1152,7 @@ export default function AdminNewProductPage() {
                 <ImagePlus className="h-5 w-5" />
               </div>
               <p className="text-xs font-bold text-spoon-dark">
-                Upload Multiple Images
+                Upload More Images
               </p>
               <p className="text-[10.5px] text-spoon-muted mt-0.5">
                 Select one or multiple JPG, PNG, WebP files
@@ -1200,7 +1266,7 @@ export default function AdminNewProductPage() {
             </div>
           ) : (
             <div className="p-4 rounded-2xl bg-spoon-sand/20 border border-spoon-border/60 text-center text-xs text-spoon-muted">
-              No photos uploaded yet. Upload your first product photography above.
+              No photos in gallery. Add photos using the controls above.
             </div>
           )}
         </div>
@@ -1214,7 +1280,7 @@ export default function AdminNewProductPage() {
                 <span>3. Sizes & Pack Options</span>
               </h2>
               <p className="text-[11px] text-spoon-muted">
-                Allow customers to choose size weights or pack counts (e.g. 350g, Pack of 4/8/12).
+                Variants customers can choose from (e.g. 350 gms, Pack of 4 / 8 / 12).
               </p>
             </div>
 
@@ -1260,7 +1326,7 @@ export default function AdminNewProductPage() {
               >
                 <div className="flex-1">
                   <label className="text-[10px] font-bold text-spoon-muted uppercase block mb-1">
-                    Label (e.g. Pack of 4 or 350 gms)
+                    Label
                   </label>
                   <Input
                     value={sz.label}
@@ -1323,7 +1389,7 @@ export default function AdminNewProductPage() {
           </div>
         </div>
 
-        {/* 4. CUSTOM ADD-ON OPTIONS */}
+        {/* 4. CUSTOM ADD-ONS */}
         <div className="rounded-3xl border border-spoon-border bg-white p-6 sm:p-8 shadow-warm-sm space-y-4">
           <div className="flex flex-col sm:flex-row sm:items-center justify-between gap-3 border-b border-spoon-border/50 pb-3">
             <div>
@@ -1332,7 +1398,7 @@ export default function AdminNewProductPage() {
                 <span>4. Custom Add-on Options</span>
               </h2>
               <p className="text-[11px] text-spoon-muted">
-                Extras customers can add to this dish (e.g. Birthday Tag +₹40, Candles +₹40, Gift Box +₹40).
+                Extras customers can add to this dish.
               </p>
             </div>
 
@@ -1756,7 +1822,7 @@ export default function AdminNewProductPage() {
 
         {/* Actions Bar */}
         <div className="flex items-center justify-end gap-3 pt-4">
-          <Link href="/admin/products">
+          <Link href="/vasviadminspoon/products">
             <Button type="button" variant="outline" size="sm">
               Cancel
             </Button>
@@ -1771,14 +1837,63 @@ export default function AdminNewProductPage() {
             {submitting ? (
               <>
                 <Loader2 className="h-4 w-4 animate-spin" />
-                <span>Publishing to Catalog...</span>
+                <span>Saving Updates...</span>
               </>
             ) : (
-              <span>Save & Publish Product</span>
+              <span>Save Changes</span>
             )}
           </Button>
         </div>
       </form>
+
+      {/* Delete Confirmation Modal */}
+      {showDeleteModal && (
+        <div className="fixed inset-0 z-50 flex items-center justify-center bg-black/40 backdrop-blur-xs p-4">
+          <div className="w-full max-w-md rounded-3xl border border-spoon-border bg-white p-6 shadow-warm-lg space-y-4">
+            <div className="flex items-center gap-3 text-rose-600">
+              <div className="flex h-10 w-10 items-center justify-center rounded-2xl bg-rose-100">
+                <Trash2 className="h-5 w-5" />
+              </div>
+              <h3 className="font-serif text-lg font-bold text-spoon-dark">
+                Delete Dish Permanently?
+              </h3>
+            </div>
+
+            <p className="text-xs text-spoon-muted leading-relaxed">
+              Are you sure you want to remove{" "}
+              <strong className="text-spoon-dark">&quot;{name}&quot;</strong> from
+              your catalog? This action will permanently remove it from the menu and
+              cannot be undone.
+            </p>
+
+            <div className="flex items-center justify-end gap-3 pt-2">
+              <Button
+                variant="outline"
+                size="sm"
+                onClick={() => setShowDeleteModal(false)}
+                disabled={deleting}
+              >
+                Cancel
+              </Button>
+              <button
+                type="button"
+                onClick={handleDelete}
+                disabled={deleting}
+                className="inline-flex items-center gap-2 rounded-xl bg-rose-600 px-4 py-2 text-xs font-bold text-white hover:bg-rose-700 transition-colors disabled:opacity-50"
+              >
+                {deleting ? (
+                  <>
+                    <Loader2 className="h-3.5 w-3.5 animate-spin" />
+                    <span>Deleting...</span>
+                  </>
+                ) : (
+                  <span>Yes, Delete Dish</span>
+                )}
+              </button>
+            </div>
+          </div>
+        </div>
+      )}
     </div>
   );
 }

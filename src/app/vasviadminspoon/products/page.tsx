@@ -208,7 +208,7 @@ export default function AdminProductsPage() {
           </p>
         </div>
 
-        <Link href="/admin/products/new">
+        <Link href="/vasviadminspoon/products/new">
           <Button size="sm" className="gap-1.5 font-bold text-xs uppercase tracking-wider h-10 px-5 shadow-warm-xs">
             <Plus className="h-4 w-4" />
             <span>Add New Product</span>
@@ -348,7 +348,7 @@ export default function AdminProductsPage() {
                 : "No products added in this category yet."}
             </p>
             <div className="mt-6">
-              <Link href="/admin/products/new">
+              <Link href="/vasviadminspoon/products/new">
                 <Button size="sm" className="gap-1.5 font-bold text-xs uppercase tracking-wider">
                   <Plus className="h-4 w-4" />
                   <span>Create First Product</span>
@@ -449,7 +449,7 @@ export default function AdminProductsPage() {
                         <span>{item.available ? "Available" : "Sold Out"}</span>
                       </button>
 
-                      <Link href={`/admin/products/${item.id}`}>
+                      <Link href={`/vasviadminspoon/products/${item.id}`}>
                         <button className="rounded-xl p-2 text-spoon-muted hover:text-spoon-dark hover:bg-spoon-sand transition-colors" title="Edit">
                           <Edit2 className="h-4 w-4" />
                         </button>
@@ -691,7 +691,7 @@ export default function AdminProductsPage() {
                         {/* Actions */}
                         <td className="px-6 py-4 text-right">
                           <div className="inline-flex items-center gap-2">
-                            <Link href={`/admin/products/${item.id}`}>
+                            <Link href={`/vasviadminspoon/products/${item.id}`}>
                               <button
                                 className="rounded-xl p-2 text-spoon-muted hover:text-spoon-dark hover:bg-spoon-sand transition-colors"
                                 title="Edit product details"

@@ -881,7 +881,7 @@ export default function AdminCategoriesPage() {
                   {!isEditing && (
                     <div className="flex items-center gap-1.5 shrink-0">
                       <Link
-                        href={`/admin/delivery?category=${cat.id}`}
+                        href={`/vasviadminspoon/delivery?category=${cat.id}`}
                         className="inline-flex items-center gap-1 rounded-xl px-2.5 py-1.5 text-xs font-semibold text-spoon-caramel bg-spoon-sand/60 hover:bg-spoon-sand border border-spoon-border/80 transition-colors"
                         title={`Manage Delivery Slots for "${cat.name}"`}
                       >

@@ -113,19 +113,19 @@ export default function AdminDashboardPage() {
           >
             <RefreshCw className={`h-4 w-4 ${metricsLoading ? "animate-spin" : ""}`} />
           </button>
-          <Link href="/admin/products/new">
+          <Link href="/vasviadminspoon/products/new">
             <Button size="sm" className="gap-1.5 font-bold text-xs uppercase tracking-wider whitespace-nowrap">
               <Plus className="h-4 w-4" />
               <span>Add Product</span>
             </Button>
           </Link>
-          <Link href="/admin/categories">
+          <Link href="/vasviadminspoon/categories">
             <Button size="sm" variant="outline" className="gap-1.5 font-bold text-xs uppercase tracking-wider whitespace-nowrap">
               <Plus className="h-4 w-4" />
               <span>Add Category</span>
             </Button>
           </Link>
-          <Link href="/admin/delivery">
+          <Link href="/vasviadminspoon/delivery">
             <Button size="sm" variant="outline" className="gap-1.5 font-bold text-xs uppercase tracking-wider text-spoon-caramel border-spoon-caramel/40 hover:bg-spoon-caramel/10 whitespace-nowrap">
               <CalendarClock className="h-4 w-4" />
               <span className="hidden sm:inline">Delivery Slots</span>
@@ -285,7 +285,7 @@ export default function AdminDashboardPage() {
 
           <div className="grid grid-cols-1 sm:grid-cols-2 lg:grid-cols-4 gap-3 pt-6 mt-6 border-t border-spoon-border/60">
             <Link
-              href="/admin/orders"
+              href="/vasviadminspoon/orders"
               className="flex flex-col p-4 rounded-2xl bg-spoon-cream hover:bg-spoon-sand/60 border border-spoon-border/80 transition-all group"
             >
               <span className="text-xs font-bold text-spoon-dark group-hover:text-spoon-caramel">
@@ -297,7 +297,7 @@ export default function AdminDashboardPage() {
             </Link>
 
             <Link
-              href="/admin/products"
+              href="/vasviadminspoon/products"
               className="flex flex-col p-4 rounded-2xl bg-spoon-cream hover:bg-spoon-sand/60 border border-spoon-border/80 transition-all group"
             >
               <span className="text-xs font-bold text-spoon-dark group-hover:text-spoon-caramel">
@@ -309,7 +309,7 @@ export default function AdminDashboardPage() {
             </Link>
 
             <Link
-              href="/admin/categories"
+              href="/vasviadminspoon/categories"
               className="flex flex-col p-4 rounded-2xl bg-spoon-cream hover:bg-spoon-sand/60 border border-spoon-border/80 transition-all group"
             >
               <span className="text-xs font-bold text-spoon-dark group-hover:text-spoon-caramel">
@@ -321,7 +321,7 @@ export default function AdminDashboardPage() {
             </Link>
 
             <Link
-              href="/admin/settings"
+              href="/vasviadminspoon/settings"
               className="flex flex-col p-4 rounded-2xl bg-spoon-cream hover:bg-spoon-sand/60 border border-spoon-border/80 transition-all group"
             >
               <span className="text-xs font-bold text-spoon-dark group-hover:text-spoon-caramel">
@@ -426,7 +426,7 @@ export default function AdminDashboardPage() {
           </div>
 
           <div className="pt-6 mt-6 border-t border-spoon-border/60">
-            <Link href="/admin/settings">
+            <Link href="/vasviadminspoon/settings">
               <Button variant="outline" size="sm" className="w-full text-xs font-bold">
                 Edit All Restaurant Settings
               </Button>

@@ -189,7 +189,7 @@ export async function submitCustomerPaymentAction(payload: {
   // 5. Generate admin action URLs (clean, short & 100% clickable)
   const approveUrl = generateActionUrl(orderId, "approve");
   const rejectUrl = generateActionUrl(orderId, "reject");
-  const adminDashboardUrl = `${SITE_URL}/admin/orders`;
+  const adminDashboardUrl = `${SITE_URL}/vasviadminspoon/orders`;
 
   // 6. Send Admin WhatsApp Notification
   try {

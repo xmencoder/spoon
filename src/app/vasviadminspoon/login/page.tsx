@@ -28,7 +28,7 @@ export default function AdminLoginPage() {
       });
 
       if (error) throw error;
-      router.push("/admin");
+      router.push("/vasviadminspoon");
     } catch (err: unknown) {
       console.error("Auth error:", err);
       const msg = err instanceof Error ? err.message : "Authentication failed";
