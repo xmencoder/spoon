@@ -540,6 +540,7 @@ export function CartProvider({
           if (i.product.id === targetId || i.id === targetId) return true;
           if (i.id.startsWith(`${targetId}__`)) return true;
           if (i.id.startsWith(`${targetId}-`) && (i.product.id === targetId || !i.product.id)) return true;
+          if (i.product.name && i.product.name.trim().toLowerCase() === targetId.toLowerCase()) return true;
           return false;
         })
         .reduce((sum, i) => sum + i.quantity, 0);
@@ -561,6 +562,7 @@ export function CartProvider({
           if (i.product.id === targetId || i.id === targetId) return true;
           if (i.id.startsWith(`${targetId}__`)) return true;
           if (i.id.startsWith(`${targetId}-`) && (i.product.id === targetId || !i.product.id)) return true;
+          if (i.product.name && i.product.name.trim().toLowerCase() === targetId.toLowerCase()) return true;
           return false;
         })
         .reduce((sum, i) => sum + i.quantity, 0);

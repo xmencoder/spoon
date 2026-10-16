@@ -330,6 +330,9 @@ export function MenuSection({
             if (item.discount_percent === undefined || item.discount_percent === null) item.discount_percent = meta.discount_percent ?? null;
             if (item.discount_amount === undefined || item.discount_amount === null) item.discount_amount = meta.discount_amount ?? null;
             if (!item.discount_name) item.discount_name = meta.discount_name ?? null;
+            if (item.order_limit == null && meta.order_limit != null && !isNaN(Number(meta.order_limit))) {
+              item.order_limit = Number(meta.order_limit);
+            }
           }
           item.description = item.description.replace(/<!-- BAKERY_META:([\s\S]*?) -->/, "").trim();
         } catch {
@@ -515,11 +518,11 @@ export function MenuSection({
       );
 
       // 1. Check Product daily limit
-      const prodStock = prodDailyStockMap[itemId];
+      const prodStock = prodDailyStockMap[itemId] || (dbProd ? prodDailyStockMap[dbProd.id] : undefined);
       const prodLimit = prodStock ? prodStock.remaining : (dbProd ? getProductOrderLimit(dbProd) : null);
       if (prodLimit != null) {
         if (prodLimit <= 0) return false;
-        const inCartProdQty = getProductQuantity(itemId);
+        const inCartProdQty = getProductQuantity(itemId) || (dbProd?.name ? getProductQuantity(dbProd.name) : 0);
         const localQty = quantities[itemId] !== undefined ? quantities[itemId] : 1;
         const needed = inCartProdQty > 0 ? 1 : localQty;
         if (inCartProdQty + needed > prodLimit) return false;
@@ -543,7 +546,7 @@ export function MenuSection({
         })
         .reduce((sum, ci) => sum + ci.quantity, 0);
 
-      const inCartProdQty = getProductQuantity(itemId);
+      const inCartProdQty = getProductQuantity(itemId) || (dbProd?.name ? getProductQuantity(dbProd.name) : 0);
       const localQty = quantities[itemId] !== undefined ? quantities[itemId] : 1;
       return inCartProdQty > 0
         ? inCartCatQty < stock.remaining
@@ -555,14 +558,16 @@ export function MenuSection({
   const handleIncrement = (id: string) => {
     if (isProductCatSoldOut(id)) return;
     if (!canIncrementItem(id)) return;
-    const inCartCount = getProductQuantity(id);
+    const currentItem = activeMenuItems.find((i) => i.id === id);
+    const inCartCount = getProductQuantity(id) || (currentItem?.name ? getProductQuantity(currentItem.name) : 0);
     if (inCartCount > 0) {
       const cartItem = cartItems.find(
         (ci) =>
           ci.product?.id === id ||
           ci.id === id ||
           ci.id.startsWith(`${id}__`) ||
-          (ci.id.startsWith(`${id}-`) && ci.product?.id === id)
+          (ci.id.startsWith(`${id}-`) && ci.product?.id === id) ||
+          (ci.product?.name && currentItem?.name && ci.product.name.trim().toLowerCase() === currentItem.name.trim().toLowerCase())
       );
       if (cartItem) {
         increment(cartItem.id);
@@ -581,14 +586,16 @@ export function MenuSection({
   };
 
   const handleDecrement = (id: string) => {
-    const inCartCount = getProductQuantity(id);
+    const currentItem = activeMenuItems.find((i) => i.id === id);
+    const inCartCount = getProductQuantity(id) || (currentItem?.name ? getProductQuantity(currentItem.name) : 0);
     if (inCartCount > 0) {
       const cartItem = cartItems.find(
         (ci) =>
           ci.product?.id === id ||
           ci.id === id ||
           ci.id.startsWith(`${id}__`) ||
-          (ci.id.startsWith(`${id}-`) && ci.product?.id === id)
+          (ci.id.startsWith(`${id}-`) && ci.product?.id === id) ||
+          (ci.product?.name && currentItem?.name && ci.product.name.trim().toLowerCase() === currentItem.name.trim().toLowerCase())
       );
       if (cartItem) {
         // If 1 in cart, decrement removes it from cart, automatically switching button back to "Add to Cart"
@@ -1181,7 +1188,7 @@ export function MenuSection({
                     const isFav = !!favorites[item.id];
                     const qty = getQty(item.id);
                     const isJustAdded = addedItem === item.id;
-                    const inCartCount = getProductQuantity(item.id);
+                    const inCartCount = getProductQuantity(item.id) || (item.name ? getProductQuantity(item.name) : 0);
                     const isAlreadyInCart = inCartCount > 0;
                     const isCatSoldOut = isProductCatSoldOut(item.id);
                     const catRemaining = getProductCatRemaining(item.id);
@@ -1319,7 +1326,7 @@ export function MenuSection({
           {displayItems.map((item) => {
             const qty = getQty(item.id);
             const isJustAdded = addedItem === item.id;
-            const inCartCount = getProductQuantity(item.id);
+            const inCartCount = getProductQuantity(item.id) || (item.name ? getProductQuantity(item.name) : 0);
             const isAlreadyInCart = inCartCount > 0;
             const isCatSoldOut = isProductCatSoldOut(item.id);
             const catRemaining = getProductCatRemaining(item.id);
@@ -1510,7 +1517,7 @@ export function MenuSection({
             const isFav = !!favorites[item.id];
             const qty = getQty(item.id);
             const isJustAdded = addedItem === item.id;
-            const inCartCount = getProductQuantity(item.id);
+            const inCartCount = getProductQuantity(item.id) || (item.name ? getProductQuantity(item.name) : 0);
             const isAlreadyInCart = inCartCount > 0;
             const isCatSoldOut = isProductCatSoldOut(item.id);
             const catRemaining = getProductCatRemaining(item.id);

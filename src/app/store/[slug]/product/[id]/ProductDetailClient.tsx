@@ -307,7 +307,8 @@ export default function ProductDetailClient({
     setActiveImageIndex((prev) => (prev > 0 ? prev - 1 : gallery.length - 1));
   };
 
-  const inCartQty = getProductQuantity(product.id);
+  const inCartQty =
+    getProductQuantity(product.id) || (product.name ? getProductQuantity(product.name) : 0);
   const inCartCategoryQty = cartItems
     .filter((ci) => {
       return (
@@ -412,6 +413,7 @@ export default function ProductDetailClient({
       id: product.id,
       name: detail.name,
       price: unitPrice,
+      order_limit: product.order_limit ?? getProductOrderLimit(product),
       description: variantDesc,
     };
 
@@ -702,7 +704,7 @@ export default function ProductDetailClient({
                     </span>
                     <div>
                       <span className="text-xs sm:text-sm font-serif font-bold text-[#29251F] block leading-tight">
-                        Sunday Special • Fresh Wild-Yeast Bake
+                        Sunday Special
                       </span>
                       <span className="text-[10.5px] font-medium text-[#7A6B5A]">
                         Delivered exclusively on Sundays
@@ -715,32 +717,50 @@ export default function ProductDetailClient({
                 </div>
 
                 {/* Highlighted Next Delivery Slot */}
-                <div className="rounded-xl bg-white/95 border border-[#C26B59]/25 p-3 flex flex-col sm:flex-row sm:items-center sm:justify-between gap-2">
-                  <div>
-                    <span className="text-[10px] font-bold uppercase tracking-wider text-[#7A6B5A] block">
-                      Next Delivery Slot
-                    </span>
-                    <div className="flex items-baseline gap-2 mt-0.5 flex-wrap">
-                      <span className="text-sm sm:text-base font-serif font-bold text-[#A34B3D]">
-                        {sourdoughSlotInfo.formattedSlotDate}
+                <div className="rounded-xl bg-white/95 border border-[#C26B59]/25 p-3.5 space-y-3">
+                  <div className="flex flex-col sm:flex-row sm:items-center sm:justify-between gap-2">
+                    <div>
+                      <span className="text-[10px] font-bold uppercase tracking-wider text-[#7A6B5A] block">
+                        Next Delivery Slot
                       </span>
-                      <span
-                        className={`text-[10px] font-bold px-2 py-0.5 rounded-md ${
-                          sourdoughSlotInfo.isSameWeekend
-                            ? "bg-amber-100 text-amber-900 border border-amber-300"
-                            : "bg-orange-100 text-orange-950 border border-orange-300"
-                        }`}
-                      >
-                        {sourdoughSlotInfo.isSameWeekend
-                          ? "⚡ This Weekend's Sunday"
-                          : "⏳ Next Weekend's Sunday"}
-                      </span>
+                      <div className="flex items-baseline gap-2 mt-0.5 flex-wrap">
+                        <span className="text-sm sm:text-base font-serif font-bold text-[#A34B3D]">
+                          {sourdoughSlotInfo.formattedSlotDate}
+                        </span>
+                        <span
+                          className={`text-[10px] font-bold px-2 py-0.5 rounded-md ${
+                            sourdoughSlotInfo.isSameWeekend
+                              ? "bg-amber-100 text-amber-900 border border-amber-300"
+                              : "bg-orange-100 text-orange-950 border border-orange-300"
+                          }`}
+                        >
+                          {sourdoughSlotInfo.isSameWeekend
+                            ? "⚡ This Weekend's Sunday"
+                            : "⏳ Next Weekend's Sunday"}
+                        </span>
+                      </div>
                     </div>
+
+                    <span className="text-[10.5px] font-medium text-[#7A6B5A] self-start sm:self-auto bg-[#FAF4ED] px-2.5 py-0.5 rounded-full border border-[#C26B59]/20">
+                      Home Delivery &amp; Pickup
+                    </span>
                   </div>
 
-                  <div className="text-left sm:text-right text-[11px] text-[#696053]">
-                    <span className="block font-medium">Slots: 11 AM – 2 PM • 2 PM – 6 PM • 6 PM – 9 PM</span>
-                    <span className="text-[10px] text-[#7A6B5A]">Home Delivery &amp; Pickup</span>
+                  {/* Delivery time slots pill row */}
+                  <div className="pt-2 border-t border-[#C26B59]/15 flex flex-col sm:flex-row sm:items-center gap-2">
+                    <span className="text-[10px] font-bold uppercase tracking-wider text-[#7A6B5A] shrink-0">
+                      Delivery Slots:
+                    </span>
+                    <div className="flex items-center gap-1.5 flex-wrap">
+                      {["11 AM – 2 PM", "2 PM – 6 PM", "6 PM – 9 PM"].map((slot) => (
+                        <span
+                          key={slot}
+                          className="px-2.5 py-1 rounded-lg bg-[#FAF4ED] border border-[#C26B59]/25 text-[10.5px] font-semibold text-[#8C3E31] whitespace-nowrap shadow-2xs"
+                        >
+                          {slot}
+                        </span>
+                      ))}
+                    </div>
                   </div>
                 </div>
 
