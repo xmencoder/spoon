@@ -14,6 +14,7 @@ import { createClient } from "@/lib/supabase/client";
 import type { Product, Category } from "@/types/database";
 import { getCategoryRemainingStock, getProductDailyRemainingStock } from "@/app/store/[slug]/actions";
 import { getProductDiscount } from "@/lib/discount";
+import { getProductOrderLimit } from "@/lib/order-limit";
 import { Header } from "@/components/layout/Header";
 import { Footer } from "@/components/layout/Footer";
 import {
@@ -156,10 +157,20 @@ export default function CartPageClient() {
 
   const exceededProducts = useMemo(() => {
     const list: { prodName: string; remaining: number; inCart: number }[] = [];
+    const prodMap: Record<string, { product: Product; inCart: number }> = {};
     items.forEach((item) => {
-      const stock = prodStockMap[item.product.id];
-      if (stock && item.quantity > stock.remaining) {
-        list.push({ prodName: item.product.name, remaining: stock.remaining, inCart: item.quantity });
+      const pid = item.product.id;
+      if (!prodMap[pid]) {
+        prodMap[pid] = { product: item.product, inCart: 0 };
+      }
+      prodMap[pid].inCart += item.quantity;
+    });
+
+    Object.entries(prodMap).forEach(([pId, { product, inCart }]) => {
+      const stock = prodStockMap[pId];
+      const remainingLimit = stock ? stock.remaining : getProductOrderLimit(product);
+      if (remainingLimit != null && inCart > remainingLimit) {
+        list.push({ prodName: product.name, remaining: remainingLimit, inCart });
       }
     });
     return list;
@@ -301,12 +312,17 @@ export default function CartPageClient() {
                     const originalUnitPrice = disc.originalPrice + itemAddonsTotal;
                     const itemCatStock = item.product.category_id ? catStockMap[item.product.category_id] : null;
                     const itemProdStock = prodStockMap[item.product.id] || null;
+                    const effectiveProdRemaining = itemProdStock ? itemProdStock.remaining : getProductOrderLimit(item.product);
                     const totalInCat = item.product.category_id ? (categoryCartQuantities[item.product.category_id] || 0) : 0;
+                    const totalInProd = items
+                      .filter((i) => (i.product?.id || i.id) === item.product.id)
+                      .reduce((s, i) => s + i.quantity, 0);
+
                     const isCatExceeded = itemCatStock != null && totalInCat > itemCatStock.remaining;
-                    const isProdExceeded = itemProdStock != null && item.quantity > itemProdStock.remaining;
+                    const isProdExceeded = effectiveProdRemaining != null && totalInProd > effectiveProdRemaining;
                     const canIncrement =
                       (itemCatStock == null || totalInCat < itemCatStock.remaining) &&
-                      (itemProdStock == null || item.quantity < itemProdStock.remaining);
+                      (effectiveProdRemaining == null || totalInProd < effectiveProdRemaining);
 
                     return (
                       <div
@@ -363,19 +379,24 @@ export default function CartPageClient() {
                                 ⚠️ Exceeds category limit ({itemCatStock.remaining} left)
                               </span>
                             )}
-                            {isProdExceeded && itemProdStock && (
+                            {isProdExceeded && effectiveProdRemaining != null && (
                               <span className="inline-block text-[10px] font-bold text-rose-700 bg-rose-100 border border-rose-300 px-2 py-0.5 rounded-md mt-1 mr-2">
-                                ⚠️ Exceeds daily product limit ({itemProdStock.remaining} left today)
+                                ⚠️ Exceeds daily product limit ({effectiveProdRemaining} left today)
                               </span>
                             )}
-                            {!isCatExceeded && itemCatStock && itemCatStock.remaining <= 2 && (
+                            {!isCatExceeded && itemCatStock && itemCatStock.remaining > 0 && itemCatStock.remaining <= 2 && (
                               <span className="inline-block text-[10px] font-bold text-[#C26B59] bg-[#C26B59]/10 px-2 py-0.5 rounded-md mt-1 mr-2">
                                 Only {itemCatStock.remaining} left in category
                               </span>
                             )}
-                            {!isProdExceeded && itemProdStock && itemProdStock.remaining <= 2 && (
+                            {!isProdExceeded && effectiveProdRemaining != null && totalInProd >= effectiveProdRemaining && (
+                              <span className="inline-block text-[10px] font-bold text-amber-800 bg-amber-50 border border-amber-200 px-2 py-0.5 rounded-md mt-1 mr-2">
+                                Max daily limit reached ({effectiveProdRemaining}/day)
+                              </span>
+                            )}
+                            {!isProdExceeded && effectiveProdRemaining != null && totalInProd < effectiveProdRemaining && effectiveProdRemaining > 0 && effectiveProdRemaining <= 2 && (
                               <span className="inline-block text-[10px] font-bold text-rose-700 bg-rose-50 border border-rose-200 px-2 py-0.5 rounded-md mt-1 mr-2">
-                                Only {itemProdStock.remaining} left today
+                                Only {effectiveProdRemaining} left today
                               </span>
                             )}
                             {isSourdoughOrFocaccia(item.product) && (
@@ -444,7 +465,13 @@ export default function CartPageClient() {
                                   ? "text-[#554D3F] hover:text-[#29251F] hover:bg-[#DFD3C0] cursor-pointer"
                                   : "text-[#B5A490] opacity-40 cursor-not-allowed"
                               }`}
-                              title={!canIncrement ? "Category order limit reached" : "Increase quantity"}
+                              title={
+                                !canIncrement
+                                  ? (isProdExceeded || (effectiveProdRemaining != null && totalInProd >= effectiveProdRemaining))
+                                    ? `Daily limit of ${effectiveProdRemaining} reached`
+                                    : "Order limit reached"
+                                  : "Increase quantity"
+                              }
                               aria-label="Increase quantity"
                             >
                               <Plus className="w-3.5 h-3.5" />

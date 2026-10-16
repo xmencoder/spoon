@@ -26,6 +26,7 @@ import { parseBadges, getBadgeColorClass } from "@/lib/badges";
 import { isSourdoughOrFocaccia, getSourdoughSlotInfo } from "@/lib/delivery-slots-service";
 import { getCategoryRemainingStock, getProductDailyRemainingStock } from "@/app/store/[slug]/actions";
 import { getProductDiscount } from "@/lib/discount";
+import { getProductOrderLimit } from "@/lib/order-limit";
 
 interface Props {
   product: Product;
@@ -316,15 +317,18 @@ export default function ProductDetailClient({
     })
     .reduce((sum, ci) => sum + ci.quantity, 0);
 
+  const fallbackProdLimit = getProductOrderLimit(product);
+  const effectiveProdRemaining = prodStock ? prodStock.remaining : fallbackProdLimit;
+
   const canIncrement =
     (!catStock ||
       (inCartQty > 0
         ? inCartCategoryQty < catStock.remaining
         : inCartCategoryQty + quantity < catStock.remaining)) &&
-    (!prodStock ||
+    (effectiveProdRemaining == null ||
       (inCartQty > 0
-        ? inCartQty < prodStock.remaining
-        : quantity < prodStock.remaining));
+        ? inCartQty < effectiveProdRemaining
+        : quantity < effectiveProdRemaining));
 
   const handleNextImage = () => {
     setActiveImageIndex((prev) => (prev < gallery.length - 1 ? prev + 1 : 0));

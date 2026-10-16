@@ -11,6 +11,7 @@ import React, {
 } from "react";
 import type { Product } from "@/types/database";
 import { flyToCart } from "@/lib/fly-to-cart";
+import { getProductOrderLimit } from "@/lib/order-limit";
 
 export interface CartAddon {
   id: string;
@@ -63,7 +64,25 @@ function cartReducer(state: CartState, action: CartAction): CartState {
       };
 
     case "ADD_ITEM": {
-      const qtyToAdd = action.quantity && action.quantity > 0 ? action.quantity : 1;
+      const limit = getProductOrderLimit(action.product);
+      const targetProdId = action.product.id;
+      const currentProdTotal = state.items
+        .filter((i) => i.product?.id === targetProdId)
+        .reduce((sum, i) => sum + i.quantity, 0);
+
+      let qtyToAdd = action.quantity && action.quantity > 0 ? action.quantity : 1;
+
+      if (limit != null && limit > 0) {
+        if (currentProdTotal >= limit) {
+          return state;
+        }
+        if (currentProdTotal + qtyToAdd > limit) {
+          qtyToAdd = limit - currentProdTotal;
+        }
+      }
+
+      if (qtyToAdd <= 0) return state;
+
       const calculatedUnitPrice =
         action.unitPrice !== undefined ? action.unitPrice : action.product.price;
       
@@ -115,6 +134,19 @@ function cartReducer(state: CartState, action: CartAction): CartState {
       );
       if (!item) return state;
       const targetId = item.id;
+      const targetProdId = item.product?.id;
+      const limit = getProductOrderLimit(item.product);
+
+      if (limit != null && limit > 0) {
+        const currentProdTotal = state.items
+          .filter((i) => i.product?.id === targetProdId)
+          .reduce((sum, i) => sum + i.quantity, 0);
+
+        if (currentProdTotal >= limit) {
+          return state;
+        }
+      }
+
       return {
         ...state,
         items: state.items.map((i) =>
@@ -155,10 +187,29 @@ function cartReducer(state: CartState, action: CartAction): CartState {
           items: state.items.filter((i) => i.id !== targetId),
         };
       }
+
+      const limit = getProductOrderLimit(item.product);
+      let newQty = action.quantity;
+
+      if (limit != null && limit > 0) {
+        const otherLinesTotal = state.items
+          .filter((i) => i.id !== targetId && i.product?.id === item.product?.id)
+          .reduce((sum, i) => sum + i.quantity, 0);
+
+        const maxAllowed = Math.max(0, limit - otherLinesTotal);
+        newQty = Math.min(newQty, maxAllowed);
+        if (newQty <= 0) {
+          return {
+            ...state,
+            items: state.items.filter((i) => i.id !== targetId),
+          };
+        }
+      }
+
       return {
         ...state,
         items: state.items.map((i) =>
-          i.id === targetId ? { ...i, quantity: action.quantity } : i
+          i.id === targetId ? { ...i, quantity: newQty } : i
         ),
       };
     }

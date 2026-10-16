@@ -4,7 +4,7 @@ import { getDefaultRestaurant, getProducts } from "@/lib/supabase/queries";
 export const dynamic = "force-dynamic";
 
 export default async function sitemap(): Promise<MetadataRoute.Sitemap> {
-  const baseUrl = "https://theindulgentspoon.in";
+  const baseUrl = "https://www.theindulgentspoon.in";
   const now = new Date();
 
   // 1. Static Canonical Public Pages

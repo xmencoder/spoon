@@ -58,7 +58,7 @@ export async function generateMetadata({ params }: Props): Promise<Metadata> {
     openGraph: {
       title,
       description,
-      url: `https://theindulgentspoon.in${canonicalUrl}`,
+      url: `https://www.theindulgentspoon.in${canonicalUrl}`,
       images: [
         {
           url: imageUrl,
@@ -153,16 +153,16 @@ export default async function ProductDetailPage({ params }: Props) {
       ? [
           product.image_url.startsWith("http")
             ? product.image_url
-            : `https://theindulgentspoon.in${product.image_url}`,
+            : `https://www.theindulgentspoon.in${product.image_url}`,
         ]
-      : ["https://theindulgentspoon.in/main_photo_f.jpeg"],
+      : ["https://www.theindulgentspoon.in/main_photo_f.jpeg"],
     brand: {
       "@type": "Brand",
       name: "The Indulgent Spoon",
     },
     offers: {
       "@type": "Offer",
-      url: `https://theindulgentspoon.in/store/${slug}/product/${id}`,
+      url: `https://www.theindulgentspoon.in/store/${slug}/product/${id}`,
       priceCurrency: "INR",
       price: product.price,
       availability:

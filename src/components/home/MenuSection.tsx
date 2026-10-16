@@ -22,6 +22,7 @@ import type { Product, Category } from "@/types/database";
 import { parseBadges, getBadgeColorClass } from "@/lib/badges";
 import { getCategoryRemainingStock, getProductDailyRemainingStock } from "@/app/store/[slug]/actions";
 import { getProductDiscount } from "@/lib/discount";
+import { getProductOrderLimit } from "@/lib/order-limit";
 
 export interface CategoryCard {
   id: string;
@@ -509,20 +510,22 @@ export function MenuSection({
 
   const canIncrementItem = useCallback(
     (itemId: string): boolean => {
-      // 1. Check Product daily limit
-      const prodStock = prodDailyStockMap[itemId];
-      if (prodStock != null) {
-        if (prodStock.remaining <= 0) return false;
-        const inCartProdQty = getProductQuantity(itemId);
-        const localQty = quantities[itemId] !== undefined ? quantities[itemId] : 1;
-        const needed = inCartProdQty > 0 ? 1 : localQty;
-        if (inCartProdQty + needed > prodStock.remaining) return false;
-      }
-
-      // 2. Check Category limit
       const dbProd = liveDbProducts.find(
         (p) => p.id === itemId || p.name.trim().toLowerCase() === itemId.trim().toLowerCase()
       );
+
+      // 1. Check Product daily limit
+      const prodStock = prodDailyStockMap[itemId];
+      const prodLimit = prodStock ? prodStock.remaining : (dbProd ? getProductOrderLimit(dbProd) : null);
+      if (prodLimit != null) {
+        if (prodLimit <= 0) return false;
+        const inCartProdQty = getProductQuantity(itemId);
+        const localQty = quantities[itemId] !== undefined ? quantities[itemId] : 1;
+        const needed = inCartProdQty > 0 ? 1 : localQty;
+        if (inCartProdQty + needed > prodLimit) return false;
+      }
+
+      // 2. Check Category limit
       if (!dbProd || !dbProd.category_id) return true;
       const stock = catStockMap[dbProd.category_id];
       if (!stock) return true;

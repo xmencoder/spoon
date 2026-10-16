@@ -15,6 +15,6 @@ export default function robots(): MetadataRoute.Robots {
         ],
       },
     ],
-    sitemap: "https://theindulgentspoon.in/sitemap.xml",
+    sitemap: "https://www.theindulgentspoon.in/sitemap.xml",
   };
 }

@@ -8,6 +8,7 @@ import { formatPrice } from "@/lib/utils";
 import { Header } from "@/components/layout/Header";
 import type { Restaurant, Category, Product } from "@/types/database";
 import { getCategoryRemainingStock, getProductDailyRemainingStock } from "./actions";
+import { getProductOrderLimit } from "@/lib/order-limit";
 import {
   ShoppingBag,
   Plus,
@@ -203,9 +204,10 @@ export default function StoreClient({
               const prodStock = prodDailyStockMap[product.id];
               const inCat = getCategoryCartCount(product.category_id);
               const inProd = getQuantity(product.id);
+              const prodLimit = prodStock ? prodStock.remaining : getProductOrderLimit(product);
               const disabledIncrement =
                 (catStock != null && inCat >= catStock.remaining) ||
-                (prodStock != null && inProd >= prodStock.remaining);
+                (prodLimit != null && inProd >= prodLimit);
 
               return (
                 <FeaturedCard
@@ -270,9 +272,10 @@ export default function StoreClient({
               const prodStock = prodDailyStockMap[product.id];
               const inCat = getCategoryCartCount(product.category_id);
               const inProd = getQuantity(product.id);
+              const prodLimit = prodStock ? prodStock.remaining : getProductOrderLimit(product);
               const disabledIncrement =
                 (catStock != null && inCat >= catStock.remaining) ||
-                (prodStock != null && inProd >= prodStock.remaining);
+                (prodLimit != null && inProd >= prodLimit);
 
               return (
                 <ProductCard

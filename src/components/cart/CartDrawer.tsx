@@ -1,12 +1,15 @@
 "use client";
 
-import React, { useEffect, useRef } from "react";
+import React, { useEffect, useRef, useState } from "react";
 import Link from "next/link";
 import Image from "next/image";
 import { useCart, DEFAULT_RESTAURANT_SLUG } from "@/lib/store/CartContext";
 import { formatPrice } from "@/lib/utils";
 import { isSourdoughOrFocaccia } from "@/lib/delivery-slots-service";
 import { getProductDiscount } from "@/lib/discount";
+import { createClient } from "@/lib/supabase/client";
+import { getProductDailyRemainingStock } from "@/app/store/[slug]/actions";
+import { getProductOrderLimit } from "@/lib/order-limit";
 import {
   X,
   ShoppingBag,
@@ -38,6 +41,42 @@ export function CartDrawer() {
   } = useCart();
 
   const drawerRef = useRef<HTMLDivElement>(null);
+  const activeSlug = restaurantSlug || DEFAULT_RESTAURANT_SLUG;
+
+  const [prodStockMap, setProdStockMap] = useState<
+    Record<string, { limit: number; totalOrderedToday: number; remaining: number }>
+  >({});
+
+  // Fetch live product stock limits when drawer is opened
+  useEffect(() => {
+    if (!isDrawerOpen) return;
+    let isCancelled = false;
+
+    async function loadStock() {
+      try {
+        const supabase = createClient();
+        const { data: rest } = await supabase
+          .from("restaurants")
+          .select("id")
+          .eq("slug", activeSlug)
+          .maybeSingle();
+
+        if (rest?.id && !isCancelled) {
+          const map = await getProductDailyRemainingStock(rest.id);
+          if (!isCancelled && map) {
+            setProdStockMap(map);
+          }
+        }
+      } catch (err) {
+        console.error("CartDrawer stock check error:", err);
+      }
+    }
+
+    loadStock();
+    return () => {
+      isCancelled = true;
+    };
+  }, [isDrawerOpen, activeSlug]);
 
   // Close on Escape key
   useEffect(() => {
@@ -63,8 +102,6 @@ export function CartDrawer() {
   }, [isDrawerOpen]);
 
   if (!isDrawerOpen) return null;
-
-  const activeSlug = restaurantSlug || DEFAULT_RESTAURANT_SLUG;
 
   return (
     <div className="fixed inset-0 z-50 flex justify-end">
@@ -151,6 +188,14 @@ export function CartDrawer() {
                 const disc = getProductDiscount(item.product);
                 const itemAddonsTotal = (item.addons || []).reduce((s, a) => s + a.price, 0);
                 const originalUnitPrice = disc.originalPrice + itemAddonsTotal;
+                const itemProdStock = prodStockMap[item.product.id] || null;
+                const effectiveRemaining = itemProdStock ? itemProdStock.remaining : getProductOrderLimit(item.product);
+                const totalProdInCart = items
+                  .filter((i) => (i.product?.id || i.id) === item.product.id)
+                  .reduce((sum, i) => sum + i.quantity, 0);
+
+                const isMaxReached = effectiveRemaining != null && totalProdInCart >= effectiveRemaining;
+                const isOverLimit = effectiveRemaining != null && totalProdInCart > effectiveRemaining;
 
                 return (
                 <div key={item.id} className="pt-3 first:pt-0 flex gap-3">
@@ -192,6 +237,23 @@ export function CartDrawer() {
                         <span className="inline-block mt-0.5 text-[9.5px] font-bold text-[#A34B3D] bg-[#FAF2ED] border border-[#E8D2C5] px-1.5 py-0.2 rounded shadow-2xs">
                           {disc.badgeLabel} (-{formatPrice(disc.savings * item.quantity)})
                         </span>
+                      )}
+
+                      {/* Daily Limit Badge */}
+                      {effectiveRemaining != null && (
+                        isOverLimit ? (
+                          <span className="inline-block mt-0.5 text-[9.5px] font-bold text-rose-700 bg-rose-50 border border-rose-200 px-1.5 py-0.2 rounded shadow-2xs">
+                            ⚠️ Daily limit: max {effectiveRemaining}
+                          </span>
+                        ) : isMaxReached ? (
+                          <span className="inline-block mt-0.5 text-[9.5px] font-bold text-amber-800 bg-amber-50 border border-amber-200 px-1.5 py-0.2 rounded shadow-2xs">
+                            Max limit reached ({effectiveRemaining}/day)
+                          </span>
+                        ) : effectiveRemaining <= 2 ? (
+                          <span className="inline-block mt-0.5 text-[9.5px] font-semibold text-amber-800 bg-amber-50 border border-amber-200/60 px-1.5 py-0.2 rounded">
+                            Only {effectiveRemaining} left today
+                          </span>
+                        ) : null
                       )}
 
                       {/* Size pill if available */}
@@ -244,8 +306,16 @@ export function CartDrawer() {
                           {item.quantity}
                         </span>
                         <button
-                          onClick={() => increment(item.id)}
-                          className="flex h-6 w-6 items-center justify-center rounded-md border border-[#C26B59] bg-[#F5EBDD] text-[#C26B59] hover:bg-[#C26B59] hover:text-[#F5EBDD] transition-colors active:scale-95 cursor-pointer"
+                          onClick={() => {
+                            if (!isMaxReached) increment(item.id);
+                          }}
+                          disabled={isMaxReached}
+                          title={isMaxReached ? `Daily limit of ${effectiveRemaining} reached` : "Increase quantity"}
+                          className={`flex h-6 w-6 items-center justify-center rounded-md border transition-colors ${
+                            isMaxReached
+                              ? "border-stone-300 bg-stone-100 text-stone-400 cursor-not-allowed opacity-50"
+                              : "border-[#C26B59] bg-[#F5EBDD] text-[#C26B59] hover:bg-[#C26B59] hover:text-[#F5EBDD] active:scale-95 cursor-pointer"
+                          }`}
                         >
                           <Plus className="h-3 w-3" />
                         </button>
@@ -336,23 +406,60 @@ export function CartDrawer() {
 
             {/* CTAs */}
             <div className="space-y-2 pt-1">
-              <Link
-                href="/cart"
-                onClick={closeCartDrawer}
-                className="w-full flex items-center justify-center gap-2 rounded-xl bg-[#FAF5ED] border border-[#91885D]/40 hover:border-[#C26B59] text-[#29251F] hover:text-[#C26B59] py-2.5 text-xs font-bold transition-all shadow-xs"
-              >
-                <span>View Full Cart Page &amp; Customize</span>
-                <ArrowRight className="h-3.5 w-3.5" />
-              </Link>
+              {(() => {
+                const hasExceededLimits = items.some((item) => {
+                  const stock = prodStockMap[item.product.id];
+                  const limit = stock ? stock.remaining : getProductOrderLimit(item.product);
+                  if (limit == null) return false;
+                  const inCart = items
+                    .filter((i) => (i.product?.id || i.id) === item.product.id)
+                    .reduce((sum, i) => sum + i.quantity, 0);
+                  return inCart > limit;
+                });
 
-              <Link
-                href="/checkout"
-                onClick={closeCartDrawer}
-                className="w-full flex items-center justify-center gap-2 rounded-xl bg-[#C26B59] hover:bg-[#A95145] text-[#F5EBDD] py-3 text-sm font-bold shadow-md transition-all active:scale-[0.99]"
-              >
-                <span>Proceed to Checkout</span>
-                <ArrowRight className="h-4 w-4" />
-              </Link>
+                if (hasExceededLimits) {
+                  return (
+                    <div className="rounded-xl bg-rose-50 border border-rose-300 p-3 text-center space-y-1.5">
+                      <p className="text-xs font-bold text-rose-900">
+                        ⚠️ Daily order limit reached
+                      </p>
+                      <p className="text-[11px] text-rose-700">
+                        Some items in your basket exceed the daily limit. Please adjust quantities to proceed.
+                      </p>
+                      <Link
+                        href="/cart"
+                        onClick={closeCartDrawer}
+                        className="mt-1 w-full flex items-center justify-center gap-2 rounded-xl bg-rose-600 hover:bg-rose-700 text-white py-2.5 text-xs font-bold shadow-xs transition-all"
+                      >
+                        <span>Adjust Quantities in Cart</span>
+                        <ArrowRight className="h-3.5 w-3.5" />
+                      </Link>
+                    </div>
+                  );
+                }
+
+                return (
+                  <>
+                    <Link
+                      href="/cart"
+                      onClick={closeCartDrawer}
+                      className="w-full flex items-center justify-center gap-2 rounded-xl bg-[#FAF5ED] border border-[#91885D]/40 hover:border-[#C26B59] text-[#29251F] hover:text-[#C26B59] py-2.5 text-xs font-bold transition-all shadow-xs"
+                    >
+                      <span>View Full Cart Page &amp; Customize</span>
+                      <ArrowRight className="h-3.5 w-3.5" />
+                    </Link>
+
+                    <Link
+                      href="/checkout"
+                      onClick={closeCartDrawer}
+                      className="w-full flex items-center justify-center gap-2 rounded-xl bg-[#C26B59] hover:bg-[#A95145] text-[#F5EBDD] py-3 text-sm font-bold shadow-md transition-all active:scale-[0.99]"
+                    >
+                      <span>Proceed to Checkout</span>
+                      <ArrowRight className="h-4 w-4" />
+                    </Link>
+                  </>
+                );
+              })()}
             </div>
           </div>
         )}

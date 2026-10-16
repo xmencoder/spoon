@@ -11,7 +11,7 @@ export const metadata: Metadata = {
     title: "Bulk Orders & Corporate Gifting | The Indulgent Spoon",
     description:
       "Order customized artisanal bakery hampers, sourdough gift boxes, and gourmet dessert packages for weddings, corporate gifting, and special celebrations across Delhi NCR.",
-    url: "https://theindulgentspoon.in/bulk-orders",
+    url: "https://www.theindulgentspoon.in/bulk-orders",
     images: [
       {
         url: "/main_photo_f.jpeg",

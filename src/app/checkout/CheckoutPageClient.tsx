@@ -7,6 +7,7 @@ import { useParams, useRouter } from "next/navigation";
 import { useCart } from "@/lib/store/CartContext";
 import { createOrder } from "@/app/store/[slug]/actions";
 import { formatPrice } from "@/lib/utils";
+import { getProductOrderLimit } from "@/lib/order-limit";
 import { Header } from "@/components/layout/Header";
 import type { Restaurant } from "@/types/database";
 import {
@@ -509,13 +510,29 @@ export default function CheckoutPageClient() {
       isDeliveryAvailable);
   const isSlotValid = Boolean(selectedDate) && Boolean(selectedSlot);
 
-  const canCheckout = !isClosed && !isBelowMinimum && totalItems > 0 && isContactValid && isAddressValid && isSlotValid;
+  const hasExceededProdLimit = React.useMemo(() => {
+    return items.some((item) => {
+      const limit = getProductOrderLimit(item.product);
+      if (limit == null || limit <= 0) return false;
+      const totalThisProd = items
+        .filter((i) => (i.product?.id || i.id) === item.product.id)
+        .reduce((sum, i) => sum + i.quantity, 0);
+      return totalThisProd > limit;
+    });
+  }, [items]);
+
+  const canCheckout = !isClosed && !isBelowMinimum && !hasExceededProdLimit && totalItems > 0 && isContactValid && isAddressValid && isSlotValid;
 
   const router = useRouter();
 
   const handleSubmit = async (e: React.FormEvent) => {
     e.preventDefault();
     if (!restaurant || !canCheckout) return;
+
+    if (hasExceededProdLimit) {
+      setErrorMsg("One or more items in your cart exceed the daily order limit. Please adjust your cart before checkout.");
+      return;
+    }
 
     setSubmitting(true);
     setErrorMsg(null);
@@ -1743,6 +1760,23 @@ export default function CheckoutPageClient() {
       {/* Floating Bottom Submit Button — Matching Uploaded Screenshot */}
       <div className="fixed bottom-0 left-0 right-0 z-40 p-4 bg-gradient-to-t from-[#D9BC9E] via-[#D9BC9E]/95 to-transparent pt-8">
         <div className="max-w-lg mx-auto">
+          {hasExceededProdLimit && (
+            <div className="mb-3 rounded-2xl bg-rose-50 border border-rose-300 p-3 text-center space-y-1">
+              <p className="text-xs font-bold text-rose-900">
+                ⚠️ Daily order limit reached
+              </p>
+              <p className="text-[11px] text-rose-700">
+                Some items in your cart exceed the daily order limit. Please adjust quantities to proceed.
+              </p>
+              <Link
+                href="/cart"
+                className="inline-flex items-center gap-1.5 text-xs font-bold text-rose-800 underline hover:text-rose-950 mt-0.5"
+              >
+                <span>Return to Cart to Adjust Quantities</span>
+                <ArrowLeft className="w-3.5 h-3.5" />
+              </Link>
+            </div>
+          )}
           <button
             type="submit"
             form=""

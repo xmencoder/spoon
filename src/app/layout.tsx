@@ -22,7 +22,7 @@ const caveat = Caveat({
 });
 
 export const metadata: Metadata = {
-  metadataBase: new URL("https://theindulgentspoon.in"),
+  metadataBase: new URL("https://www.theindulgentspoon.in"),
   title: {
     default: "The Indulgent Spoon | Cakes, Desserts & Bakery",
     template: "%s | The Indulgent Spoon",
@@ -56,7 +56,7 @@ export const metadata: Metadata = {
     title: "The Indulgent Spoon | Cakes, Desserts & Bakery",
     description:
       "Discover delicious cakes, desserts and bakery treats from The Indulgent Spoon. Explore our menu and order online for delivery across our service areas in Delhi NCR.",
-    url: "https://theindulgentspoon.in",
+    url: "https://www.theindulgentspoon.in",
     siteName: "The Indulgent Spoon",
     locale: "en_IN",
     type: "website",
@@ -103,7 +103,7 @@ const websiteJsonLd = {
   "@type": "WebSite",
   name: "The Indulgent Spoon",
   alternateName: "Indulgent Spoon",
-  url: "https://theindulgentspoon.in",
+  url: "https://www.theindulgentspoon.in",
 };
 
 const bakeryJsonLd = {
@@ -113,9 +113,9 @@ const bakeryJsonLd = {
   alternateName: "Indulgent Spoon",
   description:
     "Artisanal bakery and cloud kitchen crafting fresh cakes, sourdough bread, muffins, zero-sugar spreads, and gourmet desserts.",
-  url: "https://theindulgentspoon.in",
-  logo: "https://theindulgentspoon.in/logo-m.png",
-  image: "https://theindulgentspoon.in/main_photo_f.jpeg",
+  url: "https://www.theindulgentspoon.in",
+  logo: "https://www.theindulgentspoon.in/logo-m.png",
+  image: "https://www.theindulgentspoon.in/main_photo_f.jpeg",
   telephone: "+91 9717123510",
   address: {
     "@type": "PostalAddress",
@@ -157,7 +157,7 @@ const bakeryJsonLd = {
       closes: "23:00",
     },
   ],
-  hasMenu: "https://theindulgentspoon.in/full-menu",
+  hasMenu: "https://www.theindulgentspoon.in/full-menu",
 };
 
 import dynamic from "next/dynamic";

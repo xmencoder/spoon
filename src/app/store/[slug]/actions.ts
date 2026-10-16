@@ -4,6 +4,7 @@ import { createClient } from "@/lib/supabase/server";
 import { createAdminClient } from "@/lib/supabase/admin";
 import type { OrderType } from "@/types/database";
 import { calculateRoadDistanceAndCharge } from "@/lib/delivery-config";
+import { getProductOrderLimit } from "@/lib/order-limit";
 
 export interface CartItemPayload {
   productId: string;
@@ -96,29 +97,27 @@ export async function createOrder(
     if (!prodInfoErr && prodInfo) {
       const prodMap: Record<string, any> = {};
       prodInfo.forEach((p: any) => {
-        let limit = p.order_limit != null && !isNaN(Number(p.order_limit)) ? Number(p.order_limit) : null;
-        if (!limit && p.description && p.description.includes("<!-- BAKERY_META:")) {
-          try {
-            const match = p.description.match(/<!-- BAKERY_META:([\s\S]*?) -->/);
-            if (match && match[1]) {
-              const meta = JSON.parse(match[1]);
-              if (meta.order_limit != null && !isNaN(Number(meta.order_limit))) {
-                limit = Number(meta.order_limit);
-              }
-            }
-          } catch {}
-        }
-        prodMap[p.id] = { ...p, order_limit: limit };
+        prodMap[p.id] = { ...p, order_limit: getProductOrderLimit(p) };
       });
 
-      for (const ci of data.cartItems) {
-        const p = prodMap[ci.productId];
-        if (!p || !p.order_limit || p.order_limit <= 0) continue;
+      // Group total quantities requested per product ID in this cart
+      const totalRequestedPerProd: Record<string, { name: string; qty: number }> = {};
+      data.cartItems.forEach((ci) => {
+        if (!totalRequestedPerProd[ci.productId]) {
+          totalRequestedPerProd[ci.productId] = { name: ci.productName, qty: 0 };
+        }
+        totalRequestedPerProd[ci.productId].qty += ci.quantity;
+      });
+
+      for (const [prodId, req] of Object.entries(totalRequestedPerProd)) {
+        const p = prodMap[prodId];
+        const limit = p ? p.order_limit : null;
+        if (!limit || limit <= 0) continue;
 
         const { data: pItems } = await admin
           .from('order_items')
           .select('quantity, orders!inner(status, delivery_date, created_at)')
-          .eq('product_id', p.id)
+          .eq('product_id', prodId)
           .neq('orders.status', 'cancelled');
 
         const prodAlreadyOrdered = (pItems || []).reduce(
@@ -129,13 +128,13 @@ export async function createOrder(
           0
         );
 
-        const prospective = prodAlreadyOrdered + ci.quantity;
-        if (prospective > p.order_limit) {
-          const remaining = Math.max(0, p.order_limit - prodAlreadyOrdered);
+        const prospective = prodAlreadyOrdered + req.qty;
+        if (prospective > limit) {
+          const remaining = Math.max(0, limit - prodAlreadyOrdered);
           throw new Error(
             remaining === 0
-              ? `Sorry, "${ci.productName}" is sold out for ${targetOrderDate}.`
-              : `Only ${remaining} unit${remaining === 1 ? '' : 's'} remaining for "${ci.productName}" today (${targetOrderDate}). Please adjust your cart.`
+              ? `Sorry, "${req.name}" is sold out for ${targetOrderDate}.`
+              : `Only ${remaining} unit${remaining === 1 ? '' : 's'} remaining for "${req.name}" for ${targetOrderDate}. Please adjust your cart.`
           );
         }
       }
@@ -637,19 +636,7 @@ export async function getProductDailyRemainingStock(
     // Filter to products that have a daily limit (from column or metadata)
     const limitedProds: { id: string; name: string; limit: number }[] = [];
     prods.forEach((p: any) => {
-      let limit: number | null = p.order_limit != null && !isNaN(Number(p.order_limit)) ? Number(p.order_limit) : null;
-      if (!limit && p.description && p.description.includes("<!-- BAKERY_META:")) {
-        try {
-          const match = p.description.match(/<!-- BAKERY_META:([\s\S]*?) -->/);
-          if (match && match[1]) {
-            const meta = JSON.parse(match[1]);
-            if (meta.order_limit != null && !isNaN(Number(meta.order_limit))) {
-              limit = Number(meta.order_limit);
-            }
-          }
-        } catch {}
-      }
-
+      const limit = getProductOrderLimit(p);
       if (limit != null && limit > 0) {
         limitedProds.push({ id: p.id, name: p.name, limit });
       }

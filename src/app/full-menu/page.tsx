@@ -16,7 +16,7 @@ export const metadata = {
     title: "Full Bakery Menu — Cakes, Sourdough & Desserts | The Indulgent Spoon",
     description:
       "Browse our complete artisanal bakery menu — handcrafted cakes, sourdough loaves, muffins, cookies, spreads, and zero-sugar treats delivered across Delhi NCR.",
-    url: "https://theindulgentspoon.in/full-menu",
+    url: "https://www.theindulgentspoon.in/full-menu",
     images: [
       {
         url: "/main_photo_f.jpeg",
