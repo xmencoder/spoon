@@ -6,6 +6,7 @@ const playfair = Playfair_Display({
   variable: "--font-playfair",
   subsets: ["latin"],
   display: "swap",
+  preload: false,
 });
 
 const jakarta = Plus_Jakarta_Sans({
@@ -178,7 +179,6 @@ export default function RootLayout({
           name="google-site-verification"
           content="X6k3h0bfS-SgNyNDAqkoI-z_KXkcp_MuUANJcDyD-7E"
         />
-        <link rel="preconnect" href="https://gklwogucmlolkfuaytax.supabase.co" crossOrigin="" />
         <link rel="dns-prefetch" href="https://gklwogucmlolkfuaytax.supabase.co" />
         <script
           type="application/ld+json"

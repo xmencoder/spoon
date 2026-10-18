@@ -17,7 +17,6 @@ import {
   X,
 } from "lucide-react";
 import { useCart } from "@/lib/store/CartContext";
-import { createClient } from "@/lib/supabase/client";
 import type { Product, Category } from "@/types/database";
 import { parseBadges, getBadgeColorClass } from "@/lib/badges";
 import { getCategoryRemainingStock, getProductDailyRemainingStock } from "@/app/store/[slug]/actions";
@@ -357,6 +356,7 @@ export function MenuSection({
       }
 
       try {
+        const { createClient } = await import("@/lib/supabase/client");
         const supabase = createClient();
 
         // Find the restaurant (by slug or first available)

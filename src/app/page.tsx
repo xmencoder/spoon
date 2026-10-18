@@ -43,21 +43,17 @@ export default async function Home() {
             fill
             priority
             fetchPriority="high"
-            className="object-cover object-[48%_44%] sm:object-[center_42%] contrast-[1.05] saturate-[1.10] brightness-[0.98]"
-            sizes="(max-width: 640px) 100vw, (max-width: 1024px) 100vw, 100vw"
+            decoding="sync"
+            className="object-cover object-[48%_44%] sm:object-[center_42%]"
+            sizes="100vw"
             quality={75}
           />
 
           {/* Dynamic HD Photographic Lighting & Gradients */}
-          {/* Ambient warm studio lighting vignette */}
-          <div className="absolute inset-0 bg-[radial-gradient(ellipse_at_center,rgba(41,37,31,0.18)_0%,rgba(41,37,31,0.50)_75%,rgba(41,37,31,0.75)_100%)]" />
-
           {/* Directional light fade for top navbar transparency & bottom blend */}
-          <div className="absolute inset-0 bg-gradient-to-b from-[#29251F]/70 via-[#29251F]/25 to-[#29251F]/75 sm:from-[#29251F]/65 sm:via-[#29251F]/20 sm:to-[#29251F]/75" />
-          <div className="absolute inset-0 bg-gradient-to-t from-[#D9BC9E]/20 via-transparent to-transparent pointer-events-none" />
-
-          {/* Crisp edge vignette — calibrated subtly on mobile to preserve delicious food details */}
-          <div className="absolute inset-0 shadow-[inset_0_0_50px_15px_rgba(41,37,31,0.25)] sm:shadow-[inset_0_0_200px_60px_rgba(41,37,31,0.35)] pointer-events-none" />
+          <div className="absolute inset-0 bg-gradient-to-b from-[#29251F]/70 via-[#29251F]/25 to-[#29251F]/75 pointer-events-none" />
+          {/* Ambient warm studio lighting vignette */}
+          <div className="absolute inset-0 bg-[radial-gradient(ellipse_at_center,rgba(41,37,31,0.18)_0%,rgba(41,37,31,0.50)_75%,rgba(41,37,31,0.75)_100%)] pointer-events-none" />
 
           {/* ── Decorative corner ornaments (scaled for phone & desktop) ── */}
           <div className="absolute top-4 left-4 sm:top-10 sm:left-10 w-8 h-8 sm:w-24 sm:h-24 border-t-2 border-l-2 border-[#F5EBDD]/20 rounded-tl-lg pointer-events-none" />
