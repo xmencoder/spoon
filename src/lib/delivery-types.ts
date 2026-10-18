@@ -33,4 +33,6 @@ export interface DeliveryCalculationResult {
   baseCharge?: number;
   distanceCharge?: number;
   surges?: Array<{ name: string; amount: number }>;
+  source?: "cache" | "mappls" | "osrm" | "haversine_calibrated" | "haversine_precheck";
+  provider?: "mappls" | "osrm" | "haversine_estimate";
 }

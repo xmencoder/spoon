@@ -135,9 +135,17 @@ export function calculateDeliveryCharge(distanceKm: number): number {
 
 
 
-// In-memory server-side cache for geocoded distance
-const distanceCache = new Map<string, { distanceKm: number; displayName?: string; timestamp: number }>();
-const CACHE_TTL_MS = 1000 * 60 * 30; // 30 minutes cache
+export interface DistanceCacheEntry {
+  distanceKm: number;
+  displayName?: string;
+  timestamp: number;
+  source?: "mappls" | "osrm" | "haversine_calibrated" | "haversine_precheck";
+  provider?: "mappls" | "osrm" | "haversine_estimate";
+}
+
+// In-memory server-side cache for geocoded distance (30-minute TTL per server instance)
+export const distanceCache = new Map<string, DistanceCacheEntry>();
+export const CACHE_TTL_MS = 1000 * 60 * 30; // 30 minutes cache
 
 /**
  * Calculate Great-Circle Haversine distance between two coordinates
@@ -540,8 +548,211 @@ export function buildGeocodingCandidates(input: string | StructuredAddress): str
   return [...new Set(queries.filter((q) => q && q.trim().length >= 3))];
 }
 
+
+// Cached Mappls OAuth token (if using Client ID / Client Secret flow)
+let mapplsOAuthToken: { token: string; expiresAt: number } | null = null;
+
+/**
+ * Retrieve Mappls authentication credentials (REST Key or OAuth Bearer Token)
+ */
+async function getMapplsAuth(): Promise<{ restKey?: string; bearerToken?: string } | null> {
+  const restKey = process.env.MAPPLS_REST_KEY || process.env.MAPPLS_API_KEY;
+  if (restKey && restKey.trim().length > 0) {
+    return { restKey: restKey.trim() };
+  }
+
+  const clientId = process.env.MAPPLS_CLIENT_ID;
+  const clientSecret = process.env.MAPPLS_CLIENT_SECRET;
+  if (clientId && clientSecret) {
+    if (mapplsOAuthToken && Date.now() < mapplsOAuthToken.expiresAt) {
+      return { bearerToken: mapplsOAuthToken.token };
+    }
+    try {
+      const tokenController = new AbortController();
+      const tokenTimeout = setTimeout(() => tokenController.abort(), 3500);
+
+      const res = await fetch("https://outpost.mappls.com/api/security/oauth/token", {
+        method: "POST",
+        headers: {
+          "Content-Type": "application/x-www-form-urlencoded",
+        },
+        body: new URLSearchParams({
+          grant_type: "client_credentials",
+          client_id: clientId.trim(),
+          client_secret: clientSecret.trim(),
+        }),
+        signal: tokenController.signal,
+      });
+      clearTimeout(tokenTimeout);
+
+      if (res.ok) {
+        const data = await res.json();
+        if (data.access_token) {
+          const expiresIn = typeof data.expires_in === "number" ? data.expires_in : 86400;
+          mapplsOAuthToken = {
+            token: data.access_token,
+            expiresAt: Date.now() + Math.max(60, expiresIn - 60) * 1000,
+          };
+          return { bearerToken: data.access_token };
+        }
+      }
+    } catch {
+      // Safe fallback if token generation fails
+    }
+  }
+
+  return null;
+}
+
+/**
+ * Primary Road Distance Provider: Mappls (MapmyIndia) Distance Matrix / Route API
+ * Returns driving road distance in kilometers, or null on failure/timeout.
+ */
+export async function fetchMapplsRoadDistance(
+  customerLat: number,
+  customerLon: number
+): Promise<{ distanceKm: number } | null> {
+  const auth = await getMapplsAuth();
+  if (!auth) {
+    // Mappls credentials not configured in environment
+    return null;
+  }
+
+  const configuredTimeout = parseInt(process.env.MAPPLS_TIMEOUT_MS || "3500", 10);
+  const timeoutMs = isNaN(configuredTimeout) || configuredTimeout <= 0 ? 3500 : configuredTimeout;
+
+  const controller = new AbortController();
+  const timer = setTimeout(() => controller.abort(), timeoutMs);
+
+  try {
+    // 1. Try Mappls Driving Distance Matrix API (standard distance matrix endpoint)
+    const distanceMatrixUrl = auth.restKey
+      ? `https://apis.mappls.com/advancedmaps/v1/${encodeURIComponent(
+          auth.restKey
+        )}/distance_matrix/driving/${BAKERY_LOCATION.lon},${BAKERY_LOCATION.lat};${customerLon},${customerLat}`
+      : `https://apis.mappls.com/advancedmaps/v1/distance_matrix/driving/${BAKERY_LOCATION.lon},${BAKERY_LOCATION.lat};${customerLon},${customerLat}`;
+
+    const headers: Record<string, string> = {
+      Accept: "application/json",
+      ...(auth.bearerToken ? { Authorization: `Bearer ${auth.bearerToken}` } : {}),
+    };
+
+    const res = await fetch(distanceMatrixUrl, {
+      headers,
+      signal: controller.signal,
+    });
+
+    if (res.ok) {
+      const data = await res.json();
+
+      // Check Distance Matrix response format
+      const matrixDistanceMeters = data?.results?.distances?.[0]?.[1];
+      if (
+        typeof matrixDistanceMeters === "number" &&
+        Number.isFinite(matrixDistanceMeters) &&
+        matrixDistanceMeters > 0
+      ) {
+        const km = parseFloat((matrixDistanceMeters / 1000).toFixed(1));
+        if (km >= 0 && km < 1000) {
+          return { distanceKm: km };
+        }
+      }
+
+      // Check Route Adv format if returned by endpoint
+      const routeDistanceMeters = data?.routes?.[0]?.distance;
+      if (
+        typeof routeDistanceMeters === "number" &&
+        Number.isFinite(routeDistanceMeters) &&
+        routeDistanceMeters > 0
+      ) {
+        const km = parseFloat((routeDistanceMeters / 1000).toFixed(1));
+        if (km >= 0 && km < 1000) {
+          return { distanceKm: km };
+        }
+      }
+    }
+
+    // 2. If Distance Matrix was not enabled on the key (404/403/400), try Mappls Route Adv API
+    if (res.status === 404 || res.status === 400 || res.status === 403) {
+      const routeAdvUrl = auth.restKey
+        ? `https://apis.mappls.com/advancedmaps/v1/${encodeURIComponent(
+            auth.restKey
+          )}/route_adv/driving/${BAKERY_LOCATION.lon},${BAKERY_LOCATION.lat};${customerLon},${customerLat}?overview=simplified`
+        : `https://apis.mappls.com/advancedmaps/v1/route_adv/driving/${BAKERY_LOCATION.lon},${BAKERY_LOCATION.lat};${customerLon},${customerLat}?overview=simplified`;
+
+      const routeRes = await fetch(routeAdvUrl, {
+        headers,
+        signal: controller.signal,
+      });
+
+      if (routeRes.ok) {
+        const routeData = await routeRes.json();
+        const distMeters = routeData?.routes?.[0]?.distance;
+        if (typeof distMeters === "number" && Number.isFinite(distMeters) && distMeters > 0) {
+          const km = parseFloat((distMeters / 1000).toFixed(1));
+          if (km >= 0 && km < 1000) {
+            return { distanceKm: km };
+          }
+        }
+      }
+    }
+  } catch {
+    // Mappls timed out, network error or invalid JSON - proceed safely to fallback
+  } finally {
+    clearTimeout(timer);
+  }
+
+  return null;
+}
+
+/**
+ * Secondary Road Distance Provider: OSRM Driving Route
+ * Returns driving road distance in kilometers, or null on failure/timeout.
+ */
+export async function fetchOsrmRoadDistance(
+  customerLat: number,
+  customerLon: number
+): Promise<{ distanceKm: number } | null> {
+  const controller = new AbortController();
+  const timeout = setTimeout(() => controller.abort(), 4000);
+
+  try {
+    const osrmUrl = `http://router.project-osrm.org/route/v1/driving/${BAKERY_LOCATION.lon},${BAKERY_LOCATION.lat};${customerLon},${customerLat}?overview=false`;
+    const osrmRes = await fetch(osrmUrl, { signal: controller.signal });
+
+    if (osrmRes.ok) {
+      const osrmData = await osrmRes.json();
+      if (osrmData.code === "Ok" && osrmData.routes && osrmData.routes.length > 0) {
+        const roadDistanceMeters = osrmData.routes[0].distance;
+        if (
+          typeof roadDistanceMeters === "number" &&
+          Number.isFinite(roadDistanceMeters) &&
+          roadDistanceMeters > 0
+        ) {
+          const distanceKm = parseFloat((roadDistanceMeters / 1000).toFixed(1));
+          return { distanceKm };
+        }
+      }
+    }
+  } catch {
+    // OSRM failed or timed out — caller will proceed to calibrated fallback
+  } finally {
+    clearTimeout(timeout);
+  }
+
+  return null;
+}
+
 /**
  * Server-side function to geocode customer address and compute road distance and delivery fee
+ * Pipeline:
+ * 1. 30-minute in-memory cache check (zero external requests on hit)
+ * 2. High-precision NCR verified location registry (Tier A, zero external requests)
+ * 3. Nominatim geocoding (Tier B, only if not in registry)
+ * 4. Haversine straight-line pre-check: rejects >50 km before calling paid routing APIs
+ * 5. Mappls Driving API (Primary road-distance provider)
+ * 6. OSRM Driving Route (Secondary fallback provider)
+ * 7. Calibrated Haversine * 1.45 (Tertiary fallback)
  */
 export async function calculateRoadDistanceAndCharge(
   input: string | StructuredAddress
@@ -566,17 +777,21 @@ export async function calculateRoadDistanceAndCharge(
     };
   }
 
+  // 1. Check existing 30-minute distance cache
   const cacheKey = fullAddress.toLowerCase().replace(/\s+/g, " ");
   const cached = distanceCache.get(cacheKey);
   if (cached && Date.now() - cached.timestamp < CACHE_TTL_MS) {
-    if (cached.distanceKm > DELIVERY_CONFIG.MAX_DELIVERY_DISTANCE_KM) {
+    const maxLimit = DELIVERY_CONFIG.MAX_DELIVERY_DISTANCE_KM;
+    if (cached.distanceKm > maxLimit) {
       return {
         success: true,
         available: false,
         distanceKm: cached.distanceKm,
         deliveryCharge: null,
         formattedAddress: cached.displayName,
-        error: `Sorry, we currently deliver only within ${DELIVERY_CONFIG.MAX_DELIVERY_DISTANCE_KM} km (Your location is ${cached.distanceKm} km away).`,
+        error: `Sorry, we currently deliver only within ${maxLimit} km (Your location is ${cached.distanceKm} km away).`,
+        source: cached.source || "cache",
+        provider: cached.provider,
       };
     }
     const breakdown = getDeliveryChargeBreakdown(cached.distanceKm);
@@ -589,6 +804,8 @@ export async function calculateRoadDistanceAndCharge(
       distanceCharge: breakdown.distanceCharge,
       surges: breakdown.surges,
       formattedAddress: cached.displayName,
+      source: cached.source || "cache",
+      provider: cached.provider,
     };
   }
 
@@ -596,7 +813,7 @@ export async function calculateRoadDistanceAndCharge(
   let customerLon: number | null = null;
   let displayName: string | undefined = undefined;
 
-  // 1. Instant check against verified high-precision NCR registry
+  // 2. Instant check against verified high-precision NCR registry (Tier A)
   const knownMatch = lookupKnownNcrLocation(input);
   if (knownMatch) {
     customerLat = knownMatch.lat;
@@ -604,7 +821,7 @@ export async function calculateRoadDistanceAndCharge(
     displayName = knownMatch.displayName;
   }
 
-  // 2. If not found in known registry, query OpenStreetMap Nominatim with clean candidate queries
+  // 3. If not found in known registry, query OpenStreetMap Nominatim with clean candidate queries (Tier B)
   if (customerLat === null || customerLon === null) {
     const queryCandidates = buildGeocodingCandidates(input);
     const isNoidaIntent =
@@ -680,44 +897,72 @@ export async function calculateRoadDistanceAndCharge(
     };
   }
 
-  // 3. Calculate Road Distance via OSRM with Calibrated Urban Road Network Fallback
-  let distanceKm: number | null = null;
-
-  try {
-    const osrmUrl = `http://router.project-osrm.org/route/v1/driving/${BAKERY_LOCATION.lon},${BAKERY_LOCATION.lat};${customerLon},${customerLat}?overview=false`;
-
-    const controller = new AbortController();
-    const timeout = setTimeout(() => controller.abort(), 4000);
-
-    const osrmRes = await fetch(osrmUrl, {
-      signal: controller.signal,
-    });
-    clearTimeout(timeout);
-
-    if (osrmRes.ok) {
-      const osrmData = await osrmRes.json();
-      if (osrmData.code === "Ok" && osrmData.routes && osrmData.routes.length > 0) {
-        const roadDistanceMeters = osrmData.routes[0].distance;
-        distanceKm = parseFloat((roadDistanceMeters / 1000).toFixed(1));
-      }
-    }
-  } catch {
-    // OSRM failed or timed out — proceed to calibrated fallback below
-  }
-
-  // Fallback: If OSRM was unavailable, calculate straight line * 1.45 (calibrated Delhi NCR urban road factor)
-  if (distanceKm === null || isNaN(distanceKm)) {
-    const straightLineKm = calculateHaversineDistanceKm(
-      BAKERY_LOCATION.lat,
-      BAKERY_LOCATION.lon,
-      customerLat,
-      customerLon
-    );
-    distanceKm = parseFloat((straightLineKm * 1.45).toFixed(1));
-  }
-
-  // 3. Check max delivery distance limit
   const maxLimit = DELIVERY_CONFIG.MAX_DELIVERY_DISTANCE_KM;
+
+  // 4. Haversine Straight-Line Pre-check (Cost Optimization)
+  // Straight-line distance is a mathematical lower bound on road distance.
+  // If straight-line > 50km, road distance is guaranteed > 50km.
+  // Reject immediately to avoid unnecessary calls to paid routing APIs.
+  const straightLineKm = calculateHaversineDistanceKm(
+    BAKERY_LOCATION.lat,
+    BAKERY_LOCATION.lon,
+    customerLat,
+    customerLon
+  );
+
+  if (straightLineKm > maxLimit) {
+    const formattedStraight = parseFloat(straightLineKm.toFixed(1));
+    const result: DeliveryCalculationResult = {
+      success: true,
+      available: false,
+      distanceKm: formattedStraight,
+      deliveryCharge: null,
+      formattedAddress: displayName,
+      error: `Sorry, we currently deliver only within ${maxLimit} km (Your location is ${formattedStraight} km away).`,
+      source: "haversine_precheck",
+      provider: "haversine_estimate",
+    };
+    distanceCache.set(cacheKey, {
+      distanceKm: formattedStraight,
+      displayName,
+      timestamp: Date.now(),
+      source: "haversine_precheck",
+      provider: "haversine_estimate",
+    });
+    return result;
+  }
+
+  // 5. Road Distance Calculation: Mappls (Primary) -> OSRM (Secondary) -> Calibrated Haversine (Tertiary)
+  let distanceKm: number | null = null;
+  let source: "mappls" | "osrm" | "haversine_calibrated" = "haversine_calibrated";
+  let provider: "mappls" | "osrm" | "haversine_estimate" = "haversine_estimate";
+
+  // Tier 1: Primary provider - Mappls Driving API
+  const mapplsResult = await fetchMapplsRoadDistance(customerLat, customerLon);
+  if (mapplsResult && typeof mapplsResult.distanceKm === "number" && !isNaN(mapplsResult.distanceKm)) {
+    distanceKm = mapplsResult.distanceKm;
+    source = "mappls";
+    provider = "mappls";
+  }
+
+  // Tier 2: Secondary provider - OSRM Driving Route (if Mappls fails, times out or is unconfigured)
+  if (distanceKm === null || isNaN(distanceKm)) {
+    const osrmResult = await fetchOsrmRoadDistance(customerLat, customerLon);
+    if (osrmResult && typeof osrmResult.distanceKm === "number" && !isNaN(osrmResult.distanceKm)) {
+      distanceKm = osrmResult.distanceKm;
+      source = "osrm";
+      provider = "osrm";
+    }
+  }
+
+  // Tier 3: Tertiary fallback - Calibrated urban road factor (Haversine * 1.45) if both APIs fail
+  if (distanceKm === null || isNaN(distanceKm)) {
+    distanceKm = parseFloat((straightLineKm * 1.45).toFixed(1));
+    source = "haversine_calibrated";
+    provider = "haversine_estimate";
+  }
+
+  // 6. Check max delivery distance limit on final calculated road distance
   if (distanceKm > maxLimit) {
     const result: DeliveryCalculationResult = {
       success: true,
@@ -726,12 +971,20 @@ export async function calculateRoadDistanceAndCharge(
       deliveryCharge: null,
       formattedAddress: displayName,
       error: `Sorry, we currently deliver only within ${maxLimit} km (Your location is ${distanceKm} km away).`,
+      source,
+      provider,
     };
-    distanceCache.set(cacheKey, { distanceKm, displayName, timestamp: Date.now() });
+    distanceCache.set(cacheKey, {
+      distanceKm,
+      displayName,
+      timestamp: Date.now(),
+      source,
+      provider,
+    });
     return result;
   }
 
-  // 4. Calculate delivery charge
+  // 7. Calculate final delivery charge using established pricing formula
   const breakdown = getDeliveryChargeBreakdown(distanceKm);
   const result: DeliveryCalculationResult = {
     success: true,
@@ -742,8 +995,18 @@ export async function calculateRoadDistanceAndCharge(
     distanceCharge: breakdown.distanceCharge,
     surges: breakdown.surges,
     formattedAddress: displayName,
+    source,
+    provider,
   };
 
-  distanceCache.set(cacheKey, { distanceKm, displayName, timestamp: Date.now() });
+  // Cache successful result for 30 minutes
+  distanceCache.set(cacheKey, {
+    distanceKm,
+    displayName,
+    timestamp: Date.now(),
+    source,
+    provider,
+  });
+
   return result;
 }
