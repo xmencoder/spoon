@@ -55,10 +55,10 @@ export function Footer() {
 
           {/* Quick Links Col */}
           <div className="md:col-span-3 space-y-4">
-            <h4 className="font-serif text-sm font-bold uppercase tracking-[0.18em] text-[#29251F]">
+            <h3 className="font-serif text-sm font-bold uppercase tracking-[0.18em] text-[#29251F]">
               Explore
-            </h4>
-            <ul className="space-y-2.5 text-xs font-medium uppercase tracking-wider text-[#696053]">
+            </h3>
+            <ul className="space-y-2.5 text-xs font-medium uppercase tracking-wider text-[#4D4537]">
               <li>
                 <Link href="/#menu" className="hover:text-[#C26B59] transition-colors font-semibold text-[#29251F]">
                   Menu & Categories
@@ -82,9 +82,9 @@ export function Footer() {
 
           {/* Contact & Connect Col */}
           <div className="md:col-span-4 space-y-4">
-            <h4 className="font-serif text-sm font-bold uppercase tracking-[0.18em] text-[#29251F]">
+            <h3 className="font-serif text-sm font-bold uppercase tracking-[0.18em] text-[#29251F]">
               Connect With Us
-            </h4>
+            </h3>
             <div className="space-y-2.5">
               {/* Instagram */}
               <a
@@ -98,7 +98,7 @@ export function Footer() {
                     <InstagramIcon className="h-4 w-4 text-[#C26B59]" />
                   </div>
                   <div>
-                    <span className="text-[10px] font-bold uppercase tracking-wider text-[#696053] block">
+                    <span className="text-[10px] font-bold uppercase tracking-wider text-[#4D4537] block">
                       Instagram
                     </span>
                     <span className="text-xs font-bold text-[#29251F] group-hover:text-[#C26B59] transition-colors">
@@ -106,7 +106,7 @@ export function Footer() {
                     </span>
                   </div>
                 </div>
-                <ArrowUpRight className="h-4 w-4 text-[#696053] group-hover:text-[#C26B59] group-hover:translate-x-0.5 group-hover:-translate-y-0.5 transition-all" />
+                <ArrowUpRight className="h-4 w-4 text-[#4D4537] group-hover:text-[#C26B59] group-hover:translate-x-0.5 group-hover:-translate-y-0.5 transition-all" />
               </a>
 
               {/* WhatsApp */}
@@ -121,7 +121,7 @@ export function Footer() {
                     <WhatsAppIcon className="h-4.5 w-4.5 text-[#128C7E]" />
                   </div>
                   <div>
-                    <span className="text-[10px] font-bold uppercase tracking-wider text-[#696053] block">
+                    <span className="text-[10px] font-bold uppercase tracking-wider text-[#4D4537] block">
                       WhatsApp / Orders
                     </span>
                     <span className="text-xs font-bold text-[#29251F] group-hover:text-[#128C7E] transition-colors">
@@ -141,7 +141,7 @@ export function Footer() {
         <div className="mt-16 flex items-center justify-center gap-4">
           <div className="h-[1px] flex-1 bg-gradient-to-r from-transparent via-[#91885D]/40 to-[#91885D]/40" />
           <div className="flex items-center gap-3 text-[#91885D]">
-            <span className="text-[10px] tracking-[0.3em] uppercase font-bold text-[#696053]">Est. 2025</span>
+            <span className="text-[10px] tracking-[0.3em] uppercase font-bold text-[#4D4537]">Est. 2025</span>
             <div className="relative w-8 h-8 shrink-0">
               <Image
                 src="/logo_stamp.png"
@@ -151,13 +151,13 @@ export function Footer() {
                 sizes="32px"
               />
             </div>
-            <span className="text-[10px] tracking-[0.3em] uppercase font-bold text-[#696053]">The Indulgent Spoon</span>
+            <span className="text-[10px] tracking-[0.3em] uppercase font-bold text-[#4D4537]">The Indulgent Spoon</span>
           </div>
           <div className="h-[1px] flex-1 bg-gradient-to-l from-transparent via-[#91885D]/40 to-[#91885D]/40" />
         </div>
 
         {/* Copyright */}
-        <div className="mt-6 text-center text-xs text-[#696053]">
+        <div className="mt-6 text-center text-xs text-[#4D4537]">
           &copy; 2025 The Indulgent Spoon. All rights reserved.
         </div>
       </div>

@@ -1,7 +1,4 @@
-"use client";
-
 import Image from "next/image";
-
 
 export function FounderNoteSection() {
   return (
@@ -96,7 +93,7 @@ export function FounderNoteSection() {
                     fill
                     className="object-cover object-center"
                     sizes="(max-width: 640px) 260px, 300px"
-                    quality={90}
+                    quality={75}
                   />
                 </div>
 

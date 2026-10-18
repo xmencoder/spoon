@@ -268,10 +268,15 @@ export function MenuSection({
 
   useEffect(() => {
     const restId = restaurantId || globalCachedRestaurantId || initialRestaurantId;
-    if (restId) {
+    if (!restId) return;
+
+    // Run non-critically after initial hydration and paint
+    const timer = setTimeout(() => {
       getCategoryRemainingStock(restId).then((map) => setCatStockMap(map));
       getProductDailyRemainingStock(restId).then((map) => setProdDailyStockMap(map));
-    }
+    }, 200);
+
+    return () => clearTimeout(timer);
   }, [restaurantId, initialRestaurantId]);
 
   /** Returns true if the product or its category has a limit that's been fully used up for today */
