@@ -27,6 +27,19 @@ function calculateHaversineDistanceKm(
 // Curated instant suggestions for fast typing in Gurugram, Delhi & Noida (NCR delivery radius)
 const POPULAR_NCR_LOCALITIES = [
   // Gurugram
+  { name: "DLF Cyber Hub", city: "Gurugram", postcode: "122002" },
+  { name: "DLF Cyber City", city: "Gurugram", postcode: "122002" },
+  { name: "Cyber Hub", city: "Gurugram", postcode: "122002" },
+  { name: "Cyber City", city: "Gurugram", postcode: "122002" },
+  { name: "Ambience Mall", city: "Gurugram", postcode: "122002" },
+  { name: "One Horizon Center, Golf Course Road", city: "Gurugram", postcode: "122002" },
+  { name: "Two Horizon Center, Golf Course Road", city: "Gurugram", postcode: "122002" },
+  { name: "Worldmark, Sector 65", city: "Gurugram", postcode: "122018" },
+  { name: "Galleria Market, DLF Phase 4", city: "Gurugram", postcode: "122009" },
+  { name: "Cross Point Mall, DLF Phase 4", city: "Gurugram", postcode: "122009" },
+  { name: "South Point Mall, Golf Course Road", city: "Gurugram", postcode: "122011" },
+  { name: "Good Earth City Centre, Sector 50", city: "Gurugram", postcode: "122018" },
+  { name: "Baani Square, Sector 50", city: "Gurugram", postcode: "122018" },
   { name: "Mayfield Garden, Sector 51", city: "Gurugram", postcode: "122018" },
   { name: "Sector 51", city: "Gurugram", postcode: "122018" },
   { name: "Sector 57", city: "Gurugram", postcode: "122003" },
@@ -161,7 +174,7 @@ export async function GET(req: NextRequest) {
       ? "&viewbox=77.20,28.75,77.65,28.25&bounded=0"
       : "&viewbox=76.60,28.95,77.65,28.00&bounded=0";
 
-    const cleanQ = q.trim();
+    const cleanQ = q.replace(/[\/\\|&#\-]/g, " ").replace(/\s+/g, " ").trim();
     let nominatimQuery = cleanQ;
     if (isNoidaTarget && !cleanQ.toLowerCase().includes("noida")) {
       nominatimQuery = `${cleanQ}, Noida, Uttar Pradesh, India`;
