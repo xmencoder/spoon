@@ -109,6 +109,7 @@ export function Header({ cartCount: initialCartCount }: HeaderProps) {
                   src="/logo-brand.png"
                   alt="The Indulgent Spoon"
                   fill
+                  priority
                   className="object-contain"
                   sizes="(max-width: 640px) 72px, (max-width: 768px) 84px, 96px"
                 />

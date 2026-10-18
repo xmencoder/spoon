@@ -1,5 +1,5 @@
 import { cache } from "react";
-import { createClient } from "./server";
+import { createClient, createPublicClient } from "./server";
 import type {
   Restaurant,
   Category,
@@ -14,7 +14,7 @@ import type {
  */
 export const getRestaurantBySlug = cache(
   async (slug: string): Promise<Restaurant | null> => {
-    const supabase = await createClient();
+    const supabase = createPublicClient();
     const { data, error } = await supabase
       .from("restaurants")
       .select("*")
@@ -33,7 +33,7 @@ export const getRestaurantBySlug = cache(
  */
 export const getDefaultRestaurant = cache(
   async (): Promise<Restaurant | null> => {
-    const supabase = await createClient();
+    const supabase = createPublicClient();
     const defaultSlug =
       process.env.NEXT_PUBLIC_DEFAULT_RESTAURANT_SLUG || "the-indulgent-spoon";
 
@@ -61,7 +61,7 @@ export const getDefaultRestaurant = cache(
  */
 export const getCategories = cache(
   async (restaurantId: string): Promise<Category[]> => {
-    const supabase = await createClient();
+    const supabase = createPublicClient();
     const { data, error } = await supabase
       .from("categories")
       .select("*")
@@ -128,7 +128,7 @@ function unpackProduct(product: any): Product {
  */
 export const getProducts = cache(
   async (restaurantId: string, categoryId?: string): Promise<Product[]> => {
-    const supabase = await createClient();
+    const supabase = createPublicClient();
     let query = supabase
       .from("products")
       .select("*")
@@ -153,7 +153,7 @@ export const getProducts = cache(
  */
 export const getProductById = cache(
   async (productId: string): Promise<Product | null> => {
-    const supabase = await createClient();
+    const supabase = createPublicClient();
     const { data, error } = await supabase
       .from("products")
       .select("*")

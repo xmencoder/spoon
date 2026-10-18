@@ -8,7 +8,6 @@ import { useCart } from "@/lib/store/CartContext";
 import { createOrder } from "@/app/store/[slug]/actions";
 import { formatPrice } from "@/lib/utils";
 import { getProductOrderLimit } from "@/lib/order-limit";
-import { Header } from "@/components/layout/Header";
 import type { Restaurant } from "@/types/database";
 import {
   ArrowLeft,
@@ -16,15 +15,11 @@ import {
   AlertCircle,
   Truck,
   ShoppingBag,
-  User,
   Phone,
   MapPin,
-  Utensils,
-  CheckCircle2,
   Mail,
   Home,
   Building2,
-  Navigation,
   Plus,
   X,
   Search,
@@ -32,14 +27,14 @@ import {
   Calendar,
   Clock,
   CreditCard,
-  ShieldCheck,
   Sparkles,
   Timer,
+  ChevronDown,
+  ArrowRight,
 } from "lucide-react";
 import { createClient } from "@/lib/supabase/client";
 import {
   getCustomerDeliverySlots,
-  formatTimeFriendly,
   formatSlotWindow,
   isSourdoughOrFocaccia,
   getSourdoughSlotInfo,
@@ -87,7 +82,6 @@ export default function CheckoutPageClient() {
     items,
     totalItems,
     subtotal,
-    deliveryFee: defaultDeliveryFee,
     packagingFee,
     giftNoteFee,
     hasGiftNote,
@@ -97,6 +91,9 @@ export default function CheckoutPageClient() {
 
   const [restaurant, setRestaurant] = useState<Restaurant | null>(null);
   const [loadingRestaurant, setLoadingRestaurant] = useState(true);
+
+  // 2-Step Mobile & Responsive Checkout Navigation: Step 1 (Details) | Step 2 (Review & Schedule)
+  const [checkoutStep, setCheckoutStep] = useState<1 | 2>(1);
 
   // Fulfilment
   const [orderType, setOrderType] = useState<"delivery" | "takeaway">("delivery");
@@ -109,7 +106,7 @@ export default function CheckoutPageClient() {
   const [showAlternatePhone, setShowAlternatePhone] = useState(false);
   const [alternatePhone, setAlternatePhone] = useState("");
 
-  // Receiver's Address (Granular fields as requested)
+  // Receiver's Address
   const [flatBuilding, setFlatBuilding] = useState("");
   const [areaStreet, setAreaStreet] = useState("");
   const [landmark, setLandmark] = useState("");
@@ -123,6 +120,7 @@ export default function CheckoutPageClient() {
   const [selectedDate, setSelectedDate] = useState<string>("");
   const [selectedSlot, setSelectedSlot] = useState<DeliverySlot | null>(null);
   const [loadingSlots, setLoadingSlots] = useState(false);
+
   const [cartBakingInfo, setCartBakingInfo] = useState<{
     maxHours: number;
     maxCategoryName: string;
@@ -140,7 +138,7 @@ export default function CheckoutPageClient() {
   const totalDiscountSavings = React.useMemo(() => {
     return items.reduce((sum, item) => {
       const disc = getProductDiscount(item.product);
-      return sum + (disc.savings * item.quantity);
+      return sum + disc.savings * item.quantity;
     }, 0);
   }, [items]);
 
@@ -150,22 +148,21 @@ export default function CheckoutPageClient() {
   const [showSuggestions, setShowSuggestions] = useState(false);
   const suggestionsRef = useRef<HTMLDivElement>(null);
 
-  // Delivery Distance Calculation State
+  // Automatic Seamless Delivery Distance Calculation
   const [isCheckingDelivery, setIsCheckingDelivery] = useState(false);
   const [isDeliveryChecked, setIsDeliveryChecked] = useState(false);
   const [isDeliveryAvailable, setIsDeliveryAvailable] = useState(false);
   const [distanceKm, setDistanceKm] = useState<number | null>(null);
   const [deliveryCharge, setDeliveryCharge] = useState<number | null>(null);
   const [deliverySurges, setDeliverySurges] = useState<Array<{ name: string; amount: number }>>([]);
-  const [deliveryCheckError, setDeliveryCheckError] = useState<string | null>(null);
-  const [verifiedFullAddress, setVerifiedFullAddress] = useState("");
+  const [deliveryNotice, setDeliveryNotice] = useState<string | null>(null);
 
   // Status
   const [submitting, setSubmitting] = useState(false);
   const [isGeneratingReceipt, setIsGeneratingReceipt] = useState(false);
   const [errorMsg, setErrorMsg] = useState<string | null>(null);
 
-
+  const router = useRouter();
 
   // Load restaurant details
   useEffect(() => {
@@ -182,21 +179,18 @@ export default function CheckoutPageClient() {
     fetchRestaurant();
   }, [slug]);
 
-  // Load available delivery slots for cart categories with MAX baking time calculation
+  // Load available delivery slots with baking time calculation
   useEffect(() => {
     async function fetchSlots() {
       if (!restaurant?.id) return;
       try {
         setLoadingSlots(true);
 
-        // 1. Resolve all unique category IDs from cart items
         let categoryIds = Array.from(
           new Set(items.map((i) => i.product.category_id).filter(Boolean))
         ) as string[];
 
         const supabase = createClient();
-
-        // Fallback: If any cart product is missing category_id, fetch from products table
         const productIds = items.map((i) => i.product.id).filter(Boolean);
         if (productIds.length > 0 && categoryIds.length < items.length) {
           try {
@@ -211,7 +205,6 @@ export default function CheckoutPageClient() {
           } catch {}
         }
 
-        // 2. Fetch category details (name and baking_period_hours)
         let maxBakingHours = 0;
         let maxCategoryName = "";
         const categoryBakingList: { name: string; hours: number }[] = [];
@@ -240,7 +233,6 @@ export default function CheckoutPageClient() {
           }
         }
 
-        // 3. Update cart baking info for frontend display
         if (maxBakingHours > 0) {
           setCartBakingInfo({
             maxHours: maxBakingHours,
@@ -251,12 +243,9 @@ export default function CheckoutPageClient() {
           setCartBakingInfo(null);
         }
 
-        // 4. Calculate baking lead time in minutes (default 60 min if no special baking period)
         const bakingPeriodMinutes = maxBakingHours > 0 ? Math.round(maxBakingHours * 60) : 60;
-
         const hasSourdough = items.some((i) => isSourdoughOrFocaccia(i.product));
 
-        // 5. Query delivery slots strictly starting after max baking time has elapsed (with Sourdough Sunday Special logic)
         const slotData = await getCustomerDeliverySlots(
           restaurant.id,
           categoryIds,
@@ -291,8 +280,6 @@ export default function CheckoutPageClient() {
     fetchSlots();
   }, [restaurant?.id, items]);
 
-
-  // When selected date changes, auto-select first available slot of that date
   const handleDateSelect = (dateStr: string) => {
     setSelectedDate(dateStr);
     const daySlots = slotsByDate[dateStr] || [];
@@ -317,7 +304,7 @@ export default function CheckoutPageClient() {
     return () => document.removeEventListener("mousedown", handleClickOutside);
   }, []);
 
-  // Fetch live address auto-suggestions when typing in Area / Street
+  // Live address suggestions when typing in Area / Street
   useEffect(() => {
     const query = areaStreet.trim();
     if (query.length < 2) {
@@ -326,14 +313,14 @@ export default function CheckoutPageClient() {
     }
 
     const lower = query.toLowerCase();
-    if ((lower.includes("delhi") || lower.includes("new delhi")) && city !== "Delhi") {
+    if (lower.includes("noida") && city !== "Noida") {
+      setCity("Noida");
+    } else if ((lower.includes("delhi") || lower.includes("new delhi")) && city !== "Delhi") {
       setCity("Delhi");
     } else if ((lower.includes("gurugram") || lower.includes("gurgaon")) && city !== "Gurugram") {
       setCity("Gurugram");
     } else if (lower.includes("faridabad") && city !== "Faridabad") {
       setCity("Faridabad");
-    } else if (lower.includes("noida") && city !== "Noida") {
-      setCity("Noida");
     }
 
     const timer = setTimeout(async () => {
@@ -372,51 +359,75 @@ export default function CheckoutPageClient() {
       .join(", ");
   };
 
-  // Invalidate previous verification whenever any address field changes
-  const handleAddressFieldChange = () => {
-    if (isDeliveryChecked) {
-      setIsDeliveryChecked(false);
-      setIsDeliveryAvailable(false);
-      setDeliveryCharge(null);
-      setDistanceKm(null);
-      setDeliveryCheckError('Address modified. Please click "Check Delivery" again.');
-    }
-  };
-
   // Select an address suggestion from dropdown
   const handleSelectSuggestion = (item: AddressSuggestion) => {
     setAreaStreet(item.title);
     if (item.postcode) setPincode(item.postcode);
     if (item.city) setCity(item.city);
     setShowSuggestions(false);
-    handleAddressFieldChange();
   };
 
-  // Handle Delivery Availability Check
-  const handleCheckDelivery = async () => {
+  // ── Automatic Seamless Delivery Calculation ──
+  useEffect(() => {
+    if (orderType !== "delivery") {
+      setIsDeliveryChecked(true);
+      setIsDeliveryAvailable(true);
+      setDeliveryCharge(0);
+      setDistanceKm(0);
+      setDeliverySurges([]);
+      setDeliveryNotice(null);
+      return;
+    }
+
+    const effectiveArea = areaStreet.trim();
+    const effectivePincode = pincode.trim();
+
+    if (effectiveArea.length < 3 && effectivePincode.length < 5) {
+      setIsDeliveryChecked(false);
+      setIsDeliveryAvailable(false);
+      setDeliveryCharge(null);
+      setDistanceKm(null);
+      setDeliveryNotice(null);
+      return;
+    }
+
     let effectiveCity = city.trim();
-    let effectivePincode = pincode.trim();
-    const areaLower = areaStreet.toLowerCase();
+    const areaLower = effectiveArea.toLowerCase();
     const cityLower = effectiveCity.toLowerCase();
 
-    // Preserve and auto-align city based on explicit selection, area name, or pincode
-    if (cityLower === "noida" || cityLower.includes("noida") || areaLower.includes("noida") || effectivePincode.startsWith("201")) {
+    if (
+      cityLower === "noida" ||
+      cityLower.includes("noida") ||
+      areaLower.includes("noida") ||
+      effectivePincode.startsWith("201")
+    ) {
       effectiveCity = "Noida";
-      if (city !== "Noida") setCity("Noida");
-    } else if (cityLower === "delhi" || areaLower.includes("delhi") || areaLower.includes("new delhi") || (effectivePincode.startsWith("11") && cityLower !== "noida")) {
+    } else if (
+      cityLower === "delhi" ||
+      areaLower.includes("delhi") ||
+      areaLower.includes("new delhi") ||
+      (effectivePincode.startsWith("11") && cityLower !== "noida")
+    ) {
       effectiveCity = "Delhi";
-      if (city !== "Delhi") setCity("Delhi");
-    } else if (cityLower === "faridabad" || areaLower.includes("faridabad") || effectivePincode.startsWith("121")) {
+    } else if (
+      cityLower === "faridabad" ||
+      areaLower.includes("faridabad") ||
+      effectivePincode.startsWith("121")
+    ) {
       effectiveCity = "Faridabad";
-      if (city !== "Faridabad") setCity("Faridabad");
-    } else if (cityLower === "gurugram" || cityLower === "gurgaon" || areaLower.includes("gurugram") || areaLower.includes("gurgaon") || effectivePincode.startsWith("122")) {
+    } else if (
+      cityLower === "gurugram" ||
+      cityLower === "gurgaon" ||
+      areaLower.includes("gurugram") ||
+      areaLower.includes("gurgaon") ||
+      effectivePincode.startsWith("122")
+    ) {
       effectiveCity = "Gurugram";
-      if (city !== "Gurugram") setCity("Gurugram");
     }
 
     const fullAddr = [
       flatBuilding.trim(),
-      areaStreet.trim(),
+      effectiveArea,
       landmark.trim() ? `Near ${landmark.trim()}` : null,
       effectiveCity,
       effectivePincode,
@@ -424,75 +435,49 @@ export default function CheckoutPageClient() {
       .filter(Boolean)
       .join(", ");
 
-    if (!flatBuilding.trim()) {
-      setDeliveryCheckError("Please enter your Apartment / Flat / House / Building details.");
-      return;
-    }
-    if (!areaStreet.trim()) {
-      setDeliveryCheckError("Please enter your Area, Street, or Sector.");
-      return;
-    }
-    if (!effectivePincode || effectivePincode.length < 5) {
-      setDeliveryCheckError("Please enter a valid Pincode.");
-      return;
-    }
+    const timer = setTimeout(async () => {
+      try {
+        setIsCheckingDelivery(true);
+        const res = await fetch("/api/delivery-distance", {
+          method: "POST",
+          headers: { "Content-Type": "application/json" },
+          body: JSON.stringify({
+            address: fullAddr,
+            flatBuilding: flatBuilding.trim(),
+            areaStreet: effectiveArea,
+            landmark: landmark.trim(),
+            pincode: effectivePincode,
+            city: effectiveCity,
+          }),
+        });
 
-    setIsCheckingDelivery(true);
-    setDeliveryCheckError(null);
+        const data = await res.json();
 
-    try {
-      const res = await fetch("/api/delivery-distance", {
-        method: "POST",
-        headers: { "Content-Type": "application/json" },
-        body: JSON.stringify({
-          address: fullAddr,
-          flatBuilding: flatBuilding.trim(),
-          areaStreet: areaStreet.trim(),
-          landmark: landmark.trim(),
-          pincode: effectivePincode,
-          city: effectiveCity,
-        }),
-      });
-
-      const data = await res.json();
-
-      if (!res.ok || !data.success) {
-        setIsDeliveryChecked(true);
-        setIsDeliveryAvailable(false);
-        setDistanceKm(data?.distanceKm ?? null);
-        setDeliveryCharge(null);
-        setDeliveryCheckError(
-          data?.error || "We couldn't find this address. Please check and try again."
-        );
-      } else if (!data.available) {
-        setIsDeliveryChecked(true);
-        setIsDeliveryAvailable(false);
-        setDistanceKm(data.distanceKm);
-        setDeliveryCharge(null);
-        setDeliverySurges([]);
-        setDeliveryCheckError(
-          data.error || "Sorry, we currently deliver only within 40 km."
-        );
-      } else {
-        setIsDeliveryChecked(true);
-        setIsDeliveryAvailable(true);
-        setDistanceKm(data.distanceKm);
-        setDeliveryCharge(data.deliveryCharge);
-        setDeliverySurges(data.surges || []);
-        setVerifiedFullAddress(fullAddr);
-        setDeliveryCheckError(null);
+        if (res.ok && data.success) {
+          setIsDeliveryChecked(true);
+          setIsDeliveryAvailable(Boolean(data.available));
+          setDistanceKm(data.distanceKm ?? null);
+          setDeliveryCharge(data.available ? data.deliveryCharge : null);
+          setDeliverySurges(data.surges || []);
+          setDeliveryNotice(
+            data.available ? null : data.error || "Location beyond 50 km delivery limit"
+          );
+        } else {
+          setIsDeliveryChecked(false);
+          setIsDeliveryAvailable(false);
+          setDeliveryCharge(null);
+          setDistanceKm(null);
+          setDeliveryNotice(null);
+        }
+      } catch {
+        // silent calculation retry
+      } finally {
+        setIsCheckingDelivery(false);
       }
-    } catch {
-      setIsDeliveryChecked(false);
-      setIsDeliveryAvailable(false);
-      setDeliveryCharge(null);
-      setDeliverySurges([]);
-      setDistanceKm(null);
-      setDeliveryCheckError("Unable to check delivery right now. Please try again.");
-    } finally {
-      setIsCheckingDelivery(false);
-    }
-  };
+    }, 400);
+
+    return () => clearTimeout(timer);
+  }, [flatBuilding, areaStreet, landmark, pincode, city, orderType]);
 
   const effectiveDeliveryCharge =
     orderType === "delivery" && isDeliveryAvailable && deliveryCharge !== null
@@ -511,13 +496,14 @@ export default function CheckoutPageClient() {
     name.trim().length >= 2 &&
     phone.trim().replace(/\D/g, "").length >= 10 &&
     isEmailValid;
+
   const isAddressValid =
     orderType === "takeaway" ||
-    (flatBuilding.trim().length >= 2 &&
+    (flatBuilding.trim().length >= 1 &&
       areaStreet.trim().length >= 2 &&
       pincode.trim().length >= 5 &&
-      isDeliveryChecked &&
       isDeliveryAvailable);
+
   const isSlotValid = Boolean(selectedDate) && Boolean(selectedSlot);
 
   const hasExceededProdLimit = React.useMemo(() => {
@@ -531,27 +517,94 @@ export default function CheckoutPageClient() {
     });
   }, [items]);
 
-  const canCheckout = !isClosed && !isBelowMinimum && !hasExceededProdLimit && totalItems > 0 && isContactValid && isAddressValid && isSlotValid;
+  const canCheckout =
+    !isClosed &&
+    !isBelowMinimum &&
+    !hasExceededProdLimit &&
+    totalItems > 0 &&
+    isContactValid &&
+    isAddressValid &&
+    isSlotValid;
 
-  const router = useRouter();
+  // ── Step 1 -> Step 2 Advance Handler ──
+  const handleContinueToReview = () => {
+    setErrorMsg(null);
 
-  const handleSubmit = async (e: React.FormEvent) => {
-    e.preventDefault();
-    if (!restaurant || !canCheckout) return;
+    if (name.trim().length < 2) {
+      setErrorMsg("Please enter your full name.");
+      return;
+    }
+    if (phone.trim().replace(/\D/g, "").length < 10) {
+      setErrorMsg("Please enter a valid 10-digit mobile number.");
+      return;
+    }
+    if (!isEmailValid) {
+      setErrorMsg("Please enter a valid email address.");
+      return;
+    }
+
+    if (orderType === "delivery") {
+      if (!flatBuilding.trim()) {
+        setErrorMsg("Please enter your Apartment / Flat / Building.");
+        return;
+      }
+      if (!areaStreet.trim()) {
+        setErrorMsg("Please enter your Area, Street, or Sector.");
+        return;
+      }
+      if (!pincode.trim() || pincode.trim().length < 5) {
+        setErrorMsg("Please enter a valid 6-digit Pincode.");
+        return;
+      }
+      if (isDeliveryChecked && !isDeliveryAvailable) {
+        setErrorMsg(
+          deliveryNotice ||
+            "Delivery is unavailable for this location. We currently deliver within 50 km."
+        );
+        return;
+      }
+    }
+
+    // Advance to Step 2
+    setCheckoutStep(2);
+    if (typeof window !== "undefined") {
+      window.scrollTo({ top: 0, behavior: "smooth" });
+    }
+  };
+
+  const handleBackToDetails = () => {
+    setErrorMsg(null);
+    setCheckoutStep(1);
+    if (typeof window !== "undefined") {
+      window.scrollTo({ top: 0, behavior: "smooth" });
+    }
+  };
+
+  // Handle Checkout & Launch Razorpay
+  const handleSubmit = async (e?: React.FormEvent) => {
+    if (e) e.preventDefault();
+    if (!restaurant) return;
+
+    if (!isContactValid || (orderType === "delivery" && !isAddressValid)) {
+      setCheckoutStep(1);
+      setErrorMsg("Please complete your contact and address details.");
+      return;
+    }
+
+    if (!isSlotValid) {
+      setErrorMsg("Please select an available delivery date & time slot.");
+      return;
+    }
 
     if (hasExceededProdLimit) {
-      setErrorMsg("One or more items in your cart exceed the daily order limit. Please adjust your cart before checkout.");
+      setErrorMsg(
+        "One or more items in your cart exceed the daily order limit. Please adjust your cart before checkout."
+      );
       return;
     }
 
     setSubmitting(true);
     setErrorMsg(null);
-
-    if (!isEmailValid) {
-      setErrorMsg("Please enter a valid email address. Order confirmation and receipts will be sent to your email.");
-      setSubmitting(false);
-      return;
-    }
 
     const fullAddr = getFullAddress();
     const formattedCustomerName = `${salutation} ${name.trim()}`;
@@ -597,11 +650,12 @@ export default function CheckoutPageClient() {
         throw new Error(result.error || "Failed to create order. Please try again.");
       }
 
-
-
       // Save complete receipt snapshot for the digital receipt page
       const receiptData = {
-        orderId: result.orderNumber || result.orderId || Math.random().toString(36).substring(2, 8).toUpperCase(),
+        orderId:
+          result.orderNumber ||
+          result.orderId ||
+          Math.random().toString(36).substring(2, 8).toUpperCase(),
         createdAt: new Date().toISOString(),
         orderType,
         customerName: formattedCustomerName,
@@ -646,7 +700,7 @@ export default function CheckoutPageClient() {
         console.error("Failed to store receipt in session:", e);
       }
 
-      // ── Step: Launch Razorpay Online Payment Gateway ──
+      // Launch Razorpay Online Payment Gateway
       try {
         const rzpRes = await fetch("/api/razorpay/create-order", {
           method: "POST",
@@ -693,7 +747,7 @@ export default function CheckoutPageClient() {
             email: email.trim(),
           },
           theme: {
-            color: "#3e683f",
+            color: "#394231",
           },
           handler: async function (response: any) {
             try {
@@ -714,7 +768,6 @@ export default function CheckoutPageClient() {
                 }),
               });
 
-              // Update receipt with verified payment status
               receiptData.paymentStatus = "PAID";
               try {
                 sessionStorage.setItem(`receipt-${slug}`, JSON.stringify(receiptData));
@@ -722,8 +775,6 @@ export default function CheckoutPageClient() {
               } catch {}
 
               clearCart();
-
-              // Navigate directly to generated digital receipt
               router.push("/order-success");
             } catch (e) {
               console.error("Razorpay post-payment handler error:", e);
@@ -744,7 +795,11 @@ export default function CheckoutPageClient() {
         return;
       } catch (rzpErr) {
         console.warn("Razorpay launch notice:", rzpErr);
-        setErrorMsg(rzpErr instanceof Error ? rzpErr.message : "Payment gateway could not be loaded. Please try again.");
+        setErrorMsg(
+          rzpErr instanceof Error
+            ? rzpErr.message
+            : "Payment gateway could not be loaded. Please try again."
+        );
         setSubmitting(false);
         return;
       }
@@ -757,22 +812,20 @@ export default function CheckoutPageClient() {
 
   if (loadingRestaurant) {
     return (
-      <div className="min-h-screen bg-[#D9BC9E] flex items-center justify-center">
-        <Loader2 className="h-8 w-8 animate-spin text-[#C26B59]" />
+      <div className="min-h-screen bg-[#FAF7F2] flex items-center justify-center">
+        <Loader2 className="h-8 w-8 animate-spin text-[#9C4133]" />
       </div>
     );
   }
 
   if (totalItems === 0) {
     return (
-      <div className="min-h-screen bg-[#D9BC9E] flex flex-col items-center justify-center gap-4 px-6 text-center">
-        <ShoppingBag className="h-12 w-12 text-[#696053]" />
-        <h2 className="font-serif font-bold text-xl text-[#29251F]">
-          Cart is empty
-        </h2>
+      <div className="min-h-screen bg-[#FAF7F2] flex flex-col items-center justify-center gap-4 px-6 text-center">
+        <ShoppingBag className="h-12 w-12 text-[#7A6E5D]" />
+        <h2 className="font-serif font-bold text-xl text-[#29251F]">Your cart is empty</h2>
         <Link
           href={`/store/${slug}`}
-          className="text-xs font-bold text-[#C26B59] hover:underline"
+          className="text-xs font-bold text-[#9C4133] hover:underline"
         >
           Back to Menu
         </Link>
@@ -780,1107 +833,904 @@ export default function CheckoutPageClient() {
     );
   }
 
-  return (
-    <div className="min-h-screen bg-[#D9BC9E] font-sans text-[#29251F]">
-      {/* Navbar */}
-      <Header cartCount={totalItems} />
+  // Helper date parts extractor for date cards
+  const getDateCardDetails = (dateStr: string) => {
+    try {
+      const d = new Date(dateStr + "T00:00:00");
+      return {
+        dayName: d.toLocaleDateString("en-IN", { weekday: "short" }),
+        dayNum: d.getDate(),
+        monthName: d.toLocaleDateString("en-IN", { month: "short" }),
+      };
+    } catch {
+      return { dayName: "Day", dayNum: 1, monthName: "Slot" };
+    }
+  };
 
-      <form onSubmit={handleSubmit} className="max-w-lg mx-auto px-4 py-6 pb-36 pt-16 sm:pt-20 md:pt-24 space-y-5">
-        {/* Back to Cart navigation */}
-        <div>
+  return (
+    <div className="min-h-screen bg-[#FAF7F2] text-[#29251F] font-sans relative overflow-x-hidden">
+      {/* Decorative Warm Botanical Leaves Accents */}
+      <div className="absolute top-0 right-0 w-48 sm:w-64 h-48 sm:h-64 pointer-events-none opacity-30 select-none overflow-hidden">
+        <svg viewBox="0 0 200 200" className="w-full h-full fill-none stroke-[#91885D] stroke-1">
+          <path d="M120,0 C140,50 190,80 200,120 M140,20 C170,40 180,90 190,130 M150,5 C120,60 160,110 180,140 M165,10 C180,60 150,90 170,120" />
+          <path d="M180,10 C160,30 150,60 170,80 C190,60 190,30 180,10 Z" fill="#91885D" fillOpacity="0.08" />
+        </svg>
+      </div>
+      <div className="absolute bottom-0 left-0 w-48 sm:w-64 h-48 sm:h-64 pointer-events-none opacity-25 select-none overflow-hidden">
+        <svg viewBox="0 0 200 200" className="w-full h-full fill-none stroke-[#91885D] stroke-1">
+          <path d="M0,120 C50,140 80,190 120,200 M20,140 C40,170 90,180 130,190 M5,150 C60,120 110,160 140,180" />
+          <path d="M10,180 C30,160 60,150 80,170 C60,190 30,190 10,180 Z" fill="#91885D" fillOpacity="0.08" />
+        </svg>
+      </div>
+
+      {/* ── TOP HEADER / 2-STEP STEPPER (Exact Match to Uploaded Photo) ── */}
+      <header className="max-w-xl mx-auto px-4 sm:px-6 pt-5 pb-3">
+        <div className="flex items-center justify-between">
+          {/* Back button: Step 1 goes to /cart, Step 2 goes back to Step 1 */}
+          {checkoutStep === 1 ? (
+            <Link
+              href="/cart"
+              className="inline-flex items-center gap-1.5 text-xs font-semibold text-[#29251F] hover:text-[#9C4133] transition-colors"
+            >
+              <ArrowLeft className="h-4 w-4" />
+              <span>Back to cart</span>
+            </Link>
+          ) : (
+            <button
+              type="button"
+              onClick={handleBackToDetails}
+              className="inline-flex items-center gap-1.5 text-xs font-semibold text-[#29251F] hover:text-[#9C4133] transition-colors cursor-pointer"
+            >
+              <ArrowLeft className="h-4 w-4" />
+              <span>Back</span>
+            </button>
+          )}
+
+          {/* Stepper (1 Details <-> 2 Review) */}
+          <nav aria-label="Checkout Progress" className="flex items-center gap-4 sm:gap-6">
+            {/* Step 1 Pill */}
+            <button
+              type="button"
+              onClick={() => checkoutStep === 2 && handleBackToDetails()}
+              className="flex flex-col items-center gap-1 cursor-pointer"
+            >
+              <div
+                className={`w-6 h-6 rounded-full flex items-center justify-center text-xs font-bold transition-all ${
+                  checkoutStep === 1
+                    ? "bg-[#9C4133] text-white shadow-xs"
+                    : "border border-[#9C4133] text-[#9C4133] bg-[#FFF8F5]"
+                }`}
+              >
+                {checkoutStep === 2 ? <Check className="h-3.5 w-3.5 stroke-[2.5]" /> : "1"}
+              </div>
+              <span
+                className={`text-[11px] font-bold tracking-tight ${
+                  checkoutStep === 1 ? "text-[#9C4133]" : "text-[#7A6E5D]"
+                }`}
+              >
+                Details
+              </span>
+            </button>
+
+            {/* Connecting line */}
+            <div className="w-10 sm:w-16 h-px bg-[#91885D]/30 -mt-3.5" />
+
+            {/* Step 2 Pill */}
+            <button
+              type="button"
+              onClick={() => checkoutStep === 1 && handleContinueToReview()}
+              className="flex flex-col items-center gap-1 cursor-pointer"
+            >
+              <div
+                className={`w-6 h-6 rounded-full flex items-center justify-center text-xs font-bold transition-all ${
+                  checkoutStep === 2
+                    ? "bg-[#9C4133] text-white shadow-xs"
+                    : "border border-[#91885D]/40 text-[#7A6E5D] bg-white"
+                }`}
+              >
+                2
+              </div>
+              <span
+                className={`text-[11px] font-bold tracking-tight ${
+                  checkoutStep === 2 ? "text-[#9C4133]" : "text-[#7A6E5D]"
+                }`}
+              >
+                Review
+              </span>
+            </button>
+          </nav>
+
+          {/* Cart Icon with Item Badge */}
           <Link
             href="/cart"
-            className="inline-flex items-center gap-2 text-xs font-bold uppercase tracking-wider text-[#29251F] hover:text-[#C26B59] transition-colors"
+            className="relative p-1 text-[#9C4133] hover:opacity-85 transition"
+            aria-label="View Cart"
           >
-            <div className="flex h-8 w-8 items-center justify-center rounded-xl bg-[#F5EBDD] border border-[#91885D]/35 text-[#29251F] shadow-2xs">
-              <ArrowLeft className="h-4 w-4" />
-            </div>
-            <span>Back to Cart</span>
+            <ShoppingBag className="h-5 w-5" />
+            <span className="absolute -top-1.5 -right-2 bg-[#9C4133] text-white text-[10px] font-bold rounded-full h-4 min-w-[16px] px-1 flex items-center justify-center shadow-xs">
+              {totalItems}
+            </span>
           </Link>
         </div>
+      </header>
 
-        <h1 className="font-serif font-bold text-2xl text-[#29251F]">
-          Checkout
-        </h1>
-
-        {/* Global Error Banner */}
+      {/* ── MAIN CONTAINER: SEGREGATED IN 2 PAGES ── */}
+      <main className="max-w-xl mx-auto px-4 sm:px-6 py-3 pb-24">
+        {/* Global Error Notice */}
         {errorMsg && (
-          <div className="flex items-start gap-2.5 rounded-2xl bg-[#A95145]/15 border border-[#A95145]/30 p-4 text-xs font-medium text-[#A95145] animate-in fade-in">
-            <AlertCircle className="h-4 w-4 text-[#A95145] shrink-0 mt-0.5" />
+          <div className="mb-4 flex items-start gap-2.5 rounded-2xl bg-[#9C4133]/10 border border-[#9C4133]/30 p-3.5 text-xs font-medium text-[#9C4133] animate-in fade-in">
+            <AlertCircle className="h-4 w-4 text-[#9C4133] shrink-0 mt-0.5" />
             <span>{errorMsg}</span>
           </div>
         )}
 
-        {/* Kitchen Closed Warning */}
-        {isClosed && (
-          <div className="flex items-start gap-2.5 rounded-2xl bg-[#A95145]/15 border border-[#A95145]/30 p-4 text-xs font-medium text-[#A95145]">
-            <AlertCircle className="h-4 w-4 text-[#A95145] shrink-0 mt-0.5" />
-            <span>
-              The kitchen is currently closed. Orders cannot be placed at this time.
-            </span>
-          </div>
-        )}
-
-        {/* Minimum Order Warning */}
-        {isBelowMinimum && (
-          <div className="flex items-start gap-2.5 rounded-2xl bg-[#91885D]/20 border border-[#91885D]/40 p-4 text-xs font-medium text-[#29251F]">
-            <AlertCircle className="h-4 w-4 text-[#91885D] shrink-0 mt-0.5" />
-            <span>
-              Minimum order amount is {formatPrice(minimumOrder)}. Add{" "}
-              {formatPrice(minimumOrder - subtotal)} more to continue.
-            </span>
-          </div>
-        )}
-
-        {/* ── 1. FULFILMENT METHOD (Delivery or Takeaway) ── */}
-        <div className="rounded-3xl border border-[#91885D]/30 bg-[#F5EBDD] shadow-warm-sm p-5">
-          <h2 className="font-serif font-bold text-base text-[#29251F] mb-4">
-            Fulfilment Method
-          </h2>
-          <div className="grid grid-cols-2 gap-3">
-            {[
-              {
-                value: "delivery" as const,
-                label: "Home Delivery",
-                icon: Truck,
-                sub:
-                  isDeliveryChecked && isDeliveryAvailable && distanceKm !== null && deliveryCharge !== null
-                    ? `${distanceKm} km (${formatPrice(deliveryCharge)})`
-                    : "Distance-based fare",
-                enabled: restaurant?.delivery_enabled ?? true,
-              },
-              {
-                value: "takeaway" as const,
-                label: "Takeaway / Pickup",
-                icon: ShoppingBag,
-                sub: "Free (₹0)",
-                enabled: restaurant?.takeaway_enabled ?? true,
-              },
-            ].map(({ value, label, icon: Icon, sub, enabled }) => (
-              <button
-                key={value}
-                type="button"
-                disabled={!enabled}
-                onClick={() => {
-                  setOrderType(value);
-                  if (value === "takeaway") {
-                    setDeliveryCheckError(null);
-                  }
-                }}
-                className={`flex flex-col items-center gap-2 rounded-2xl border-2 p-4 transition-all cursor-pointer ${
-                  !enabled
-                    ? "opacity-40 cursor-not-allowed border-[#91885D]/20 bg-[#E8D5BC]"
-                    : orderType === value
-                    ? "border-[#C26B59] bg-[#E8D5BC] shadow-xs"
-                    : "border-[#91885D]/30 bg-[#F5EBDD] hover:border-[#C26B59]"
-                }`}
-              >
-                <Icon
-                  className={`h-5 w-5 ${
-                    orderType === value ? "text-[#C26B59]" : "text-[#696053]"
-                  }`}
-                />
-                <span
-                  className={`text-xs font-bold ${
-                    orderType === value ? "text-[#C26B59]" : "text-[#29251F]"
-                  }`}
-                >
-                  {label}
-                </span>
-                <span className="text-[10px] font-semibold text-[#696053]">
-                  {sub}
-                </span>
-              </button>
-            ))}
-          </div>
-        </div>
-
-        {/* ── 2. RECEIVER'S CONTACT ── */}
-        <div className="rounded-3xl border border-[#91885D]/30 bg-[#F5EBDD] shadow-warm-sm p-5 space-y-4">
-          <h2 className="font-serif font-bold text-base text-[#29251F] flex items-center gap-2">
-            <User className="h-4 w-4 text-[#C26B59]" />
-            <span>Receiver&apos;s Contact</span>
-          </h2>
-
-          {/* Salutation + Receiver's Name */}
-          <div>
-            <label className="text-[10px] font-bold uppercase tracking-wider text-[#696053] block mb-1.5">
-              Receiver&apos;s Name *
-            </label>
-            <div className="flex gap-2">
-              <div className="relative shrink-0">
-                <select
-                  value={salutation}
-                  onChange={(e) => setSalutation(e.target.value as "Mr" | "Ms" | "Mrs")}
-                  aria-label="Salutation"
-                  className="h-10 rounded-2xl border border-[#91885D]/35 bg-[#FAF6EF] px-3 text-xs font-bold text-[#29251F] focus:outline-none focus:ring-2 focus:ring-[#C26B59]/30 transition cursor-pointer"
-                >
-                  <option value="Mr">Mr</option>
-                  <option value="Ms">Ms</option>
-                  <option value="Mrs">Mrs</option>
-                </select>
-              </div>
-
-              <div className="relative flex-1">
-                <input
-                  type="text"
-                  value={name}
-                  onChange={(e) => setName(e.target.value)}
-                  required
-                  placeholder="Enter full name"
-                  className="w-full h-10 rounded-2xl border border-[#91885D]/35 bg-[#FAF6EF] px-4 text-xs text-[#29251F] placeholder:text-[#696053]/60 focus:outline-none focus:ring-2 focus:ring-[#C26B59]/30 transition"
-                />
-              </div>
-            </div>
-          </div>
-
-          {/* Email ID (Compulsory) */}
-          <div>
-            <div className="flex items-center justify-between mb-1.5">
-              <label className="text-[10px] font-bold uppercase tracking-wider text-[#696053]">
-                Email Address *
-              </label>
-              <span className="text-[9px] font-semibold text-[#C26B59]">
-                Compulsory (Receipt & updates sent here)
+        {/* ═══════════════════════════════════════════════════════════
+            PAGE 1: STEP 1 OF 2 — "Your Details" (Exact Match)
+            ═══════════════════════════════════════════════════════════ */}
+        {checkoutStep === 1 && (
+          <div className="space-y-4 animate-in fade-in duration-200">
+            {/* Step Header */}
+            <div>
+              <span className="text-[10px] font-extrabold uppercase tracking-widest text-[#9C4133] block mb-0.5">
+                STEP 1 OF 2
               </span>
+              <h1 className="font-serif text-3xl font-bold text-[#29251F] tracking-tight">
+                Your Details
+              </h1>
+              <p className="text-xs text-[#7A6E5D] mt-0.5 font-medium">
+                Let&apos;s get the basics sorted.
+              </p>
             </div>
-            <div className="relative flex items-center">
-              <span className="absolute left-3.5 text-[#696053]">
-                <Mail className="h-3.5 w-3.5" />
-              </span>
-              <input
-                type="email"
-                value={email}
-                onChange={(e) => setEmail(e.target.value)}
-                required
-                placeholder="e.g. yourname@email.com"
-                className="w-full h-10 rounded-2xl border border-[#91885D]/35 bg-[#FAF6EF] pl-9 pr-4 text-xs text-[#29251F] placeholder:text-[#696053]/60 focus:outline-none focus:ring-2 focus:ring-[#C26B59]/30 transition"
-              />
-            </div>
-          </div>
 
-          {/* Receiver's Mobile Number */}
-          <div>
-            <label className="text-[10px] font-bold uppercase tracking-wider text-[#696053] block mb-1.5">
-              Receiver&apos;s Mobile Number *
-            </label>
-            <div className="flex gap-2">
-              <div className="h-10 flex items-center justify-center px-3.5 rounded-2xl border border-[#91885D]/35 bg-[#FAF6EF] text-xs font-bold text-[#696053] shrink-0 select-none">
-                <Phone className="h-3 w-3 mr-1 text-[#C26B59]" />
-                +91
+            {/* 1. Delivery Method Card */}
+            <div className="bg-[#FFFDF9] border border-[#E8DEC8] rounded-3xl p-4 sm:p-5 shadow-xs space-y-3.5">
+              <div className="flex items-start gap-2.5">
+                <div className="w-5 h-5 rounded-full bg-[#9C4133] text-white flex items-center justify-center text-[11px] font-bold shrink-0 mt-0.5">
+                  1
+                </div>
+                <div>
+                  <h2 className="font-serif font-bold text-sm text-[#29251F] leading-tight">
+                    Delivery Method
+                  </h2>
+                  <p className="text-[11px] text-[#7A6E5D] mt-0.5">
+                    Choose how you want to receive your order
+                  </p>
+                </div>
               </div>
-              <input
-                type="tel"
-                value={phone}
-                onChange={(e) => setPhone(e.target.value)}
-                required
-                maxLength={10}
-                placeholder="10-digit mobile number"
-                className="flex-1 h-10 rounded-2xl border border-[#91885D]/35 bg-[#FAF6EF] px-4 text-xs text-[#29251F] placeholder:text-[#696053]/60 focus:outline-none focus:ring-2 focus:ring-[#C26B59]/30 transition tracking-wide font-medium"
-              />
-            </div>
-          </div>
 
-          {/* Add Alternate Mobile Number Toggle */}
-          {!showAlternatePhone ? (
-            <button
-              type="button"
-              onClick={() => setShowAlternatePhone(true)}
-              className="inline-flex items-center gap-1.5 text-[11px] font-bold text-[#A34B3D] hover:text-[#7A362B] transition-colors cursor-pointer pt-0.5"
-            >
-              <Plus className="h-3.5 w-3.5" />
-              <span>+ Add Alternate Mobile No.</span>
-            </button>
-          ) : (
-            <div className="pt-1 animate-in fade-in space-y-1.5">
-              <div className="flex items-center justify-between">
-                <label className="text-[10px] font-bold uppercase tracking-wider text-[#696053]">
-                  Alternate Mobile Number (Optional)
-                </label>
+              {/* 2 Radio Cards */}
+              <div className="grid grid-cols-2 gap-2.5">
+                {/* Home Delivery Card */}
                 <button
                   type="button"
-                  onClick={() => {
-                    setShowAlternatePhone(false);
-                    setAlternatePhone("");
-                  }}
-                  className="text-[10px] font-bold text-rose-700 hover:text-rose-900 flex items-center gap-0.5 cursor-pointer"
+                  onClick={() => setOrderType("delivery")}
+                  className={`flex items-center justify-between p-3 rounded-2xl border text-left transition-all cursor-pointer ${
+                    orderType === "delivery"
+                      ? "border-[#9C4133] bg-[#FFF8F5] shadow-2xs"
+                      : "border-[#E8DEC8] bg-white hover:border-[#9C4133]/50"
+                  }`}
                 >
-                  <X className="h-3 w-3" />
-                  <span>Remove</span>
+                  <div className="flex items-center gap-2.5">
+                    <div
+                      className={`w-9 h-9 rounded-xl flex items-center justify-center shrink-0 ${
+                        orderType === "delivery"
+                          ? "bg-[#9C4133]/10 text-[#9C4133]"
+                          : "bg-[#F7EFE4] text-[#7A6E5D]"
+                      }`}
+                    >
+                      <Truck className="h-4.5 w-4.5" />
+                    </div>
+                    <div>
+                      <p
+                        className={`text-xs font-bold leading-tight ${
+                          orderType === "delivery" ? "text-[#9C4133]" : "text-[#29251F]"
+                        }`}
+                      >
+                        Home Delivery
+                      </p>
+                      <p className="text-[9.5px] text-[#7A6E5D] mt-0.5">Distance-based fare</p>
+                    </div>
+                  </div>
+
+                  <div
+                    className={`w-4 h-4 rounded-full border flex items-center justify-center shrink-0 ${
+                      orderType === "delivery" ? "border-[#9C4133]" : "border-[#91885D]/40"
+                    }`}
+                  >
+                    {orderType === "delivery" && (
+                      <div className="w-2 h-2 rounded-full bg-[#9C4133]" />
+                    )}
+                  </div>
+                </button>
+
+                {/* Takeaway / Pickup Card */}
+                <button
+                  type="button"
+                  onClick={() => setOrderType("takeaway")}
+                  className={`flex items-center justify-between p-3 rounded-2xl border text-left transition-all cursor-pointer ${
+                    orderType === "takeaway"
+                      ? "border-[#9C4133] bg-[#FFF8F5] shadow-2xs"
+                      : "border-[#E8DEC8] bg-white hover:border-[#9C4133]/50"
+                  }`}
+                >
+                  <div className="flex items-center gap-2.5">
+                    <div
+                      className={`w-9 h-9 rounded-xl flex items-center justify-center shrink-0 ${
+                        orderType === "takeaway"
+                          ? "bg-[#9C4133]/10 text-[#9C4133]"
+                          : "bg-[#F7EFE4] text-[#7A6E5D]"
+                      }`}
+                    >
+                      <ShoppingBag className="h-4.5 w-4.5" />
+                    </div>
+                    <div>
+                      <p
+                        className={`text-xs font-bold leading-tight ${
+                          orderType === "takeaway" ? "text-[#9C4133]" : "text-[#29251F]"
+                        }`}
+                      >
+                        Takeaway / Pickup
+                      </p>
+                      <p className="text-[9.5px] text-[#7A6E5D] mt-0.5">Free (₹0)</p>
+                    </div>
+                  </div>
+
+                  <div
+                    className={`w-4 h-4 rounded-full border flex items-center justify-center shrink-0 ${
+                      orderType === "takeaway" ? "border-[#9C4133]" : "border-[#91885D]/40"
+                    }`}
+                  >
+                    {orderType === "takeaway" && (
+                      <div className="w-2 h-2 rounded-full bg-[#9C4133]" />
+                    )}
+                  </div>
                 </button>
               </div>
+            </div>
+
+            {/* 2. Receiver's Contact Card */}
+            <div className="bg-[#FFFDF9] border border-[#E8DEC8] rounded-3xl p-4 sm:p-5 shadow-xs space-y-3.5">
+              <div className="flex items-start gap-2.5">
+                <div className="w-5 h-5 rounded-full bg-[#9C4133] text-white flex items-center justify-center text-[11px] font-bold shrink-0 mt-0.5">
+                  2
+                </div>
+                <div>
+                  <h2 className="font-serif font-bold text-sm text-[#29251F] leading-tight">
+                    Receiver&apos;s Contact
+                  </h2>
+                  <p className="text-[11px] text-[#7A6E5D] mt-0.5">
+                    We&apos;ll use these details to share order updates.
+                  </p>
+                </div>
+              </div>
+
+              {/* Title + Name */}
               <div className="flex gap-2">
-                <div className="h-10 flex items-center justify-center px-3.5 rounded-2xl border border-[#91885D]/35 bg-[#FAF6EF] text-xs font-bold text-[#696053] shrink-0 select-none">
+                <div className="relative w-24 shrink-0">
+                  <select
+                    value={salutation}
+                    onChange={(e) => setSalutation(e.target.value as "Mr" | "Ms" | "Mrs")}
+                    aria-label="Title"
+                    className="w-full h-10 appearance-none rounded-xl border border-[#E8DEC8] bg-white px-3 text-xs font-semibold text-[#29251F] focus:outline-none focus:ring-1 focus:ring-[#9C4133] cursor-pointer"
+                  >
+                    <option value="Mr">Mr</option>
+                    <option value="Ms">Ms</option>
+                    <option value="Mrs">Mrs</option>
+                  </select>
+                  <ChevronDown className="h-3.5 w-3.5 text-[#7A6E5D] absolute right-3 top-3.5 pointer-events-none" />
+                </div>
+
+                <div className="flex-1">
+                  <input
+                    type="text"
+                    value={name}
+                    onChange={(e) => setName(e.target.value)}
+                    required
+                    placeholder="Enter full name"
+                    className="w-full h-10 rounded-xl border border-[#E8DEC8] bg-white px-3.5 text-xs text-[#29251F] placeholder:text-[#91885D]/60 focus:outline-none focus:ring-1 focus:ring-[#9C4133]"
+                  />
+                </div>
+              </div>
+
+              {/* Email Address */}
+              <div className="relative flex items-center">
+                <Mail className="h-3.5 w-3.5 text-[#7A6E5D] absolute left-3 pointer-events-none" />
+                <input
+                  type="email"
+                  value={email}
+                  onChange={(e) => setEmail(e.target.value)}
+                  required
+                  placeholder="e.g. you@example.com"
+                  className="w-full h-10 rounded-xl border border-[#E8DEC8] bg-white pl-9 pr-3 text-xs text-[#29251F] placeholder:text-[#91885D]/60 focus:outline-none focus:ring-1 focus:ring-[#9C4133]"
+                />
+              </div>
+
+              {/* Mobile Number */}
+              <div className="flex gap-2">
+                <div className="h-10 flex items-center justify-center px-3 rounded-xl border border-[#E8DEC8] bg-[#FDFBF7] text-xs font-bold text-[#696053] shrink-0">
+                  <Phone className="h-3 w-3 mr-1 text-[#9C4133]" />
                   +91
                 </div>
                 <input
                   type="tel"
-                  value={alternatePhone}
-                  onChange={(e) => setAlternatePhone(e.target.value)}
+                  value={phone}
+                  onChange={(e) => setPhone(e.target.value)}
+                  required
                   maxLength={10}
-                  placeholder="Secondary mobile number"
-                  className="flex-1 h-10 rounded-2xl border border-[#91885D]/35 bg-[#FAF6EF] px-4 text-xs text-[#29251F] placeholder:text-[#696053]/60 focus:outline-none focus:ring-2 focus:ring-[#C26B59]/30 transition"
+                  placeholder="10-digit mobile number"
+                  className="flex-1 h-10 rounded-xl border border-[#E8DEC8] bg-white px-3.5 text-xs text-[#29251F] placeholder:text-[#91885D]/60 focus:outline-none focus:ring-1 focus:ring-[#9C4133]"
                 />
               </div>
-            </div>
-          )}
-        </div>
 
-        {/* ── 3. RECEIVER'S ADDRESS (DELIVERY ONLY) ── */}
-        {orderType === "delivery" && (
-          <div className="rounded-3xl border border-[#91885D]/30 bg-[#F5EBDD] shadow-warm-sm p-5 space-y-4 animate-in fade-in">
-            <h2 className="font-serif font-bold text-base text-[#29251F] flex items-center gap-2">
-              <MapPin className="h-4 w-4 text-[#C26B59]" />
-              <span>Receiver&apos;s Address</span>
-            </h2>
-
-            {/* Apartment, Flat, House no., Building, Company */}
-            <div>
-              <label className="text-[10px] font-bold uppercase tracking-wider text-[#696053] block mb-1.5">
-                Apartment, Flat, House no., Building, Company *
-              </label>
-              <input
-                type="text"
-                value={flatBuilding}
-                onChange={(e) => {
-                  setFlatBuilding(e.target.value);
-                  handleAddressFieldChange();
-                }}
-                required
-                placeholder="e.g. FNP Vatika 75 / Flat 402, Tower B"
-                className="w-full h-10 rounded-2xl border border-[#91885D]/35 bg-[#FAF6EF] px-4 text-xs text-[#29251F] placeholder:text-[#696053]/60 focus:outline-none focus:ring-2 focus:ring-[#C26B59]/30 transition"
-              />
-            </div>
-
-            {/* Area, Street, Sector, Village (WITH LIVE AUTOCOMPLETE DROPDOWN) */}
-            <div className="relative" ref={suggestionsRef}>
-              <label className="text-[10px] font-bold uppercase tracking-wider text-[#696053] block mb-1.5">
-                Area, Street, Sector, Village *
-              </label>
-              <div className="relative flex items-center">
-                <input
-                  type="text"
-                  value={areaStreet}
-                  onChange={(e) => {
-                    setAreaStreet(e.target.value);
-                    handleAddressFieldChange();
-                  }}
-                  onFocus={() => {
-                    if (suggestions.length > 0) setShowSuggestions(true);
-                  }}
-                  required
-                  placeholder="e.g. Sultanpur / Sector 51 / Vasant Kunj / DLF Phase 4"
-                  className="w-full h-10 rounded-2xl border border-[#91885D]/35 bg-[#FAF6EF] pl-4 pr-9 text-xs text-[#29251F] placeholder:text-[#696053]/60 focus:outline-none focus:ring-2 focus:ring-[#C26B59]/30 transition font-medium"
-                />
-                <span className="absolute right-3 text-[#696053]">
-                  {isSearchingSuggestions ? (
-                    <Loader2 className="h-3.5 w-3.5 animate-spin text-[#C26B59]" />
-                  ) : (
-                    <Search className="h-3.5 w-3.5" />
-                  )}
-                </span>
-              </div>
-
-              {/* Suggestions Dropdown */}
-              {showSuggestions && suggestions.length > 0 && (
-                <div className="absolute top-full left-0 right-0 z-30 mt-1.5 max-h-56 overflow-y-auto rounded-2xl border border-[#91885D]/35 bg-[#FAF6EF] shadow-warm-lg p-1.5 divide-y divide-[#91885D]/15">
-                  {suggestions.map((item, idx) => (
+              {/* Add Alternate Mobile Toggle */}
+              {!showAlternatePhone ? (
+                <button
+                  type="button"
+                  onClick={() => setShowAlternatePhone(true)}
+                  className="inline-flex items-center gap-1 text-[11px] font-bold text-[#9C4133] hover:text-[#7A2E22] transition-colors cursor-pointer"
+                >
+                  <Plus className="h-3 w-3" />
+                  <span>Add Alternate Mobile No.</span>
+                </button>
+              ) : (
+                <div className="pt-0.5 space-y-1">
+                  <div className="flex items-center justify-between">
+                    <span className="text-[10px] font-bold text-[#696053]">
+                      Alternate Mobile Number (Optional)
+                    </span>
                     <button
-                      key={`${item.title}-${idx}`}
                       type="button"
-                      onClick={() => handleSelectSuggestion(item)}
-                      className="w-full text-left p-2.5 rounded-xl hover:bg-[#E8D5BC] transition-colors flex items-start gap-2.5 group cursor-pointer"
+                      onClick={() => {
+                        setShowAlternatePhone(false);
+                        setAlternatePhone("");
+                      }}
+                      className="text-[10px] font-bold text-rose-700 hover:text-rose-900 cursor-pointer flex items-center gap-0.5"
                     >
-                      <MapPin className="h-3.5 w-3.5 text-[#C26B59] shrink-0 mt-0.5" />
-                      <div className="min-w-0 flex-1">
-                        <p className="text-xs font-bold text-[#29251F] truncate group-hover:text-[#7A362B]">
-                          {item.title}
-                        </p>
-                        <p className="text-[10px] text-[#696053] truncate">
-                          {item.subtitle}
-                        </p>
-                      </div>
+                      <X className="h-3 w-3" />
+                      <span>Remove</span>
                     </button>
-                  ))}
-                </div>
-              )}
-            </div>
-
-            {/* Landmark */}
-            <div>
-              <label className="text-[10px] font-bold uppercase tracking-wider text-[#696053] block mb-1.5">
-                Landmark (Optional)
-              </label>
-              <input
-                type="text"
-                value={landmark}
-                onChange={(e) => {
-                  setLandmark(e.target.value);
-                  handleAddressFieldChange();
-                }}
-                placeholder="e.g. Near Artemis Hospital / Market"
-                className="w-full h-10 rounded-2xl border border-[#91885D]/35 bg-[#FAF6EF] px-4 text-xs text-[#29251F] placeholder:text-[#696053]/60 focus:outline-none focus:ring-2 focus:ring-[#C26B59]/30 transition"
-              />
-            </div>
-
-            {/* Pincode & City (Side-by-side) */}
-            <div className="grid grid-cols-2 gap-3">
-              <div>
-                <label className="text-[10px] font-bold uppercase tracking-wider text-[#696053] block mb-1.5">
-                  Pincode *
-                </label>
-                <input
-                  type="text"
-                  value={pincode}
-                  onChange={(e) => {
-                    const val = e.target.value.replace(/\D/g, "");
-                    setPincode(val);
-                    if (val.startsWith("201")) {
-                      setCity("Noida");
-                    } else if (val.startsWith("11") && city !== "Noida") {
-                      setCity("Delhi");
-                    } else if (val.startsWith("121") && city !== "Noida") {
-                      setCity("Faridabad");
-                    } else if (val.startsWith("122") && city !== "Noida") {
-                      setCity("Gurugram");
-                    }
-                    handleAddressFieldChange();
-                  }}
-                  required
-                  maxLength={6}
-                  placeholder="e.g. 201304 / 122001"
-                  className="w-full h-10 rounded-2xl border border-[#91885D]/35 bg-[#FAF6EF] px-4 text-xs font-bold text-[#29251F] placeholder:text-[#696053]/60 focus:outline-none focus:ring-2 focus:ring-[#C26B59]/30 transition"
-                />
-              </div>
-
-              <div>
-                <label className="text-[10px] font-bold uppercase tracking-wider text-[#696053] block mb-1.5">
-                  City *
-                </label>
-                <input
-                  type="text"
-                  list="ncr-cities-list"
-                  value={city}
-                  onChange={(e) => {
-                    setCity(e.target.value);
-                    handleAddressFieldChange();
-                  }}
-                  required
-                  placeholder="Noida / Gurugram / Delhi"
-                  className="w-full h-10 rounded-2xl border border-[#91885D]/35 bg-[#FAF6EF] px-4 text-xs font-bold text-[#29251F] placeholder:text-[#696053]/60 focus:outline-none focus:ring-2 focus:ring-[#C26B59]/30 transition"
-                />
-                <datalist id="ncr-cities-list">
-                  <option value="Noida" />
-                  <option value="Gurugram" />
-                  <option value="Delhi" />
-                  <option value="Faridabad" />
-                </datalist>
-              </div>
-            </div>
-
-            {/* Address Type Selection Pills */}
-            <div>
-              <label className="text-[10px] font-bold uppercase tracking-wider text-[#696053] block mb-2">
-                Save Address As
-              </label>
-              <div className="flex items-center gap-2.5">
-                {[
-                  { id: "home", label: "Home", icon: Home },
-                  { id: "office", label: "Office", icon: Building2 },
-                  { id: "other", label: "Other", icon: Navigation },
-                ].map((type) => {
-                  const Icon = type.icon;
-                  const isSelected = addressType === type.id;
-                  return (
-                    <button
-                      key={type.id}
-                      type="button"
-                      onClick={() => setAddressType(type.id as "home" | "office" | "other")}
-                      className={`flex-1 flex items-center justify-center gap-1.5 py-2 px-3 rounded-xl border text-xs font-bold transition-all cursor-pointer select-none ${
-                        isSelected
-                          ? "bg-[#C26B59] text-[#FAF5ED] border-[#C26B59] shadow-2xs scale-[1.02]"
-                          : "bg-[#FAF6EF] text-[#554D3F] border-[#91885D]/35 hover:border-[#C26B59]"
-                      }`}
-                    >
-                      <Icon className="h-3.5 w-3.5" />
-                      <span>{type.label}</span>
-                    </button>
-                  );
-                })}
-              </div>
-            </div>
-
-            {/* Check Delivery Action & Status Box */}
-            <div className="space-y-2 pt-2 border-t border-[#91885D]/20">
-              <button
-                type="button"
-                onClick={handleCheckDelivery}
-                disabled={isCheckingDelivery || !flatBuilding.trim() || !areaStreet.trim()}
-                className="w-full flex items-center justify-center gap-2 rounded-2xl bg-[#634832] hover:bg-[#523B28] text-[#F5EBDD] py-3 text-xs font-bold shadow-xs hover:shadow-sm transition-all disabled:opacity-50 disabled:cursor-not-allowed active:scale-[0.99] cursor-pointer"
-              >
-                {isCheckingDelivery ? (
-                  <>
-                    <Loader2 className="h-4 w-4 animate-spin" />
-                    <span>Checking delivery availability...</span>
-                  </>
-                ) : (
-                  <>
-                    <Truck className="h-4 w-4 text-[#F5EBDD]" />
-                    <span>{isDeliveryChecked && isDeliveryAvailable ? "Re-verify Delivery Distance" : "Check Delivery"}</span>
-                  </>
-                )}
-              </button>
-
-              {/* Delivery Availability Verified Card */}
-              {isDeliveryChecked && isDeliveryAvailable && distanceKm !== null && deliveryCharge !== null && (
-                <div className="flex items-start gap-2.5 rounded-2xl bg-[#4D7C47]/10 border border-[#4D7C47]/30 p-3.5 text-xs text-[#2D5A27] animate-in fade-in">
-                  <CheckCircle2 className="h-4 w-4 text-[#4D7C47] shrink-0 mt-0.5" />
-                  <div>
-                    <p className="font-bold flex items-center gap-1.5">
-                      <span>✓ Delivery available to your address</span>
-                    </p>
-                    <p className="text-[11px] text-[#3E362A] mt-0.5">
-                      Road Distance: <span className="font-bold">{distanceKm} km</span> • Delivery Charge: <span className="font-bold text-[#A34B3D]">{formatPrice(deliveryCharge)}</span>
-                    </p>
+                  </div>
+                  <div className="flex gap-2">
+                    <div className="h-10 flex items-center justify-center px-3 rounded-xl border border-[#E8DEC8] bg-[#FDFBF7] text-xs font-bold text-[#696053] shrink-0">
+                      +91
+                    </div>
+                    <input
+                      type="tel"
+                      value={alternatePhone}
+                      onChange={(e) => setAlternatePhone(e.target.value)}
+                      maxLength={10}
+                      placeholder="Secondary mobile number"
+                      className="flex-1 h-10 rounded-xl border border-[#E8DEC8] bg-white px-3.5 text-xs text-[#29251F] placeholder:text-[#91885D]/60 focus:outline-none focus:ring-1 focus:ring-[#9C4133]"
+                    />
                   </div>
                 </div>
               )}
+            </div>
 
-              {/* Delivery Error Card */}
-              {deliveryCheckError && (
-                <div className="flex items-start gap-2 rounded-2xl bg-[#A95145]/10 border border-[#A95145]/30 p-3.5 text-xs text-[#A95145] animate-in fade-in">
-                  <AlertCircle className="h-4 w-4 text-[#A95145] shrink-0 mt-0.5" />
-                  <span>{deliveryCheckError}</span>
+            {/* 3. Delivery Address Card (Home Delivery only) */}
+            {orderType === "delivery" && (
+              <div className="bg-[#FFFDF9] border border-[#E8DEC8] rounded-3xl p-4 sm:p-5 shadow-xs space-y-3.5 animate-in fade-in">
+                <div className="flex items-start gap-2.5">
+                  <div className="w-5 h-5 rounded-full bg-[#9C4133] text-white flex items-center justify-center text-[11px] font-bold shrink-0 mt-0.5">
+                    3
+                  </div>
+                  <div>
+                    <h2 className="font-serif font-bold text-sm text-[#29251F] leading-tight">
+                      Delivery Address
+                    </h2>
+                    <p className="text-[11px] text-[#7A6E5D] mt-0.5">
+                      Where should we deliver your order?
+                    </p>
+                  </div>
                 </div>
-              )}
+
+                {/* Apartment, Flat */}
+                <div className="relative flex items-center">
+                  <Home className="h-3.5 w-3.5 text-[#7A6E5D] absolute left-3 pointer-events-none" />
+                  <input
+                    type="text"
+                    value={flatBuilding}
+                    onChange={(e) => setFlatBuilding(e.target.value)}
+                    required
+                    placeholder="Apartment, Flat, House No., Building, Company"
+                    className="w-full h-10 rounded-xl border border-[#E8DEC8] bg-white pl-9 pr-3 text-xs text-[#29251F] placeholder:text-[#91885D]/60 focus:outline-none focus:ring-1 focus:ring-[#9C4133]"
+                  />
+                </div>
+
+                {/* Area, Street with Autocomplete */}
+                <div className="relative" ref={suggestionsRef}>
+                  <div className="relative flex items-center">
+                    <MapPin className="h-3.5 w-3.5 text-[#9C4133] absolute left-3 pointer-events-none" />
+                    <input
+                      type="text"
+                      value={areaStreet}
+                      onChange={(e) => setAreaStreet(e.target.value)}
+                      onFocus={() => {
+                        if (suggestions.length > 0) setShowSuggestions(true);
+                      }}
+                      required
+                      placeholder="Area, Street, Sector, Village"
+                      className="w-full h-10 rounded-xl border border-[#E8DEC8] bg-white pl-9 pr-9 text-xs font-medium text-[#29251F] placeholder:text-[#91885D]/60 focus:outline-none focus:ring-1 focus:ring-[#9C4133]"
+                    />
+                    <span className="absolute right-3 text-[#7A6E5D]">
+                      {isSearchingSuggestions ? (
+                        <Loader2 className="h-3.5 w-3.5 animate-spin text-[#9C4133]" />
+                      ) : (
+                        <Search className="h-3.5 w-3.5" />
+                      )}
+                    </span>
+                  </div>
+
+                  {/* Suggestions Dropdown */}
+                  {showSuggestions && suggestions.length > 0 && (
+                    <div className="absolute top-full left-0 right-0 z-30 mt-1.5 max-h-56 overflow-y-auto rounded-2xl border border-[#E8DEC8] bg-white shadow-xl p-1.5 divide-y divide-[#E8DEC8]/50">
+                      {suggestions.map((item, idx) => (
+                        <button
+                          key={`${item.title}-${idx}`}
+                          type="button"
+                          onClick={() => handleSelectSuggestion(item)}
+                          className="w-full text-left p-2.5 rounded-xl hover:bg-[#FAF7F2] transition-colors flex items-start gap-2.5 group cursor-pointer"
+                        >
+                          <MapPin className="h-3.5 w-3.5 text-[#9C4133] shrink-0 mt-0.5" />
+                          <div className="min-w-0 flex-1">
+                            <p className="text-xs font-bold text-[#29251F] truncate group-hover:text-[#9C4133]">
+                              {item.title}
+                            </p>
+                            <p className="text-[10px] text-[#7A6E5D] truncate">
+                              {item.subtitle}
+                            </p>
+                          </div>
+                        </button>
+                      ))}
+                    </div>
+                  )}
+                </div>
+
+                {/* Landmark (Optional) */}
+                <div className="relative flex items-center">
+                  <Building2 className="h-3.5 w-3.5 text-[#7A6E5D] absolute left-3 pointer-events-none" />
+                  <input
+                    type="text"
+                    value={landmark}
+                    onChange={(e) => setLandmark(e.target.value)}
+                    placeholder="Landmark (Optional)"
+                    className="w-full h-10 rounded-xl border border-[#E8DEC8] bg-white pl-9 pr-3 text-xs text-[#29251F] placeholder:text-[#91885D]/60 focus:outline-none focus:ring-1 focus:ring-[#9C4133]"
+                  />
+                </div>
+
+                {/* Pincode + City Row */}
+                <div className="grid grid-cols-2 gap-2.5">
+                  <div className="relative flex items-center">
+                    <MapPin className="h-3.5 w-3.5 text-[#9C4133] absolute left-3 pointer-events-none" />
+                    <input
+                      type="text"
+                      value={pincode}
+                      onChange={(e) => {
+                        const val = e.target.value.replace(/\D/g, "");
+                        setPincode(val);
+                        if (val.startsWith("201")) {
+                          setCity("Noida");
+                        } else if (val.startsWith("11") && city !== "Noida") {
+                          setCity("Delhi");
+                        } else if (val.startsWith("121") && city !== "Noida") {
+                          setCity("Faridabad");
+                        } else if (val.startsWith("122") && city !== "Noida") {
+                          setCity("Gurugram");
+                        }
+                      }}
+                      required
+                      maxLength={6}
+                      placeholder="Pincode *"
+                      className="w-full h-10 rounded-xl border border-[#E8DEC8] bg-white pl-9 pr-3 text-xs font-bold text-[#29251F] placeholder:text-[#91885D]/60 focus:outline-none focus:ring-1 focus:ring-[#9C4133]"
+                    />
+                  </div>
+
+                  <div className="relative flex items-center">
+                    <Building2 className="h-3.5 w-3.5 text-[#7A6E5D] absolute left-3 pointer-events-none" />
+                    <select
+                      value={city}
+                      onChange={(e) => setCity(e.target.value)}
+                      className="w-full h-10 appearance-none rounded-xl border border-[#E8DEC8] bg-white pl-9 pr-8 text-xs font-bold text-[#29251F] focus:outline-none focus:ring-1 focus:ring-[#9C4133] cursor-pointer"
+                    >
+                      <option value="Gurugram">Gurugram</option>
+                      <option value="Noida">Noida</option>
+                      <option value="Delhi">Delhi</option>
+                      <option value="Faridabad">Faridabad</option>
+                    </select>
+                    <ChevronDown className="h-3.5 w-3.5 text-[#7A6E5D] absolute right-3 pointer-events-none" />
+                  </div>
+                </div>
+              </div>
+            )}
+
+            {/* Step 1 Primary CTA Button: Continue to Review → (Exact Match) */}
+            <div className="pt-2">
+              <button
+                type="button"
+                onClick={handleContinueToReview}
+                className="w-full flex items-center justify-center gap-2 rounded-full bg-[#394231] hover:bg-[#2C3426] active:bg-[#22291E] text-white py-3.5 px-6 font-bold text-sm shadow-md hover:shadow-lg transition-all cursor-pointer"
+              >
+                <span>Continue to Review</span>
+                <ArrowRight className="h-4 w-4" />
+              </button>
             </div>
           </div>
         )}
 
-        {/* ── 3. DATE & TIME SLOT (BOTH DELIVERY & TAKEAWAY) ── */}
-          <div className="rounded-3xl border border-[#91885D]/30 bg-[#F5EBDD] shadow-warm-sm p-5 space-y-4">
-            <div className="flex items-center justify-between">
-              <h2 className="font-serif font-bold text-base text-[#29251F] flex items-center gap-2">
-                <Calendar className="h-4 w-4 text-[#C26B59]" />
-                <span>{orderType === "delivery" ? "Delivery" : "Pickup"} Date &amp; Time Slot</span>
-              </h2>
-              {loadingSlots && (
-                <div className="flex items-center gap-1.5 text-[11px] text-[#696053]">
-                  <Loader2 className="h-3 w-3 animate-spin text-[#C26B59]" />
-                  <span>Checking slots...</span>
+        {/* ═══════════════════════════════════════════════════════════
+            PAGE 2: STEP 2 OF 2 — "Review & Schedule" (Exact Match)
+            ═══════════════════════════════════════════════════════════ */}
+        {checkoutStep === 2 && (
+          <div className="space-y-4 animate-in fade-in duration-200">
+            {/* Step Header */}
+            <div>
+              <span className="text-[10px] font-extrabold uppercase tracking-widest text-[#9C4133] block mb-0.5">
+                STEP 2 OF 2
+              </span>
+              <h1 className="font-serif text-3xl font-bold text-[#29251F] tracking-tight">
+                Review &amp; Schedule
+              </h1>
+              <p className="text-xs text-[#7A6E5D] mt-0.5 font-medium">
+                Almost there! Confirm your order details.
+              </p>
+            </div>
+
+            {/* 1. Delivery Date Section (Horizontal Cards matching screenshot) */}
+            <div className="bg-[#FFFDF9] border border-[#E8DEC8] rounded-3xl p-4 sm:p-5 shadow-xs space-y-3">
+              <div className="flex items-center gap-2">
+                <Calendar className="h-4 w-4 text-[#9C4133]" />
+                <h2 className="font-serif font-bold text-sm text-[#29251F]">
+                  Delivery Date
+                </h2>
+              </div>
+
+              {loadingSlots ? (
+                <div className="flex items-center gap-2 text-xs text-[#7A6E5D] py-2">
+                  <Loader2 className="h-4 w-4 animate-spin text-[#9C4133]" />
+                  <span>Loading available dates...</span>
                 </div>
+              ) : availableDates.length > 0 ? (
+                <div className="flex gap-2 overflow-x-auto pb-1 pt-0.5 no-scrollbar">
+                  {availableDates.map((dateStr) => {
+                    const isSelected = selectedDate === dateStr;
+                    const { dayName, dayNum, monthName } = getDateCardDetails(dateStr);
+                    return (
+                      <button
+                        key={dateStr}
+                        type="button"
+                        onClick={() => handleDateSelect(dateStr)}
+                        className={`flex flex-col items-center justify-center min-w-[54px] py-2.5 px-2 rounded-2xl border transition-all cursor-pointer shrink-0 ${
+                          isSelected
+                            ? "bg-[#9C4133] border-[#9C4133] text-white shadow-xs"
+                            : "bg-white border-[#E8DEC8] text-[#29251F] hover:border-[#9C4133]/50"
+                        }`}
+                      >
+                        <span
+                          className={`text-[10px] font-medium leading-none ${
+                            isSelected ? "text-white/80" : "text-[#7A6E5D]"
+                          }`}
+                        >
+                          {dayName}
+                        </span>
+                        <span className="text-base font-serif font-bold my-1 leading-none">
+                          {dayNum}
+                        </span>
+                        <span
+                          className={`text-[10px] font-medium leading-none ${
+                            isSelected ? "text-white/80" : "text-[#7A6E5D]"
+                          }`}
+                        >
+                          {monthName}
+                        </span>
+                      </button>
+                    );
+                  })}
+                </div>
+              ) : (
+                <p className="text-xs text-[#7A6E5D]">No dates available</p>
               )}
             </div>
 
-            {/* Baking & Preparation Lead Time Notice (Hidden when sourdough/focaccia is in cart since Sunday Special applies) */}
-            {!hasSourdoughInCart && cartBakingInfo && cartBakingInfo.maxHours > 0 && (
-              <div className="rounded-2xl border border-amber-300/80 bg-amber-50/90 p-4 text-xs space-y-2.5 animate-in fade-in shadow-2xs">
-                <div className="flex items-start gap-3">
-                  <div className="flex h-8 w-8 items-center justify-center rounded-xl bg-amber-100 text-amber-800 shrink-0 mt-0.5 border border-amber-200">
-                    <Timer className="h-4.5 w-4.5 text-[#C26B59]" />
-                  </div>
-                  <div className="flex-1 min-w-0">
-                    <div className="flex flex-wrap items-center gap-2">
-                      <span className="font-bold text-xs sm:text-sm text-[#29251F]">
-                        Baking &amp; Preparation Lead Time:
-                      </span>
-                      <span className="inline-flex items-center gap-1 text-[11px] font-bold text-amber-900 bg-amber-200/80 border border-amber-300 px-2.5 py-0.5 rounded-full shadow-2xs">
-                        <Timer className="h-3 w-3" />
-                        {formatBakingPeriod(cartBakingInfo.maxHours)} baking
-                      </span>
-                    </div>
-
-                    <p className="text-[11.5px] text-[#696053] mt-1.5 leading-relaxed">
-                      {cartBakingInfo.categoryList.length > 1 ? (
-                        <>
-                          Your cart has items from different categories with different baking times. Delivery slots are scheduled after the longest baking period (
-                          <strong className="text-[#29251F]">
-                            {cartBakingInfo.maxCategoryName} &bull; {formatBakingPeriod(cartBakingInfo.maxHours)}
-                          </strong>
-                          ) so everything arrives freshly baked.
-                        </>
-                      ) : (
-                        <>
-                          Freshly handcrafted on order. Available delivery slots start after{" "}
-                          <strong className="text-[#29251F]">
-                            {formatBakingPeriod(cartBakingInfo.maxHours)}
-                          </strong>{" "}
-                          to guarantee peak oven-fresh quality.
-                        </>
-                      )}
-                    </p>
-
-                    {/* Multiple Categories Breakdown */}
-                    {cartBakingInfo.categoryList.length > 1 && (
-                      <div className="flex flex-wrap items-center gap-1.5 pt-2 mt-2 border-t border-amber-200/80">
-                        <span className="text-[10px] font-bold text-[#696053] uppercase tracking-wider">
-                          Baking times in cart:
-                        </span>
-                        {cartBakingInfo.categoryList.map((cat, idx) => {
-                          const isMax = cat.hours === cartBakingInfo.maxHours;
-                          return (
-                            <span
-                              key={idx}
-                              className={`inline-flex items-center gap-1 text-[11px] px-2.5 py-1 rounded-xl border font-medium ${
-                                isMax
-                                  ? "bg-amber-200/90 text-amber-950 border-amber-400 font-bold shadow-2xs"
-                                  : "bg-white text-[#696053] border-amber-200/80"
-                              }`}
-                            >
-                              <span>{cat.name}:</span>
-                              <span className={isMax ? "font-bold text-amber-950" : "font-semibold"}>
-                                {formatBakingPeriod(cat.hours)}
-                              </span>
-                              {isMax && (
-                                <span className="text-[9px] bg-amber-300 text-amber-950 px-1 py-0.2 rounded font-bold">
-                                  Determines Slot
-                                </span>
-                              )}
-                            </span>
-                          );
-                        })}
-                      </div>
-                    )}
-
-                    {/* Earliest Available Date Badge */}
-                    {availableDates.length > 0 && (
-                      <div className="flex items-center gap-1.5 pt-2 text-[11.5px] font-semibold text-emerald-800">
-                        <CheckCircle2 className="h-4 w-4 text-emerald-600 shrink-0" />
-                        <span>
-                          Earliest available slot:{" "}
-                          <strong className="text-emerald-950 font-bold underline decoration-emerald-500/40">
-                            {new Date(availableDates[0] + "T00:00:00").toLocaleDateString("en-IN", {
-                              weekday: "short",
-                              day: "numeric",
-                              month: "short",
-                            })}
-                          </strong>
-                        </span>
-                      </div>
-                    )}
-                  </div>
-                </div>
+            {/* 2. Time Slot Section */}
+            <div className="bg-[#FFFDF9] border border-[#E8DEC8] rounded-3xl p-4 sm:p-5 shadow-xs space-y-3">
+              <div className="flex items-center gap-2">
+                <Clock className="h-4 w-4 text-[#9C4133]" />
+                <h2 className="font-serif font-bold text-sm text-[#29251F]">
+                  Time Slot
+                </h2>
               </div>
-            )}
 
-            {/* Sourdough Sunday Special Notice (Refined, clean bakery aesthetic without star logo) */}
-            {hasSourdoughInCart && sourdoughSlotInfo && (
-              <div className="rounded-3xl border border-[#C26B59]/35 bg-[#FFF9F5] p-5 text-xs space-y-3.5 animate-in fade-in shadow-warm-xs">
-                {/* Header row */}
-                <div className="flex flex-col sm:flex-row sm:items-center justify-between gap-2.5 pb-3 border-b border-[#91885D]/15">
-                  <div className="flex items-center gap-2.5">
-                    <span className="text-2xl leading-none" role="img" aria-label="Sourdough bread">
-                      🥖
-                    </span>
-                    <div>
-                      <div className="flex items-center gap-2 flex-wrap">
-                        <h3 className="font-serif font-bold text-base text-[#29251F] tracking-tight">
-                          Sunday Special Bake
-                        </h3>
-                        <span className="text-[10px] font-bold uppercase tracking-wider bg-[#C26B59] text-white px-2.5 py-0.5 rounded-full shadow-2xs">
-                          Sundays Only
-                        </span>
-                      </div>
-                      <p className="text-[11px] text-[#7A6E5D] mt-0.5 font-medium">
-                        Artisanal Wild-Yeast Sourdough
-                      </p>
-                    </div>
-                  </div>
-
-                  <div className="inline-flex items-center gap-1.5 self-start sm:self-auto text-[11px] font-bold text-[#8C3C2F] bg-[#F7EBE4] border border-[#E6CBC0] px-3 py-1 rounded-xl">
-                    <span>Showing next 2 Sunday slots</span>
-                  </div>
+              {selectedDate && (slotsByDate[selectedDate] || []).length > 0 ? (
+                <div className="space-y-2">
+                  {(slotsByDate[selectedDate] || []).map((slot) => {
+                    const isSelected = selectedSlot?.id === slot.id;
+                    return (
+                      <button
+                        key={slot.id}
+                        type="button"
+                        onClick={() => setSelectedSlot(slot)}
+                        className={`w-full flex items-center justify-between p-3 rounded-2xl border text-left transition-all cursor-pointer ${
+                          isSelected
+                            ? "border-[#9C4133] bg-[#FFF8F5] shadow-2xs"
+                            : "border-[#E8DEC8] bg-white hover:border-[#9C4133]/50"
+                        }`}
+                      >
+                        <div className="flex items-center gap-2.5">
+                          <div
+                            className={`w-4 h-4 rounded-full border flex items-center justify-center shrink-0 ${
+                              isSelected ? "border-[#9C4133]" : "border-[#91885D]/40"
+                            }`}
+                          >
+                            {isSelected && (
+                              <div className="w-2 h-2 rounded-full bg-[#9C4133]" />
+                            )}
+                          </div>
+                          <div>
+                            <p className="text-xs font-bold text-[#29251F]">
+                              {formatSlotWindow(slot.start_time, slot.end_time)}
+                            </p>
+                            <p className="text-[10px] font-semibold text-emerald-700 mt-0.5">
+                              ✓ Available
+                            </p>
+                          </div>
+                        </div>
+                      </button>
+                    );
+                  })}
                 </div>
+              ) : (
+                <p className="text-xs text-[#7A6E5D]">Please select a delivery date first.</p>
+              )}
+            </div>
 
-                {/* Subtitle explanation */}
-                <p className="text-[11.5px] text-[#554D3F] leading-relaxed">
-                  Our sourdoughs undergo 36 hours of cold natural fermentation. Freshly baked exclusively for Sunday orders so you receive them at absolute peak flavor and crust.
+            {/* 3. Baking & Preparation Lead Time Notice */}
+            {cartBakingInfo && cartBakingInfo.maxHours > 0 && !hasSourdoughInCart && (
+              <div className="rounded-2xl border border-amber-200 bg-[#FFFBEB] p-3 text-xs space-y-1.5 shadow-2xs">
+                <div className="flex items-center gap-2">
+                  <div className="w-5 h-5 rounded-full bg-amber-100 flex items-center justify-center shrink-0 text-amber-800">
+                    <Timer className="h-3 w-3" />
+                  </div>
+                  <span className="font-bold text-[11px] text-[#29251F]">
+                    Baking &amp; Preparation Lead Time
+                  </span>
+                  <span className="ml-auto text-[10px] font-bold text-amber-900 bg-amber-200/80 px-2 py-0.5 rounded-full">
+                    {formatBakingPeriod(cartBakingInfo.maxHours)} baking
+                  </span>
+                </div>
+                <p className="text-[10.5px] text-[#7A6E5D] leading-relaxed">
+                  Freshly handcrafted on order. Available slots start after{" "}
+                  {formatBakingPeriod(cartBakingInfo.maxHours)} to guarantee peak oven-fresh quality.
                 </p>
-
-                {/* Dual Schedule Cards */}
-                <div className="grid grid-cols-1 sm:grid-cols-2 gap-3 pt-0.5">
-                  {/* Monday - Friday card */}
-                  <div
-                    className={`rounded-2xl p-3.5 transition-all border ${
-                      sourdoughSlotInfo.isSameWeekend
-                        ? "bg-[#FFF4EC] border-[#C26B59] shadow-xs ring-1.5 ring-[#C26B59]/30"
-                        : "bg-[#F7EFE4]/60 border-[#91885D]/25 opacity-70"
-                    }`}
-                  >
-                    <div className="flex items-center justify-between gap-2 mb-2">
-                      <span className="text-xs font-bold text-[#29251F] flex items-center gap-1.5">
-                        <span>🗓️</span>
-                        <span>Mon – Fri Orders</span>
-                      </span>
-                      {sourdoughSlotInfo.isSameWeekend && (
-                        <span className="text-[9.5px] font-extrabold uppercase tracking-wider bg-[#3B6E34] text-white px-2 py-0.5 rounded-full shadow-2xs shrink-0">
-                          Active Slot
-                        </span>
-                      )}
-                    </div>
-                    <div className="pt-2 border-t border-[#91885D]/15 space-y-0.5">
-                      <span className="text-[10px] font-bold uppercase tracking-wider text-[#7A6E5D] block">
-                        Delivery Day
-                      </span>
-                      <span className="font-serif font-bold text-sm text-[#A34B3D] block">
-                        {sourdoughSlotInfo.isSameWeekend ? sourdoughSlotInfo.formattedSlotDate : "This Coming Sunday"}
-                      </span>
-                      <p className="text-[10.5px] text-[#696053] leading-normal pt-0.5">
-                        Delivered this weekend
-                      </p>
-                    </div>
-                  </div>
-
-                  {/* Saturday & Sunday card */}
-                  <div
-                    className={`rounded-2xl p-3.5 transition-all border ${
-                      !sourdoughSlotInfo.isSameWeekend
-                        ? "bg-[#FFF4EC] border-[#C26B59] shadow-xs ring-1.5 ring-[#C26B59]/30"
-                        : "bg-[#F7EFE4]/60 border-[#91885D]/25 opacity-70"
-                    }`}
-                  >
-                    <div className="flex items-center justify-between gap-2 mb-2">
-                      <span className="text-xs font-bold text-[#29251F] flex items-center gap-1.5">
-                        <span>🗓️</span>
-                        <span>Sat &amp; Sun Orders</span>
-                      </span>
-                      {!sourdoughSlotInfo.isSameWeekend && (
-                        <span className="text-[9.5px] font-extrabold uppercase tracking-wider bg-[#3B6E34] text-white px-2 py-0.5 rounded-full shadow-2xs shrink-0">
-                          Active Slot
-                        </span>
-                      )}
-                    </div>
-                    <div className="pt-2 border-t border-[#91885D]/15 space-y-0.5">
-                      <span className="text-[10px] font-bold uppercase tracking-wider text-[#7A6E5D] block">
-                        Delivery Day
-                      </span>
-                      <span className="font-serif font-bold text-sm text-[#A34B3D] block">
-                        {!sourdoughSlotInfo.isSameWeekend ? sourdoughSlotInfo.formattedSlotDate : "Next Sunday"}
-                      </span>
-                      <p className="text-[10.5px] text-[#696053] leading-normal pt-0.5">
-                        Fermented for next week&apos;s bake
-                      </p>
-                    </div>
-                  </div>
-                </div>
               </div>
             )}
 
-            {availableDates.length === 0 && !loadingSlots ? (
-              <div className="rounded-2xl border border-amber-200 bg-amber-50 p-4 text-xs text-amber-900">
-                No {orderType === "delivery" ? "delivery" : "pickup"} slots available for the selected dates. Please contact us directly via WhatsApp.
-              </div>
-            ) : (
-              <div className="space-y-4">
-                {/* Step A: Select Date */}
-                <div>
-                  <div className="flex items-center justify-between mb-2">
-                    <label className="text-[10px] font-bold uppercase tracking-wider text-[#696053]">
-                      1. Select {orderType === "delivery" ? "Delivery" : "Pickup"} Date *
-                    </label>
-                    {hasSourdoughInCart && (
-                      <span className="text-[10px] font-bold text-[#C26B59] bg-[#C26B59]/10 px-2 py-0.5 rounded-full">
-                        Sunday Special Delivery Only
-                      </span>
-                    )}
-                  </div>
-
-                  <div className="flex items-center gap-2 overflow-x-auto pb-2 scrollbar-thin">
-                    {availableDates.map((dateStr, idx) => {
-                      const d = new Date(dateStr + "T00:00:00");
-                      const today = new Date();
-                      today.setHours(0, 0, 0, 0);
-                      const tomorrow = new Date(today);
-                      tomorrow.setDate(tomorrow.getDate() + 1);
-
-                      const isToday = d.toDateString() === today.toDateString();
-                      const isTomorrow = d.toDateString() === tomorrow.toDateString();
-                      const isSunday = d.getDay() === 0;
-
-                      let dayName = isToday
-                        ? "Today"
-                        : isTomorrow
-                        ? "Tomorrow"
-                        : d.toLocaleDateString("en-IN", { weekday: "short" });
-
-                      if (hasSourdoughInCart && isSunday) {
-                        dayName = idx === 0 ? "This Sun" : idx === 1 ? "Next Sun" : "Sun";
-                      }
-
-                      const dayNum = d.getDate();
-                      const monthName = d.toLocaleDateString("en-IN", { month: "short" });
-                      const isSelected = selectedDate === dateStr;
-
-                      return (
-                        <button
-                          key={dateStr}
-                          type="button"
-                          onClick={() => handleDateSelect(dateStr)}
-                          className={`shrink-0 flex flex-col items-center justify-center min-w-[80px] py-2.5 px-3 rounded-2xl border text-center transition-all cursor-pointer select-none ${
-                            isSelected
-                              ? "bg-[#C26B59] text-white border-[#C26B59] shadow-warm-sm scale-[1.03]"
-                              : "bg-[#FAF6EF] text-[#29251F] border-[#91885D]/35 hover:border-[#C26B59] hover:bg-white"
-                          }`}
-                        >
-                          <span
-                            className={`text-[10px] font-bold uppercase tracking-wider ${
-                              isSelected ? "text-white/90" : "text-[#696053]"
-                            }`}
-                          >
-                            {dayName}
-                          </span>
-                          <span className="font-serif text-lg font-bold leading-tight my-0.5">
-                            {dayNum}
-                          </span>
-                          <span
-                            className={`text-[10px] font-semibold ${
-                              isSelected ? "text-white/80" : "text-[#7A6B5A]"
-                            }`}
-                          >
-                            {monthName}
-                          </span>
-                          {hasSourdoughInCart && (
-                            <span
-                              className={`text-[8px] font-black uppercase tracking-tight px-1.5 py-0.5 rounded-full mt-1 ${
-                                isSelected ? "bg-white/25 text-white" : "bg-[#C26B59]/15 text-[#C26B59]"
-                              }`}
-                            >
-                              Special
-                            </span>
-                          )}
-                        </button>
-                      );
-                    })}
-                  </div>
-                </div>
-
-                {/* Step B: Select Time Window */}
-                {selectedDate && (
-                  <div>
-                    <label className="text-[10px] font-bold uppercase tracking-wider text-[#696053] block mb-2">
-                      2. Select Time Window *
-                    </label>
-
-                    {(!slotsByDate[selectedDate] || slotsByDate[selectedDate].length === 0) ? (
-                      <div className="rounded-2xl border border-[#91885D]/20 bg-[#FAF6EF] p-4 text-xs text-[#696053] text-center">
-                        No time slots available on this date. Please pick another date.
-                      </div>
-                    ) : (
-                      <div className="grid grid-cols-1 sm:grid-cols-2 gap-2.5">
-                        {slotsByDate[selectedDate].map((slot) => {
-                          const isSelected = selectedSlot?.id === slot.id;
-                          const formattedWindow = formatSlotWindow(
-                            slot.start_time,
-                            slot.end_time
-                          );
-                          const remainingSpots = Math.max(0, slot.capacity - slot.current_order_count);
-
-                          return (
-                            <button
-                              key={slot.id}
-                              type="button"
-                              onClick={() => setSelectedSlot(slot)}
-                              className={`flex items-center justify-between p-3 rounded-2xl border text-left transition-all cursor-pointer select-none ${
-                                isSelected
-                                  ? "bg-[#FAF6EF] border-[#C26B59] ring-2 ring-[#C26B59]/30 shadow-xs"
-                                  : "bg-[#FAF6EF] border-[#91885D]/35 hover:border-[#C26B59]/60 hover:bg-white"
-                              }`}
-                            >
-                              <div className="flex items-center gap-2.5">
-                                <div
-                                  className={`flex h-7 w-7 items-center justify-center rounded-xl transition-colors ${
-                                    isSelected
-                                      ? "bg-[#C26B59] text-white"
-                                      : "bg-[#91885D]/15 text-[#696053]"
-                                  }`}
-                                >
-                                  <Clock className="h-3.5 w-3.5" />
-                                </div>
-                                <div>
-                                  <span className="font-bold text-xs text-[#29251F] block">
-                                    {formattedWindow}
-                                  </span>
-                                  {remainingSpots <= 3 && remainingSpots > 0 ? (
-                                    <span className="text-[10px] font-bold text-amber-700 block">
-                                      ⚡ Only {remainingSpots} left
-                                    </span>
-                                  ) : (
-                                    <span className="text-[10px] text-[#4D7C47] font-semibold block">
-                                      ✓ Available
-                                    </span>
-                                  )}
-                                </div>
-                              </div>
-
-                              <div
-                                className={`flex h-5 w-5 items-center justify-center rounded-full border transition-colors ${
-                                  isSelected
-                                    ? "border-[#C26B59] bg-[#C26B59] text-white"
-                                    : "border-[#91885D]/40 bg-white"
-                                }`}
-                              >
-                                {isSelected && <Check className="h-3 w-3 stroke-[3]" />}
-                              </div>
-                            </button>
-                          );
-                        })}
-                      </div>
-                    )}
-                  </div>
-                )}
-              </div>
-            )}
-          </div>
-
-        {/* ── 4. ORDER SUMMARY ── */}
-        <div className="rounded-3xl border border-[#91885D]/30 bg-[#F5EBDD] shadow-warm-sm p-5 space-y-3">
-          <h2 className="font-serif font-bold text-base text-[#29251F]">
-            Order Summary
-          </h2>
-          <div className="space-y-2.5">
-            {items.map((item) => {
-              const disc = getProductDiscount(item.product);
-              const itemAddonsTotal = (item.addons || []).reduce((s, a) => s + a.price, 0);
-              const originalUnitPrice = disc.originalPrice + itemAddonsTotal;
-
-              return (
-              <div
-                key={item.id}
-                className="flex items-start gap-2.5 text-xs"
-              >
-                {item.product.image_url ? (
-                  <div className="relative h-9 w-9 shrink-0 rounded-lg overflow-hidden bg-[#E8D5BC] border border-[#91885D]/20 mt-0.5">
-                    <Image
-                      src={item.product.image_url}
-                      alt={item.product.name}
-                      fill
-                      className="object-cover"
-                      sizes="36px"
-                    />
-                  </div>
-                ) : (
-                  <div className="h-9 w-9 shrink-0 rounded-lg bg-[#E8D5BC] flex items-center justify-center mt-0.5">
-                    <Utensils className="h-3.5 w-3.5 text-[#696053]" />
-                  </div>
-                )}
-                <div className="flex-1 min-w-0">
-                  <p className="text-[#29251F] font-semibold leading-tight">
-                    {item.product.name}{" "}
-                    <span className="text-[#696053] font-normal">× {item.quantity}</span>
-                  </p>
-                  {item.sizeLabel && (
-                    <p className="text-[10px] text-[#7A6B5A]">
-                      Size: {item.sizeLabel}
-                    </p>
-                  )}
-                  {item.addons && item.addons.length > 0 && (
-                    <p className="text-[10px] text-[#696053]">
-                      + {item.addons.map((a) => `${a.label}`).join(", ")}
-                    </p>
-                  )}
-                  {disc.hasDiscount && (
-                    <div className="mt-0.5">
-                      <span className="inline-flex items-center gap-1 px-1.5 py-0.5 rounded text-[9.5px] font-bold text-[#A34B3D] bg-[#FAF2ED] border border-[#E8D2C5]">
-                        <span>{disc.badgeLabel}</span>
-                      </span>
-                    </div>
-                  )}
-                </div>
-                <div className="text-right shrink-0">
-                  <span className="font-bold text-[#29251F] block">
-                    {formatPrice(item.unitPrice * item.quantity)}
+            {/* Sourdough Sunday Special Notice */}
+            {hasSourdoughInCart && sourdoughSlotInfo && (
+              <div className="rounded-2xl border border-[#9C4133]/25 bg-[#FFF8F5] p-3 text-xs space-y-1">
+                <div className="flex items-center gap-1.5">
+                  <span className="text-sm">🥖</span>
+                  <span className="font-bold text-[11px] text-[#29251F]">
+                    Sunday Special Sourdough
                   </span>
-                  {disc.hasDiscount && (
-                    <span className="text-[10px] text-[#8C827A] line-through block">
-                      {formatPrice(originalUnitPrice * item.quantity)}
+                  <span className="ml-auto text-[9.5px] font-bold bg-[#9C4133] text-white px-2 py-0.5 rounded-full">
+                    Sundays Only
+                  </span>
+                </div>
+                <p className="text-[10.5px] text-[#7A6E5D]">
+                  Freshly baked exclusively for Sunday orders after 36 hours of cold natural fermentation.
+                </p>
+              </div>
+            )}
+
+            {/* 4. Order Summary Section */}
+            <div className="bg-[#FFFDF9] border border-[#E8DEC8] rounded-3xl p-4 sm:p-5 shadow-xs space-y-3.5">
+              <div className="flex items-center gap-2">
+                <ShoppingBag className="h-4 w-4 text-[#9C4133]" />
+                <h2 className="font-serif font-bold text-sm text-[#29251F]">
+                  Order Summary
+                </h2>
+              </div>
+
+              {/* Items List */}
+              <div className="divide-y divide-[#E8DEC8]/50 max-h-56 overflow-y-auto pr-1">
+                {items.map((item) => (
+                  <div
+                    key={item.id}
+                    className="py-2.5 first:pt-0 last:pb-0 flex items-center justify-between gap-3"
+                  >
+                    <div className="flex items-center gap-2.5 min-w-0">
+                      {item.product.image_url ? (
+                        <div className="relative w-11 h-11 rounded-xl overflow-hidden shrink-0 border border-[#E8DEC8]">
+                          <Image
+                            src={item.product.image_url}
+                            alt={item.product.name}
+                            fill
+                            className="object-cover"
+                            sizes="44px"
+                          />
+                        </div>
+                      ) : (
+                        <div className="w-11 h-11 rounded-xl bg-[#F7EFE4] flex items-center justify-center shrink-0 text-base">
+                          🧁
+                        </div>
+                      )}
+                      <div className="min-w-0">
+                        <p className="text-xs font-bold text-[#29251F] truncate">
+                          {item.product.name}
+                        </p>
+                        <p className="text-[10px] text-[#7A6E5D]">
+                          x {item.quantity}
+                          {item.sizeLabel ? ` • ${item.sizeLabel}` : ""}
+                        </p>
+                      </div>
+                    </div>
+                    <span className="text-xs font-bold text-[#29251F] shrink-0">
+                      {formatPrice(item.unitPrice * item.quantity)}
                     </span>
-                  )}
-                </div>
-              </div>
-            );
-            })}
-          </div>
-
-          <div className="border-t border-[#91885D]/25 pt-3 space-y-1.5 text-xs">
-            {selectedDate && selectedSlot && (
-              <div className="flex justify-between items-center text-[#29251F] bg-[#FAF6EF] border border-[#91885D]/20 rounded-xl p-2.5 mb-2 font-medium">
-                <div className="flex items-center gap-1.5 text-xs">
-                  <Calendar className="h-3.5 w-3.5 text-[#C26B59]" />
-                  <span>
-                    {new Date(selectedDate + "T00:00:00").toLocaleDateString("en-IN", {
-                      weekday: "short",
-                      month: "short",
-                      day: "numeric",
-                    })}
-                  </span>
-                </div>
-                <div className="flex items-center gap-1.5 text-xs font-bold text-[#A34B3D]">
-                  <Clock className="h-3.5 w-3.5" />
-                  <span>{formatSlotWindow(selectedSlot.start_time, selectedSlot.end_time)}</span>
-                </div>
-              </div>
-            )}
-
-            <div className="flex justify-between text-[#696053]">
-              <span>Subtotal ({totalItems} items)</span>
-              <span>{formatPrice(subtotal)}</span>
-            </div>
-
-            {totalDiscountSavings > 0 && (
-              <div className="flex justify-between items-center text-xs text-[#238234] bg-[#F2F7F2] border border-[#CDE3CD] rounded-xl px-2.5 py-1.5 font-medium">
-                <span className="flex items-center gap-1 font-bold">
-                  <span>🏷️</span>
-                  <span>Promotional Savings</span>
-                </span>
-                <span className="font-bold">
-                  -{formatPrice(totalDiscountSavings)}
-                </span>
-              </div>
-            )}
-            <div className="flex justify-between text-[#696053]">
-              <span>Delivery fee</span>
-              <span>
-                {orderType === "takeaway"
-                  ? "₹0 (Free)"
-                  : isDeliveryChecked && isDeliveryAvailable && deliveryCharge !== null
-                  ? formatPrice(deliveryCharge)
-                  : "Click 'Check Delivery'"}
-              </span>
-            </div>
-            {orderType === "delivery" && deliverySurges.length > 0 && isDeliveryChecked && (
-              <div className="text-[10px] text-amber-900 bg-amber-50/80 border border-amber-200/70 rounded-xl px-2.5 py-1.5 space-y-0.5">
-                <span className="font-semibold block text-[10px] text-amber-950">Active Surcharges:</span>
-                {deliverySurges.map((s, idx) => (
-                  <div key={idx} className="flex justify-between text-[9.5px]">
-                    <span>• {s.name}</span>
-                    <span className="font-semibold">+{formatPrice(s.amount)}</span>
                   </div>
                 ))}
               </div>
-            )}
-            <div className="flex justify-between text-[#696053]">
-              <span>Transaction Fees (4%)</span>
-              <span>+{formatPrice(packagingFee)}</span>
-            </div>
-            {hasGiftNote && (
-              <div className="flex justify-between text-[#C26B59] font-medium">
-                <span>Gift Note &amp; Ribbon</span>
-                <span>+{formatPrice(giftNoteFee)}</span>
+
+              {/* Price Breakdown */}
+              <div className="border-t border-[#E8DEC8]/60 pt-3 space-y-2 text-xs">
+                <div className="flex justify-between text-[#7A6E5D]">
+                  <span>
+                    Subtotal ({totalItems} item{totalItems > 1 ? "s" : ""})
+                  </span>
+                  <span className="font-semibold text-[#29251F]">
+                    {formatPrice(subtotal)}
+                  </span>
+                </div>
+
+                {totalDiscountSavings > 0 && (
+                  <div className="flex justify-between text-emerald-700 font-medium">
+                    <span>Promotional Savings</span>
+                    <span>-{formatPrice(totalDiscountSavings)}</span>
+                  </div>
+                )}
+
+                <div className="flex justify-between items-center text-[#7A6E5D]">
+                  <span>Delivery fee</span>
+                  <div>
+                    {orderType === "takeaway" ? (
+                      <span className="font-bold text-emerald-700">Free (₹0)</span>
+                    ) : isCheckingDelivery ? (
+                      <span className="inline-flex items-center gap-1 text-[11px] text-[#7A6E5D]">
+                        <Loader2 className="h-3 w-3 animate-spin text-[#9C4133]" />
+                        <span>Calculating...</span>
+                      </span>
+                    ) : isDeliveryAvailable && deliveryCharge !== null ? (
+                      <span className="font-bold text-[#29251F] flex items-center justify-end gap-1.5">
+                        {distanceKm !== null && (
+                          <span className="text-[10px] text-emerald-800 font-semibold bg-emerald-100 px-1.5 py-0.2 rounded">
+                            ✓ {distanceKm} km
+                          </span>
+                        )}
+                        <span>{formatPrice(deliveryCharge)}</span>
+                      </span>
+                    ) : deliveryNotice ? (
+                      <span className="text-[10.5px] text-[#9C4133] font-semibold">
+                        {deliveryNotice}
+                      </span>
+                    ) : (
+                      <span className="text-[11px] text-[#7A6E5D]">
+                        Calculated after address
+                      </span>
+                    )}
+                  </div>
+                </div>
+
+                {/* Surcharges if any */}
+                {orderType === "delivery" && deliverySurges.length > 0 && (
+                  <div className="text-[10px] text-amber-900 bg-amber-50/80 rounded-xl px-2.5 py-1.5 space-y-0.5 border border-amber-200">
+                    {deliverySurges.map((s, idx) => (
+                      <div key={idx} className="flex justify-between">
+                        <span>• {s.name}</span>
+                        <span className="font-semibold">+{formatPrice(s.amount)}</span>
+                      </div>
+                    ))}
+                  </div>
+                )}
+
+                <div className="flex justify-between text-[#7A6E5D]">
+                  <span>Transaction Fees (4%)</span>
+                  <span className="font-semibold text-[#29251F]">
+                    +{formatPrice(packagingFee)}
+                  </span>
+                </div>
+
+                {hasGiftNote && (
+                  <div className="flex justify-between text-[#9C4133] font-medium">
+                    <span>Gift Note &amp; Ribbon</span>
+                    <span>+{formatPrice(giftNoteFee)}</span>
+                  </div>
+                )}
+
+                <div className="border-t border-[#E8DEC8] pt-2 flex justify-between items-baseline font-serif">
+                  <span className="text-base font-bold text-[#29251F]">Total</span>
+                  <span className="text-xl font-bold text-[#29251F]">
+                    {formatPrice(total)}
+                  </span>
+                </div>
               </div>
-            )}
-            <div className="flex justify-between font-serif font-bold text-base text-[#29251F] pt-2 border-t border-[#91885D]/25">
-              <span>Total</span>
-              <span>{formatPrice(total)}</span>
+            </div>
+
+            {/* Step 2 Primary CTA Button: Pay Now (Razorpay) (Exact Match) */}
+            <div className="pt-2">
+              <button
+                type="button"
+                onClick={() => handleSubmit()}
+                disabled={submitting || !canCheckout}
+                className="w-full flex items-center justify-between rounded-full bg-[#394231] hover:bg-[#2C3426] active:bg-[#22291E] text-white py-3.5 px-6 shadow-md hover:shadow-lg transition-all disabled:opacity-50 disabled:cursor-not-allowed cursor-pointer group"
+              >
+                <div className="flex items-center gap-3">
+                  <div className="w-8 h-8 rounded-full bg-white/10 flex items-center justify-center">
+                    <CreditCard className="h-4 w-4 text-white" />
+                  </div>
+                  <div className="text-left">
+                    <p className="text-xs sm:text-sm font-bold text-white tracking-wide">
+                      {submitting ? "Opening Payment Gateway..." : "Pay Now (Razorpay)"}
+                    </p>
+                    <p className="text-[10px] text-white/70">
+                      UPI, Cards, Net Banking &amp; more
+                    </p>
+                  </div>
+                </div>
+
+                <div className="flex items-center gap-2">
+                  {submitting ? (
+                    <Loader2 className="h-4 w-4 animate-spin text-white" />
+                  ) : (
+                    <ArrowRight className="h-4 w-4 text-white group-hover:translate-x-1 transition-transform" />
+                  )}
+                </div>
+              </button>
             </div>
           </div>
-        </div>
+        )}
+      </main>
 
-        {/* How it works */}
-        <div className="rounded-2xl bg-[#E8D5BC] border border-[#91885D]/30 p-4 text-xs text-[#29251F]/80 space-y-1.5">
-          <p className="font-bold text-[#29251F] text-xs">How it works</p>
-          <p>1. Tap &ldquo;Place Order &amp; View Digital Receipt&rdquo; below.</p>
-          <p>2. Pay securely online via Razorpay (UPI, Google Pay, PhonePe, Cards, Netbanking).</p>
-          <p>3. Freshly handcrafted by The Indulgent Spoon.</p>
-        </div>
-      </form>
-
-      {/* Floating Bottom Submit Button — Matching Uploaded Screenshot */}
-      <div className="fixed bottom-0 left-0 right-0 z-40 p-4 bg-gradient-to-t from-[#D9BC9E] via-[#D9BC9E]/95 to-transparent pt-8">
-        <div className="max-w-lg mx-auto">
-          {hasExceededProdLimit && (
-            <div className="mb-3 rounded-2xl bg-rose-50 border border-rose-300 p-3 text-center space-y-1">
-              <p className="text-xs font-bold text-rose-900">
-                ⚠️ Daily order limit reached
-              </p>
-              <p className="text-[11px] text-rose-700">
-                Some items in your cart exceed the daily order limit. Please adjust quantities to proceed.
-              </p>
-              <Link
-                href="/cart"
-                className="inline-flex items-center gap-1.5 text-xs font-bold text-rose-800 underline hover:text-rose-950 mt-0.5"
-              >
-                <span>Return to Cart to Adjust Quantities</span>
-                <ArrowLeft className="w-3.5 h-3.5" />
-              </Link>
-            </div>
-          )}
-          <button
-            type="submit"
-            form=""
-            onClick={handleSubmit}
-            disabled={submitting || !canCheckout}
-            className="w-full flex items-center justify-center gap-2.5 rounded-full bg-[#3e683f] hover:bg-[#325633] active:bg-[#284529] text-white py-4 px-6 text-sm sm:text-base font-bold shadow-warm-xl transition-all disabled:opacity-50 disabled:cursor-not-allowed active:scale-[0.99] cursor-pointer"
-          >
-            {submitting ? (
-              <>
-                <Loader2 className="h-5 w-5 animate-spin" />
-                <span>Preparing Payment...</span>
-              </>
-            ) : (
-              <>
-                <CreditCard className="h-5 w-5" />
-                <span>Pay Online (Razorpay / UPI) — {formatPrice(total)}</span>
-              </>
-            )}
-          </button>
-          {!isClosed && !isBelowMinimum && (
-            <p className="text-center text-[10px] text-[#696053] mt-2">
-              {orderType === "delivery" && (!isDeliveryChecked || !isDeliveryAvailable)
-                ? "Please enter your address and click \"Check Delivery\" to proceed."
-                : "Secure online payment powered by Razorpay (UPI, Cards, Netbanking)."}
-            </p>
-          )}
-        </div>
-      </div>
-
-      {/* ── CREATIVE PAYMENT SUCCESS & RECEIPT GENERATION TRANSITION OVERLAY ── */}
+      {/* ── DIGITAL RECEIPT / PAYMENT GENERATION TRANSITION MODAL ── */}
       {isGeneratingReceipt && (
         <div className="fixed inset-0 z-[9999] bg-[#29251F]/80 backdrop-blur-md flex flex-col items-center justify-center p-4 animate-in fade-in duration-300">
-          <div className="bg-[#FAF5ED] border border-[#D9BC9E] rounded-3xl p-7 sm:p-9 max-w-sm w-full text-center shadow-2xl relative overflow-hidden">
-            {/* Soft Ambient Glows */}
-            <div className="absolute -top-12 -left-12 w-32 h-32 bg-[#C26B59]/15 rounded-full blur-2xl pointer-events-none" />
-            <div className="absolute -bottom-12 -right-12 w-32 h-32 bg-[#4D7C47]/15 rounded-full blur-2xl pointer-events-none" />
-
-            {/* Animated Celebration & Stamp Icon */}
-            <div className="relative mx-auto w-20 h-20 mb-4">
-              <div className="w-20 h-20 rounded-2xl bg-[#E8D5BC] border-2 border-[#91885D]/30 flex items-center justify-center text-[#C26B59] shadow-inner relative">
-                <Sparkles className="w-9 h-9 text-[#C26B59] animate-pulse" />
+          <div className="bg-[#FAF7F2] border border-[#E8DEC8] rounded-3xl p-7 max-w-sm w-full text-center shadow-2xl relative overflow-hidden">
+            <div className="relative mx-auto w-16 h-16 mb-4">
+              <div className="w-16 h-16 rounded-2xl bg-[#FAF7F2] border-2 border-[#91885D]/30 flex items-center justify-center text-[#9C4133] shadow-inner relative">
+                <Sparkles className="w-8 h-8 text-[#9C4133] animate-pulse" />
               </div>
-              <div className="absolute -bottom-1 -right-1 w-7 h-7 rounded-full bg-[#4D7C47] text-white flex items-center justify-center shadow-md animate-bounce">
-                <Check className="w-4 h-4 stroke-[3]" />
+              <div className="absolute -bottom-1 -right-1 w-6 h-6 rounded-full bg-[#394231] text-white flex items-center justify-center shadow-md animate-bounce">
+                <Check className="w-3.5 h-3.5 stroke-[3]" />
               </div>
             </div>
 
-            <div className="inline-block px-3 py-1 rounded-full bg-[#4D7C47]/15 text-[#2D5A27] text-[11px] font-bold tracking-wide uppercase mb-2 border border-[#4D7C47]/20">
+            <div className="inline-block px-3 py-1 rounded-full bg-emerald-100 text-emerald-900 text-[11px] font-bold tracking-wide uppercase mb-2 border border-emerald-200">
               Payment Successful
             </div>
 
-            <h3 className="font-serif text-2xl font-bold text-[#29251F] leading-tight mb-2">
+            <h3 className="font-serif text-xl font-bold text-[#29251F] leading-tight mb-1.5">
               Generating Your Receipt...
             </h3>
-            <p className="text-xs text-[#696053] leading-relaxed mb-5">
+            <p className="text-xs text-[#7A6E5D] leading-relaxed mb-4">
               Please wait while we secure your baking slot and prepare your digital invoice.
             </p>
 
-            {/* Stepper Checklist */}
-            <div className="space-y-2.5 text-left bg-[#F3EADF] rounded-2xl p-3.5 border border-[#E3D4C1] text-xs">
-              <div className="flex items-center gap-2.5 text-[#2D5A27] font-semibold">
-                <span className="w-4 h-4 rounded-full bg-[#4D7C47] text-white flex items-center justify-center text-[10px] shrink-0 font-bold">✓</span>
+            <div className="space-y-2 text-left bg-white rounded-2xl p-3 border border-[#E8DEC8] text-xs">
+              <div className="flex items-center gap-2 text-emerald-800 font-semibold">
+                <span className="w-3.5 h-3.5 rounded-full bg-[#394231] text-white flex items-center justify-center text-[9px] shrink-0 font-bold">
+                  ✓
+                </span>
                 <span>Payment verified securely</span>
               </div>
-              <div className="flex items-center gap-2.5 text-[#2D5A27] font-semibold">
-                <span className="w-4 h-4 rounded-full bg-[#4D7C47] text-white flex items-center justify-center text-[10px] shrink-0 font-bold">✓</span>
+              <div className="flex items-center gap-2 text-emerald-800 font-semibold">
+                <span className="w-3.5 h-3.5 rounded-full bg-[#394231] text-white flex items-center justify-center text-[9px] shrink-0 font-bold">
+                  ✓
+                </span>
                 <span>Baking slot confirmed</span>
               </div>
-              <div className="flex items-center gap-2.5 text-[#C26B59] font-bold animate-pulse">
-                <Loader2 className="w-4 h-4 animate-spin shrink-0 text-[#C26B59]" />
+              <div className="flex items-center gap-2 text-[#9C4133] font-bold animate-pulse">
+                <Loader2 className="w-3.5 h-3.5 animate-spin shrink-0 text-[#9C4133]" />
                 <span>Generating receipt &amp; order details...</span>
               </div>
-            </div>
-
-            {/* Animated Warm Progress Bar */}
-            <div className="mt-5 w-full bg-[#E5D7C5] h-1.5 rounded-full overflow-hidden">
-              <div className="h-full w-full bg-gradient-to-r from-[#C26B59] via-[#91885D] to-[#4D7C47] rounded-full animate-progress-indeterminate" />
             </div>
           </div>
         </div>

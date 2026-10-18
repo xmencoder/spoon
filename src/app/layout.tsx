@@ -160,12 +160,8 @@ const bakeryJsonLd = {
   hasMenu: "https://www.theindulgentspoon.in/full-menu",
 };
 
-import dynamic from "next/dynamic";
 import { CartProvider } from "@/lib/store/CartContext";
-
-const CartDrawer = dynamic(
-  () => import("@/components/cart/CartDrawer").then((mod) => mod.CartDrawer)
-);
+import { CartDrawerContainer } from "@/components/cart/CartDrawerContainer";
 
 export default function RootLayout({
   children,
@@ -182,9 +178,8 @@ export default function RootLayout({
           name="google-site-verification"
           content="X6k3h0bfS-SgNyNDAqkoI-z_KXkcp_MuUANJcDyD-7E"
         />
-        <link rel="icon" href="/logo-m.png?v=3" type="image/png" sizes="any" />
-        <link rel="shortcut icon" href="/logo-m.png?v=3" />
-        <link rel="apple-touch-icon" href="/logo-m.png?v=3" />
+        <link rel="preconnect" href="https://gklwogucmlolkfuaytax.supabase.co" crossOrigin="" />
+        <link rel="dns-prefetch" href="https://gklwogucmlolkfuaytax.supabase.co" />
         <script
           type="application/ld+json"
           dangerouslySetInnerHTML={{ __html: JSON.stringify(websiteJsonLd) }}
@@ -196,7 +191,7 @@ export default function RootLayout({
       </head>
       <body className="min-h-full flex flex-col bg-[#D9BC9E] text-[#29251F] font-sans selection:bg-[#C26B59] selection:text-[#F5EBDD]">
         <CartProvider restaurantSlug="the-indulgent-spoon">
-          <CartDrawer />
+          <CartDrawerContainer />
           {children}
         </CartProvider>
       </body>

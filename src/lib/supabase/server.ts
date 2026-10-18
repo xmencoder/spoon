@@ -34,3 +34,27 @@ export async function createClient() {
     }
   );
 }
+
+/**
+ * Public client for static/cached public reads (products, categories, restaurant profile).
+ * Does NOT call cookies(), enabling Next.js SSG / ISR caching without dynamic bailout.
+ */
+export function createPublicClient() {
+  const supabaseUrl =
+    process.env.NEXT_PUBLIC_SUPABASE_URL || "https://placeholder-url.supabase.co";
+
+  const supabaseKey =
+    process.env.NEXT_PUBLIC_SUPABASE_PUBLISHABLE_KEY ||
+    process.env.NEXT_PUBLIC_SUPABASE_ANON_KEY ||
+    "placeholder-key";
+
+  return createServerClient(supabaseUrl, supabaseKey, {
+    cookies: {
+      getAll() {
+        return [];
+      },
+      setAll() {},
+    },
+  });
+}
+

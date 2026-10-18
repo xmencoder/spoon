@@ -9,7 +9,7 @@ import { getDefaultRestaurant, getCategories, getProducts } from "@/lib/supabase
 
 import type { Metadata } from "next";
 
-export const dynamic = 'force-dynamic';
+export const revalidate = 60;
 
 export const metadata: Metadata = {
   title: "The Indulgent Spoon | Cakes, Desserts & Bakery",
@@ -43,8 +43,8 @@ export default async function Home() {
           priority
           fetchPriority="high"
           className="object-cover object-[48%_44%] sm:object-[center_42%] contrast-[1.05] saturate-[1.10] brightness-[0.98]"
-          sizes="(max-width: 640px) 100vw, (max-width: 1200px) 100vw, 100vw"
-          quality={82}
+          sizes="(max-width: 640px) 100vw, (max-width: 1024px) 100vw, 100vw"
+          quality={75}
         />
 
         {/* Dynamic HD Photographic Lighting & Gradients */}

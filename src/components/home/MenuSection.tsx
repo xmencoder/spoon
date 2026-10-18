@@ -346,6 +346,11 @@ export function MenuSection({
     }
 
     async function fetchLiveData() {
+      // If server-rendered props are already hydrated into cache, avoid duplicate network roundtrips on mount
+      if (initialProducts && initialProducts.length > 0 && globalDbLoaded) {
+        return;
+      }
+
       try {
         const supabase = createClient();
 
@@ -1334,6 +1339,7 @@ export function MenuSection({
             return (
               <div
                 key={`mobile-${item.id}`}
+                style={{ contentVisibility: "auto", containIntrinsicSize: "160px" }}
                 className={`flex flex-row rounded-2xl bg-[#FAF4EB] border overflow-hidden shadow-[0_2px_10px_rgba(41,37,31,0.05)] transition-all ${
                   isCatSoldOut ? "border-[#E5D7C6]/60 opacity-60" : "border-[#E5D7C6]"
                 }`}
@@ -1525,6 +1531,7 @@ export function MenuSection({
             return (
               <div
                 key={`desktop-${item.id}`}
+                style={{ contentVisibility: "auto", containIntrinsicSize: "380px" }}
                 className={`group flex flex-col rounded-3xl bg-[#FAF5ED] border p-3.5 sm:p-4 transition-all duration-300 ${
                   isCatSoldOut ? "border-[#E7DCCE]/60 opacity-60" : "border-[#E7DCCE] shadow-[0_2px_12px_rgba(41,37,31,0.04)] hover:shadow-[0_8px_24px_rgba(41,37,31,0.08)] hover:border-[#D4C3AE]"
                 }`}
