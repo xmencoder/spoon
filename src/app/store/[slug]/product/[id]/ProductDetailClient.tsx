@@ -13,7 +13,6 @@ import {
   Check,
   ChevronLeft,
   ChevronRight,
-  Star,
   ArrowRight,
 } from "lucide-react";
 import {
@@ -616,35 +615,20 @@ export default function ProductDetailClient({
               )}
             </div>
 
-            {/* Product Title & Subtitle */}
-            <div>
-              <h1 className="font-serif text-3xl sm:text-4xl lg:text-[2.6rem] font-bold text-[#29251F] leading-[1.12] tracking-tight">
-                {detail.name}
-              </h1>
-              <p className="mt-2 text-sm sm:text-base text-[#695F50] leading-relaxed">
-                {detail.subtitle}
-              </p>
-            </div>
-
-            {/* Star Rating & Reviews & Wishlist Heart */}
-            <div className="flex items-center justify-between gap-3 pt-0.5">
-              <div className="flex items-center gap-2">
-                <div className="flex items-center text-[#DF9E26]">
-                  {[...Array(5)].map((_, i) => (
-                    <Star key={i} className="w-4 h-4 fill-current" />
-                  ))}
-                </div>
-                <span className="text-sm font-bold text-[#29251F]">
-                  {detail.rating}
-                </span>
-                <span className="text-xs text-[#7A6E5D]">
-                  ({detail.reviewCount})
-                </span>
+            {/* Product Title, Subtitle & Wishlist Heart */}
+            <div className="flex items-start justify-between gap-4">
+              <div>
+                <h1 className="font-serif text-3xl sm:text-4xl lg:text-[2.6rem] font-bold text-[#29251F] leading-[1.12] tracking-tight">
+                  {detail.name}
+                </h1>
+                <p className="mt-2 text-sm sm:text-base text-[#695F50] leading-relaxed">
+                  {detail.subtitle}
+                </p>
               </div>
 
               <button
                 onClick={() => setIsFavorite(!isFavorite)}
-                className="p-2 rounded-full hover:bg-[#EAE0D1] text-[#695F50] transition-colors cursor-pointer"
+                className="p-2 rounded-full hover:bg-[#EAE0D1] text-[#695F50] transition-colors cursor-pointer shrink-0 mt-1"
                 aria-label="Toggle wishlist"
               >
                 <Heart

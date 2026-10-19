@@ -255,6 +255,10 @@ export const KNOWN_NCR_LOCATIONS: Record<
   "sector 32 gurgaon": { lat: 28.448, lon: 77.042, name: "Sector 32, Gurugram" },
   "sector 38 gurgaon": { lat: 28.442, lon: 77.04, name: "Sector 38, Gurugram" },
   "sector 39 gurgaon": { lat: 28.44, lon: 77.05, name: "Sector 39, Gurugram" },
+  "baktawar singh road": { lat: 28.441, lon: 77.045, name: "Bakhtawar Singh Road, Sector 38/39, Gurugram" },
+  "bakhtawar singh road": { lat: 28.441, lon: 77.045, name: "Bakhtawar Singh Road, Sector 38/39, Gurugram" },
+  "royal court": { lat: 28.442, lon: 77.048, name: "Royal Court, Sector 39, Gurugram" },
+  "royal court apartments": { lat: 28.442, lon: 77.048, name: "Royal Court Apartments, Sector 39, Gurugram" },
   "sector 40 gurgaon": { lat: 28.453, lon: 77.068, name: "Sector 40, Gurugram" },
   "sector 41 gurgaon": { lat: 28.455, lon: 77.076, name: "Sector 41, Gurugram" },
   "sector 42 gurgaon": { lat: 28.465, lon: 77.099, name: "Sector 42, Gurugram" },
@@ -354,62 +358,117 @@ export const KNOWN_NCR_LOCATIONS: Record<
  * Instant registry matcher that inspects the user input against verified NCR locations.
  * Returns exact coordinates and clean display name if a known landmark is found.
  */
+export function detectTargetCity(
+  input: string | StructuredAddress
+): "Delhi" | "Gurugram" | "Noida" | "Faridabad" | "Ghaziabad" {
+  const cityStr = typeof input === "object" ? (input.city || "").trim().toLowerCase() : "";
+  const pincode = typeof input === "object" ? (input.pincode || "").trim() : "";
+  const fullText = (
+    typeof input === "string"
+      ? input
+      : [input.flatBuilding, input.areaStreet, input.landmark, input.address].filter(Boolean).join(" ")
+  ).toLowerCase();
+
+  // 1. Explicit city from form / dropdown
+  if (cityStr === "delhi" || cityStr === "new delhi") return "Delhi";
+  if (cityStr === "noida" || cityStr === "greater noida") return "Noida";
+  if (cityStr === "faridabad") return "Faridabad";
+  if (cityStr === "ghaziabad") return "Ghaziabad";
+  if (cityStr === "gurugram" || cityStr === "gurgaon") return "Gurugram";
+
+  // 2. Postal code prefixes
+  if (pincode.startsWith("11")) return "Delhi";
+  if (pincode.startsWith("122")) return "Gurugram";
+  if (pincode.startsWith("121")) return "Faridabad";
+  if (pincode.startsWith("2013")) return "Noida";
+  if (pincode.startsWith("2010") || pincode.startsWith("2012")) return "Ghaziabad";
+
+  // 3. Known regional locality names
+  if (
+    fullText.includes("rohini") ||
+    fullText.includes("dwarka") ||
+    fullText.includes("saket") ||
+    fullText.includes("pitampura") ||
+    fullText.includes("janakpuri") ||
+    fullText.includes("vasant kunj") ||
+    fullText.includes("vasant vihar") ||
+    fullText.includes("lajpat nagar") ||
+    fullText.includes("connaught place") ||
+    fullText.includes("karol bagh") ||
+    fullText.includes("delhi") ||
+    fullText.includes("narela")
+  ) {
+    return "Delhi";
+  }
+
+  if (fullText.includes("noida") || fullText.includes("greater noida")) return "Noida";
+  if (fullText.includes("faridabad")) return "Faridabad";
+  if (
+    fullText.includes("ghaziabad") ||
+    fullText.includes("indirapuram") ||
+    fullText.includes("vaishali") ||
+    fullText.includes("vasundhara")
+  ) {
+    return "Ghaziabad";
+  }
+  if (fullText.includes("gurgaon") || fullText.includes("gurugram")) return "Gurugram";
+
+  return "Gurugram";
+}
+
+/**
+ * High-confidence instant lookup for iconic Gurugram landmarks only.
+ * Never guesses generic sector numbers or matches outside Gurugram.
+ */
 export function lookupKnownNcrLocation(
   input: string | StructuredAddress
 ): { lat: number; lon: number; displayName: string } | null {
+  const targetCity = detectTargetCity(input);
+
+  // If the target city is NOT Gurugram (e.g. Delhi, Noida, Faridabad, Ghaziabad),
+  // NEVER match Gurugram registry locations!
+  if (targetCity !== "Gurugram") {
+    return null;
+  }
+
   const fullStr =
     typeof input === "string"
       ? input
-      : [input.flatBuilding, input.areaStreet, input.landmark, input.city, input.pincode]
-          .filter(Boolean)
-          .join(" ");
+      : [input.flatBuilding, input.areaStreet, input.landmark].filter(Boolean).join(" ");
 
-  // Normalize: lower case and replace punctuation / delimiters with space
   const normalized = fullStr
     .toLowerCase()
     .replace(/[,\/\\|&\-#()]/g, " ")
     .replace(/\s+/g, " ")
     .trim();
 
-  // Detect city context from input to distinguish Gurugram sectors vs Noida sectors
-  const isNoidaIntent =
-    normalized.includes("noida") ||
-    (typeof input === "object" && Boolean(input.pincode?.startsWith("201")));
+  // High-confidence specific Gurugram landmarks only (no generic sector guessing)
+  const HIGH_CONFIDENCE_GURUGRAM_LANDMARKS: Record<
+    string,
+    { lat: number; lon: number; name: string }
+  > = {
+    "dlf cyber hub": { lat: 28.4951, lon: 77.0885, name: "DLF Cyber Hub, Sector 25A, Gurugram" },
+    "dlf cyberhub": { lat: 28.4951, lon: 77.0885, name: "DLF Cyber Hub, Sector 25A, Gurugram" },
+    "dlf cyber city": { lat: 28.4973, lon: 77.0918, name: "DLF Cyber City, DLF Phase 2, Gurugram" },
+    "dlf cybercity": { lat: 28.4973, lon: 77.0918, name: "DLF Cyber City, DLF Phase 2, Gurugram" },
+    "ambience mall gurgaon": { lat: 28.5048, lon: 77.097, name: "Ambience Mall, NH-8, Gurugram" },
+    "ambience mall gurugram": { lat: 28.5048, lon: 77.097, name: "Ambience Mall, NH-8, Gurugram" },
+    "one horizon center": { lat: 28.4754, lon: 77.0935, name: "One Horizon Center, Golf Course Road, Gurugram" },
+    "two horizon center": { lat: 28.476, lon: 77.094, name: "Two Horizon Center, Golf Course Road, Gurugram" },
+    "mayfield garden sector 51": { lat: 28.4285, lon: 77.062, name: "Mayfield Garden, Sector 51, Gurugram" },
+    "nirvana country": { lat: 28.421, lon: 77.0665, name: "Nirvana Country, Sector 50, Gurugram" },
+    "good earth city centre": { lat: 28.4215, lon: 77.054, name: "Good Earth City Centre, Sector 50, Gurugram" },
+    "baani square": { lat: 28.4205, lon: 77.0625, name: "Baani Square, Sector 50, Gurugram" },
+  };
 
-  let bestMatch: { key: string; loc: (typeof KNOWN_NCR_LOCATIONS)[string] } | null = null;
-
-  for (const [key, loc] of Object.entries(KNOWN_NCR_LOCATIONS)) {
-    // If the key is a generic sector without city, ensure city context aligns
-    if (key.includes("noida") && !isNoidaIntent) continue;
-    if (key.includes("gurgaon") && isNoidaIntent) continue;
-
+  for (const [key, loc] of Object.entries(HIGH_CONFIDENCE_GURUGRAM_LANDMARKS)) {
     if (normalized.includes(key)) {
-      if (!bestMatch || key.length > bestMatch.key.length) {
-        bestMatch = { key, loc };
-      }
+      return {
+        lat: loc.lat,
+        lon: loc.lon,
+        displayName: loc.name,
+      };
     }
-  }
-
-  // Also check sectors directly if sector string like "sector 57" was extracted
-  if (!bestMatch) {
-    const secMatch = normalized.match(/sector\s*(\d+[a-zA-Z]?)/i);
-    if (secMatch) {
-      const secNum = secMatch[1].toLowerCase();
-      const lookupKey = isNoidaIntent
-        ? `sector ${secNum} noida`
-        : `sector ${secNum} gurgaon`;
-      if (KNOWN_NCR_LOCATIONS[lookupKey]) {
-        bestMatch = { key: lookupKey, loc: KNOWN_NCR_LOCATIONS[lookupKey] };
-      }
-    }
-  }
-
-  if (bestMatch) {
-    return {
-      lat: bestMatch.loc.lat,
-      lon: bestMatch.loc.lon,
-      displayName: bestMatch.loc.name,
-    };
   }
 
   return null;
@@ -431,190 +490,232 @@ export function cleanUnitPrefix(str: string): string {
 }
 
 /**
+ * Prominent NCR localities across Delhi, Gurugram, Noida, Faridabad, and Ghaziabad
+ */
+const KNOWN_NCR_LOCALITY_NAMES = [
+  "rohini",
+  "dwarka",
+  "saket",
+  "pitampura",
+  "janakpuri",
+  "vasant kunj",
+  "vasant vihar",
+  "hauz khas",
+  "green park",
+  "malviya nagar",
+  "greater kailash",
+  "gk 1",
+  "gk 2",
+  "defence colony",
+  "south extension",
+  "lajpat nagar",
+  "connaught place",
+  "karol bagh",
+  "patel nagar",
+  "rajouri garden",
+  "punjabi bagh",
+  "paschim vihar",
+  "uttam nagar",
+  "shalimar bagh",
+  "model town",
+  "ashok vihar",
+  "civil lines",
+  "narela",
+  "najafgarh",
+  "mayur vihar",
+  "laxmi nagar",
+  "preet vihar",
+  "anand vihar",
+  "indirapuram",
+  "vaishali",
+  "vasundhara",
+  "noida extension",
+  "crossing republik",
+  "palam vihar",
+  "sushant lok",
+  "south city",
+  "nirvana country",
+  "mayfield garden",
+  "ardee city",
+  "malibu towne",
+  "suncity",
+  "dlf phase",
+];
+
+/**
  * Build an intelligent, prioritized list of candidate search queries for Indian addresses.
- * Cleans slashes, splits multi-phrase tokens (e.g., "DLF Cyber Hub / Cyber City"),
- * and avoids false city center fallbacks.
+ * Fully aware of the target city, locality names, sector numbers, roads, and postal codes.
  */
 export function buildGeocodingCandidates(input: string | StructuredAddress): string[] {
   const fullStr = typeof input === "string" ? input : input.address || "";
   const area = typeof input === "object" ? input.areaStreet || "" : "";
   const landmark = typeof input === "object" ? input.landmark || "" : "";
-  const pincode = typeof input === "object" ? input.pincode || "" : "";
-  const city = typeof input === "object" ? input.city || "" : "";
+  const pincode = typeof input === "object" ? (input.pincode || "").trim() : "";
+  const flatBuilding = typeof input === "object" ? input.flatBuilding || "" : "";
 
-  const allText = `${area} ${fullStr} ${landmark}`.toLowerCase();
-  const cityLower = city.trim().toLowerCase();
-
-  // Intelligent city detection for NCR delivery radius
-  let detectedCity = city.trim() || "Gurugram";
-  if (
-    cityLower === "noida" ||
-    cityLower.includes("noida") ||
-    allText.includes("noida") ||
-    (pincode && pincode.startsWith("201"))
-  ) {
-    detectedCity = "Noida";
-  } else if (
-    cityLower === "delhi" ||
-    cityLower === "new delhi" ||
-    allText.includes("delhi") ||
-    allText.includes("new delhi") ||
-    (pincode && pincode.startsWith("11"))
-  ) {
-    detectedCity = "Delhi";
-  } else if (
-    cityLower === "faridabad" ||
-    allText.includes("faridabad") ||
-    (pincode && pincode.startsWith("121"))
-  ) {
-    detectedCity = "Faridabad";
-  } else if (
-    cityLower === "gurugram" ||
-    cityLower === "gurgaon" ||
-    allText.includes("gurugram") ||
-    allText.includes("gurgaon") ||
-    (pincode && pincode.startsWith("122"))
-  ) {
-    detectedCity = "Gurugram";
-  }
-
-  const queries: string[] = [];
+  const detectedCity = detectTargetCity(input);
   const stateContext =
-    detectedCity === "Noida"
+    detectedCity === "Noida" || detectedCity === "Ghaziabad"
       ? "Uttar Pradesh, India"
       : detectedCity === "Delhi"
       ? "Delhi, India"
       : "Haryana, India";
 
-  // Split multi-part strings separated by slashes, commas, pipes, or dashes
-  const sourceText = [area, fullStr].filter(Boolean).join(", ");
+  const sourceText = [flatBuilding, area, fullStr].filter(Boolean).join(", ");
+  const sourceLower = sourceText.toLowerCase();
+
+  const queries: string[] = [];
+
+  // 1. Detect locality (e.g. Rohini, Dwarka, Saket, etc.)
+  let matchedLocality: string | null = null;
+  for (const loc of KNOWN_NCR_LOCALITY_NAMES) {
+    if (sourceLower.includes(loc)) {
+      // Capitalize for geocoder
+      matchedLocality = loc.replace(/\b\w/g, (c) => c.toUpperCase());
+      break;
+    }
+  }
+
+  // 2. Detect sector (e.g. Sector 22, Sector 39)
+  const sectorMatch = sourceText.match(/(?:Sector|Sec\.?)\s*(\d+[a-zA-Z]?)/i);
+  const matchedSector = sectorMatch ? `Sector ${sectorMatch[1].toUpperCase()}` : null;
+
+  // 3. Detect road (e.g. Bakhtawar Singh Road, Golf Course Road)
+  const roadMatch = sourceText.match(/([A-Za-z0-9\s]{3,30}\s+(?:road|marg|path|lane|drive|way|expressway))/i);
+  const matchedRoad = roadMatch ? roadMatch[1].trim() : null;
+
+  // 4. Detect apartment/society
+  const aptMatch = sourceText.match(
+    /([A-Za-z0-9\s]{3,35}\s+(?:apartments?|society|residency|heights|court|villas?|enclave|greens|towers?|plaza|homes))/i
+  );
+  const matchedApt = aptMatch ? aptMatch[1].trim() : null;
+
+  const validPincode = /^[1-9][0-9]{5}$/.test(pincode) ? pincode : null;
+
+  // Priority 1: Sector + Locality + Pincode + City
+  if (matchedSector && matchedLocality) {
+    if (validPincode) {
+      queries.push(`${matchedSector}, ${matchedLocality}, ${validPincode}, ${detectedCity}, India`);
+    }
+    queries.push(`${matchedSector}, ${matchedLocality}, ${detectedCity}, India`);
+  }
+
+  // Priority 2: Road + City
+  if (matchedRoad) {
+    if (validPincode) {
+      queries.push(`${matchedRoad}, ${validPincode}, ${detectedCity}, India`);
+    }
+    queries.push(`${matchedRoad}, ${detectedCity}, India`);
+  }
+
+  // Priority 3: Apartment/Society + City
+  if (matchedApt) {
+    queries.push(`${matchedApt}, ${detectedCity}, India`);
+  }
+
+  // Priority 4: Sector + Pincode + City
+  if (matchedSector) {
+    if (validPincode) {
+      queries.push(`${matchedSector}, ${validPincode}, ${detectedCity}, India`);
+    }
+    queries.push(`${matchedSector}, ${detectedCity}, India`);
+    queries.push(`${matchedSector}, ${detectedCity}, ${stateContext}`);
+  }
+
+  // Priority 5: Locality + Pincode + City
+  if (matchedLocality) {
+    if (validPincode) {
+      queries.push(`${matchedLocality}, ${validPincode}, ${detectedCity}, India`);
+    }
+    queries.push(`${matchedLocality}, ${detectedCity}, India`);
+  }
+
+  // Priority 6: Clean segments from area / street
   const rawSegments = sourceText
     .split(/[,\/|&—\-]+/)
     .map((s) => cleanUnitPrefix(s.trim()))
-    .filter((s) => s.length >= 3);
+    .filter((s) => s.length >= 3 && !/^\d+$/.test(s));
 
-  // DLF Phase extraction (Gurugram only)
-  const phaseMatch = sourceText.match(/(?:DLF Phase|Phase)\s*(\d+[a-zA-Z]?)/i);
-  if (phaseMatch && detectedCity === "Gurugram") {
-    queries.push(`DLF Phase ${phaseMatch[1]}, Gurugram`);
-    queries.push(`DLF Phase ${phaseMatch[1]}, Gurugram, ${stateContext}`);
-  }
-
-  // Sector extraction
-  const sectorMatch = sourceText.match(/(?:Sector|Sec\.?)\s*(\d+[a-zA-Z]?)/i);
-  if (sectorMatch) {
-    const sec = `Sector ${sectorMatch[1]}`;
-    if (pincode && pincode.length === 6) {
-      queries.push(`${sec}, ${pincode}, ${detectedCity}`);
-    }
-    queries.push(`${sec}, ${detectedCity}`);
-    queries.push(`${sec}, ${detectedCity}, ${stateContext}`);
-  }
-
-  // Add clean sub-segments
   for (const seg of rawSegments) {
-    const cleanSeg = seg.replace(/[,\/\\|&\-#()]/g, " ").replace(/\s+/g, " ").trim();
-    if (cleanSeg.length < 3) continue;
-
-    const hasCity = cleanSeg.toLowerCase().includes(detectedCity.toLowerCase());
-    if (hasCity) {
-      queries.push(cleanSeg);
-      queries.push(`${cleanSeg}, ${stateContext}`);
+    if (seg.toLowerCase().includes(detectedCity.toLowerCase())) {
+      queries.push(`${seg}, ${stateContext}`);
     } else {
-      queries.push(`${cleanSeg}, ${detectedCity}`);
-      queries.push(`${cleanSeg}, ${detectedCity}, ${stateContext}`);
-      if (pincode && pincode.length === 6 && pincode !== "122001") {
-        queries.push(`${cleanSeg}, ${pincode}, ${detectedCity}`);
+      queries.push(`${seg}, ${detectedCity}, India`);
+      if (validPincode) {
+        queries.push(`${seg}, ${validPincode}, ${detectedCity}, India`);
       }
     }
   }
 
-  // Landmark + City
+  // Priority 7: Landmark + City
   if (landmark && landmark.trim().length >= 3) {
     const cleanLandmark = landmark
       .replace(/^(?:near|opp|opposite|behind)\s+/i, "")
       .replace(/[,\/\\|&\-#()]/g, " ")
       .trim();
-    queries.push(`${cleanLandmark}, ${detectedCity}`);
-    queries.push(`${cleanLandmark}, ${detectedCity}, ${stateContext}`);
+    queries.push(`${cleanLandmark}, ${detectedCity}, India`);
   }
 
-  // Pincode + City (only if pincode is valid and not generic)
-  if (pincode && /^[1-9][0-9]{5}$/.test(pincode.trim())) {
-    queries.push(`${pincode.trim()}, ${detectedCity}, India`);
+  // Priority 8: Pincode + City (centroid fallback)
+  if (validPincode) {
+    queries.push(`${validPincode}, ${detectedCity}, India`);
   }
 
-  // Clean, unique candidates — NOTE: DO NOT append generic city center fallback!
   return [...new Set(queries.filter((q) => q && q.trim().length >= 3))];
 }
 
 
-// Cached Mappls OAuth token (if using Client ID / Client Secret flow)
-let mapplsOAuthToken: { token: string; expiresAt: number } | null = null;
-
 /**
- * Retrieve Mappls authentication credentials (REST Key or OAuth Bearer Token)
+ * Retrieve Mappls static REST API key from server-side environment variables
  */
-async function getMapplsAuth(): Promise<{ restKey?: string; bearerToken?: string } | null> {
+function getMapplsRestKey(): string | null {
   const restKey = process.env.MAPPLS_REST_KEY || process.env.MAPPLS_API_KEY;
   if (restKey && restKey.trim().length > 0) {
-    return { restKey: restKey.trim() };
+    return restKey.trim();
   }
-
-  const clientId = process.env.MAPPLS_CLIENT_ID;
-  const clientSecret = process.env.MAPPLS_CLIENT_SECRET;
-  if (clientId && clientSecret) {
-    if (mapplsOAuthToken && Date.now() < mapplsOAuthToken.expiresAt) {
-      return { bearerToken: mapplsOAuthToken.token };
-    }
-    try {
-      const tokenController = new AbortController();
-      const tokenTimeout = setTimeout(() => tokenController.abort(), 3500);
-
-      const res = await fetch("https://outpost.mappls.com/api/security/oauth/token", {
-        method: "POST",
-        headers: {
-          "Content-Type": "application/x-www-form-urlencoded",
-        },
-        body: new URLSearchParams({
-          grant_type: "client_credentials",
-          client_id: clientId.trim(),
-          client_secret: clientSecret.trim(),
-        }),
-        signal: tokenController.signal,
-      });
-      clearTimeout(tokenTimeout);
-
-      if (res.ok) {
-        const data = await res.json();
-        if (data.access_token) {
-          const expiresIn = typeof data.expires_in === "number" ? data.expires_in : 86400;
-          mapplsOAuthToken = {
-            token: data.access_token,
-            expiresAt: Date.now() + Math.max(60, expiresIn - 60) * 1000,
-          };
-          return { bearerToken: data.access_token };
-        }
-      }
-    } catch {
-      // Safe fallback if token generation fails
-    }
-  }
-
   return null;
 }
 
 /**
- * Primary Road Distance Provider: Mappls (MapmyIndia) Distance Matrix / Route API
+ * Diagnostic health tracking for Mappls (server-side only, no secrets exposed)
+ */
+export interface MapplsDiagnosticStatus {
+  hasKey: boolean;
+  lastStatus:
+    | "not_configured"
+    | "authenticated"
+    | "auth_failed"
+    | "forbidden"
+    | "quota_exhausted"
+    | "timeout"
+    | "network_error"
+    | "invalid_response";
+  lastMessage?: string;
+  checkedAt?: number;
+}
+
+export let mapplsStatus: MapplsDiagnosticStatus = {
+  hasKey: false,
+  lastStatus: "not_configured",
+};
+
+/**
+ * Primary Road Distance Provider: Mappls (MapmyIndia) Distance Matrix API
+ * Uses server-side MAPPLS_REST_KEY without exposing credentials.
  * Returns driving road distance in kilometers, or null on failure/timeout.
  */
 export async function fetchMapplsRoadDistance(
   customerLat: number,
   customerLon: number
 ): Promise<{ distanceKm: number } | null> {
-  const auth = await getMapplsAuth();
-  if (!auth) {
-    // Mappls credentials not configured in environment
+  const restKey = getMapplsRestKey();
+  if (!restKey) {
+    mapplsStatus = {
+      hasKey: false,
+      lastStatus: "not_configured",
+      lastMessage: "MAPPLS_REST_KEY is not configured in server environment variables.",
+      checkedAt: Date.now(),
+    };
     return null;
   }
 
@@ -625,27 +726,20 @@ export async function fetchMapplsRoadDistance(
   const timer = setTimeout(() => controller.abort(), timeoutMs);
 
   try {
-    // 1. Try Mappls Driving Distance Matrix API (standard distance matrix endpoint)
-    const distanceMatrixUrl = auth.restKey
-      ? `https://apis.mappls.com/advancedmaps/v1/${encodeURIComponent(
-          auth.restKey
-        )}/distance_matrix/driving/${BAKERY_LOCATION.lon},${BAKERY_LOCATION.lat};${customerLon},${customerLat}`
-      : `https://apis.mappls.com/advancedmaps/v1/distance_matrix/driving/${BAKERY_LOCATION.lon},${BAKERY_LOCATION.lat};${customerLon},${customerLat}`;
-
-    const headers: Record<string, string> = {
-      Accept: "application/json",
-      ...(auth.bearerToken ? { Authorization: `Bearer ${auth.bearerToken}` } : {}),
-    };
+    // Official Mappls Driving Distance Matrix REST API endpoint
+    const distanceMatrixUrl = `https://apis.mappls.com/advancedmaps/v1/${encodeURIComponent(
+      restKey
+    )}/distance_matrix/driving/${BAKERY_LOCATION.lon},${BAKERY_LOCATION.lat};${customerLon},${customerLat}?rtype=0&region=ind`;
 
     const res = await fetch(distanceMatrixUrl, {
-      headers,
+      headers: { Accept: "application/json" },
       signal: controller.signal,
     });
 
     if (res.ok) {
       const data = await res.json();
 
-      // Check Distance Matrix response format
+      // Check Distance Matrix response format (results.distances[0][1] in meters)
       const matrixDistanceMeters = data?.results?.distances?.[0]?.[1];
       if (
         typeof matrixDistanceMeters === "number" &&
@@ -654,11 +748,17 @@ export async function fetchMapplsRoadDistance(
       ) {
         const km = parseFloat((matrixDistanceMeters / 1000).toFixed(1));
         if (km >= 0 && km < 1000) {
+          mapplsStatus = {
+            hasKey: true,
+            lastStatus: "authenticated",
+            lastMessage: "Mappls Distance Matrix returned valid road distance.",
+            checkedAt: Date.now(),
+          };
           return { distanceKm: km };
         }
       }
 
-      // Check Route Adv format if returned by endpoint
+      // Check Route Adv format if returned
       const routeDistanceMeters = data?.routes?.[0]?.distance;
       if (
         typeof routeDistanceMeters === "number" &&
@@ -667,37 +767,96 @@ export async function fetchMapplsRoadDistance(
       ) {
         const km = parseFloat((routeDistanceMeters / 1000).toFixed(1));
         if (km >= 0 && km < 1000) {
+          mapplsStatus = {
+            hasKey: true,
+            lastStatus: "authenticated",
+            lastMessage: "Mappls Route returned valid road distance.",
+            checkedAt: Date.now(),
+          };
           return { distanceKm: km };
         }
       }
-    }
 
-    // 2. If Distance Matrix was not enabled on the key (404/403/400), try Mappls Route Adv API
-    if (res.status === 404 || res.status === 400 || res.status === 403) {
-      const routeAdvUrl = auth.restKey
-        ? `https://apis.mappls.com/advancedmaps/v1/${encodeURIComponent(
-            auth.restKey
-          )}/route_adv/driving/${BAKERY_LOCATION.lon},${BAKERY_LOCATION.lat};${customerLon},${customerLat}?overview=simplified`
-        : `https://apis.mappls.com/advancedmaps/v1/route_adv/driving/${BAKERY_LOCATION.lon},${BAKERY_LOCATION.lat};${customerLon},${customerLat}?overview=simplified`;
+      mapplsStatus = {
+        hasKey: true,
+        lastStatus: "invalid_response",
+        lastMessage: "Mappls returned HTTP 200 but distance structure was invalid.",
+        checkedAt: Date.now(),
+      };
+    } else {
+      // Accurately distinguish errors
+      if (res.status === 401) {
+        mapplsStatus = {
+          hasKey: true,
+          lastStatus: "auth_failed",
+          lastMessage: "HTTP 401 Unauthorized: Static key does not exist or has expired.",
+          checkedAt: Date.now(),
+        };
+      } else if (res.status === 403) {
+        mapplsStatus = {
+          hasKey: true,
+          lastStatus: "forbidden",
+          lastMessage: "HTTP 403 Forbidden: Distance Matrix API is not enabled for this static key.",
+          checkedAt: Date.now(),
+        };
+      } else if (res.status === 429) {
+        mapplsStatus = {
+          hasKey: true,
+          lastStatus: "quota_exhausted",
+          lastMessage: "HTTP 429 Too Many Requests: Account quota limit reached.",
+          checkedAt: Date.now(),
+        };
+      } else if (res.status === 404 || res.status === 400) {
+        // Fallback try route_adv driving endpoint
+        const routeAdvUrl = `https://apis.mappls.com/advancedmaps/v1/${encodeURIComponent(
+          restKey
+        )}/route_adv/driving/${BAKERY_LOCATION.lon},${BAKERY_LOCATION.lat};${customerLon},${customerLat}?overview=simplified`;
 
-      const routeRes = await fetch(routeAdvUrl, {
-        headers,
-        signal: controller.signal,
-      });
+        const routeRes = await fetch(routeAdvUrl, {
+          headers: { Accept: "application/json" },
+          signal: controller.signal,
+        });
 
-      if (routeRes.ok) {
-        const routeData = await routeRes.json();
-        const distMeters = routeData?.routes?.[0]?.distance;
-        if (typeof distMeters === "number" && Number.isFinite(distMeters) && distMeters > 0) {
-          const km = parseFloat((distMeters / 1000).toFixed(1));
-          if (km >= 0 && km < 1000) {
-            return { distanceKm: km };
+        if (routeRes.ok) {
+          const routeData = await routeRes.json();
+          const distMeters = routeData?.routes?.[0]?.distance;
+          if (typeof distMeters === "number" && Number.isFinite(distMeters) && distMeters > 0) {
+            const km = parseFloat((distMeters / 1000).toFixed(1));
+            if (km >= 0 && km < 1000) {
+              mapplsStatus = {
+                hasKey: true,
+                lastStatus: "authenticated",
+                lastMessage: "Mappls Route Adv returned valid road distance.",
+                checkedAt: Date.now(),
+              };
+              return { distanceKm: km };
+            }
           }
         }
+
+        mapplsStatus = {
+          hasKey: true,
+          lastStatus: "invalid_response",
+          lastMessage: `HTTP ${res.status}: Route/matrix endpoint not accessible with configured key.`,
+          checkedAt: Date.now(),
+        };
+      } else {
+        mapplsStatus = {
+          hasKey: true,
+          lastStatus: "network_error",
+          lastMessage: `HTTP ${res.status}: Provider returned server error.`,
+          checkedAt: Date.now(),
+        };
       }
     }
-  } catch {
-    // Mappls timed out, network error or invalid JSON - proceed safely to fallback
+  } catch (err: unknown) {
+    const isAbort = (err as Error)?.name === "AbortError";
+    mapplsStatus = {
+      hasKey: true,
+      lastStatus: isAbort ? "timeout" : "network_error",
+      lastMessage: isAbort ? `Request timed out after ${timeoutMs}ms.` : "Network connection failed.",
+      checkedAt: Date.now(),
+    };
   } finally {
     clearTimeout(timer);
   }
@@ -824,23 +983,22 @@ export async function calculateRoadDistanceAndCharge(
   // 3. If not found in known registry, query OpenStreetMap Nominatim with clean candidate queries (Tier B)
   if (customerLat === null || customerLon === null) {
     const queryCandidates = buildGeocodingCandidates(input);
-    const isNoidaIntent =
-      (typeof input === "object" &&
-        (input.city?.toLowerCase() === "noida" ||
-          input.areaStreet?.toLowerCase().includes("noida") ||
-          Boolean(input.pincode?.startsWith("201")))) ||
-      (typeof input === "string" && input.toLowerCase().includes("noida"));
+    const targetCity = detectTargetCity(input);
+
+    let cityViewbox = "76.60,28.95,77.65,28.00";
+    if (targetCity === "Delhi") {
+      cityViewbox = "76.80,28.90,77.40,28.40";
+    } else if (targetCity === "Noida" || targetCity === "Ghaziabad") {
+      cityViewbox = "77.20,28.75,77.65,28.25";
+    } else if (targetCity === "Faridabad") {
+      cityViewbox = "77.20,28.50,77.40,28.25";
+    }
 
     for (const query of queryCandidates) {
       try {
-        const isQueryNoida = query.toLowerCase().includes("noida") || isNoidaIntent;
-        const viewbox = isQueryNoida
-          ? "77.20,28.75,77.65,28.25"
-          : "76.60,28.95,77.65,28.00";
-
         const nominatimUrl = `https://nominatim.openstreetmap.org/search?q=${encodeURIComponent(
           query
-        )}&format=json&limit=1&countrycodes=in&viewbox=${viewbox}&bounded=0`;
+        )}&format=json&limit=1&countrycodes=in&viewbox=${cityViewbox}&bounded=0`;
 
         const controller = new AbortController();
         const timeout = setTimeout(() => controller.abort(), 3500);
@@ -861,17 +1019,28 @@ export async function calculateRoadDistanceAndCharge(
             const lon = parseFloat(data[0].lon);
             const foundName = (data[0].display_name || "").toLowerCase();
 
-            // If looking for a Noida address, do not falsely accept Gurgaon/Gurugram results
+            // Strict cross-city validation to prevent false matches
             if (
-              isNoidaIntent &&
-              (foundName.includes("gurgaon") || foundName.includes("gurugram")) &&
-              !query.toLowerCase().includes("gurugram") &&
-              !query.toLowerCase().includes("gurgaon")
+              targetCity === "Delhi" &&
+              (foundName.includes("gurgaon") || foundName.includes("gurugram") || foundName.includes("noida"))
+            ) {
+              continue;
+            }
+            if (
+              targetCity === "Gurugram" &&
+              foundName.includes("delhi") &&
+              !query.toLowerCase().includes("delhi")
+            ) {
+              continue;
+            }
+            if (
+              targetCity === "Noida" &&
+              (foundName.includes("gurgaon") || foundName.includes("gurugram"))
             ) {
               continue;
             }
 
-            // Verify coordinates are in reasonable India/NCR bounding region
+            // Verify coordinates are in valid Indian bounding region
             if (!isNaN(lat) && !isNaN(lon) && lat >= 8 && lat <= 36 && lon >= 68 && lon <= 98) {
               customerLat = lat;
               customerLon = lon;
@@ -881,7 +1050,39 @@ export async function calculateRoadDistanceAndCharge(
           }
         }
       } catch {
-        // Continue to next candidate query if one times out or errors
+        // Continue to Photon or next candidate query
+      }
+
+      // If Nominatim did not return coordinates, try Photon as fast free secondary geocoder
+      if (customerLat === null || customerLon === null) {
+        try {
+          const photonUrl = `https://photon.komoot.io/api/?q=${encodeURIComponent(query)}&limit=1`;
+          const pRes = await fetch(photonUrl);
+          if (pRes.ok) {
+            const pData = await pRes.json();
+            const feat = pData?.features?.[0];
+            if (feat?.geometry?.coordinates) {
+              const [pLon, pLat] = feat.geometry.coordinates;
+              const props = feat.properties || {};
+              const pState = (props.state || "").toLowerCase();
+
+              // Validate city match
+              if (targetCity === "Delhi" && pState.includes("haryana")) continue;
+              if (targetCity === "Gurugram" && pState.includes("delhi")) continue;
+
+              if (!isNaN(pLat) && !isNaN(pLon) && pLat >= 8 && pLat <= 36 && pLon >= 68 && pLon <= 98) {
+                customerLat = pLat;
+                customerLon = pLon;
+                displayName = [props.name, props.district, props.city, props.state, props.postcode]
+                  .filter(Boolean)
+                  .join(", ");
+                break;
+              }
+            }
+          }
+        } catch {
+          // Ignore and continue to next candidate
+        }
       }
     }
   }

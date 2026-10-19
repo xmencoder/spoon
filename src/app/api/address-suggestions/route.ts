@@ -65,12 +65,31 @@ const POPULAR_NCR_LOCALITIES = [
   { name: "South City 2", city: "Gurugram", postcode: "122018" },
   { name: "Sector 14", city: "Gurugram", postcode: "122001" },
   { name: "Sector 15", city: "Gurugram", postcode: "122001" },
+  { name: "Sector 22", city: "Gurugram", postcode: "122015" },
   { name: "Sector 29", city: "Gurugram", postcode: "122002" },
   { name: "Sector 31", city: "Gurugram", postcode: "122001" },
+  { name: "Sector 38", city: "Gurugram", postcode: "122001" },
+  { name: "Sector 39", city: "Gurugram", postcode: "122001" },
+  { name: "Sector 40", city: "Gurugram", postcode: "122001" },
+  { name: "Sector 43", city: "Gurugram", postcode: "122002" },
+  { name: "Sector 45", city: "Gurugram", postcode: "122003" },
+  { name: "Sector 46", city: "Gurugram", postcode: "122003" },
+  { name: "Sector 47", city: "Gurugram", postcode: "122018" },
+  { name: "Sector 48", city: "Gurugram", postcode: "122018" },
+  { name: "Sector 49", city: "Gurugram", postcode: "122018" },
+  { name: "Sector 50", city: "Gurugram", postcode: "122018" },
+  { name: "Sector 51", city: "Gurugram", postcode: "122018" },
+  { name: "Sector 52", city: "Gurugram", postcode: "122003" },
+  { name: "Sector 53", city: "Gurugram", postcode: "122002" },
+  { name: "Sector 54", city: "Gurugram", postcode: "122011" },
+  { name: "Sector 55", city: "Gurugram", postcode: "122011" },
+  { name: "Sector 56", city: "Gurugram", postcode: "122011" },
+  { name: "Sector 57", city: "Gurugram", postcode: "122003" },
   { name: "Sector 65, Golf Course Ext Road", city: "Gurugram", postcode: "122018" },
   { name: "Sector 66", city: "Gurugram", postcode: "122018" },
   { name: "Sector 67", city: "Gurugram", postcode: "122018" },
   { name: "Sector 70, Sohna Road", city: "Gurugram", postcode: "122101" },
+  { name: "Bakhtawar Singh Road", city: "Gurugram", postcode: "122001" },
   // Noida (Comprehensive list within delivery radius)
   { name: "Sector 100", city: "Noida", postcode: "201304" },
   { name: "Sector 104", city: "Noida", postcode: "201304" },
@@ -139,12 +158,77 @@ export async function GET(req: NextRequest) {
     postcode: string;
   }> = [];
 
-  // 1. Check instant local list first
   const queryLower = q.toLowerCase();
+  const reqCityLower = requestedCity.toLowerCase();
+  const isDelhiTarget =
+    reqCityLower === "delhi" ||
+    reqCityLower === "new delhi" ||
+    queryLower.includes("delhi") ||
+    queryLower.includes("rohini") ||
+    queryLower.includes("dwarka");
+  const isNoidaTarget =
+    reqCityLower === "noida" || queryLower.includes("noida");
+  const isFaridabadTarget =
+    reqCityLower === "faridabad" || queryLower.includes("faridabad");
+
+  let defaultTargetCity = "Gurugram";
+  if (isDelhiTarget) defaultTargetCity = "Delhi";
+  else if (isNoidaTarget) defaultTargetCity = "Noida";
+  else if (isFaridabadTarget) defaultTargetCity = "Faridabad";
+
+  // 1. Dynamic Sector Extraction (finds ALL sectors even if buried in long messy addresses)
+  const sectorMatches = Array.from(queryLower.matchAll(/(?:sector|sec\.?)\s*(\d+[a-zA-Z]?)/gi));
+  const detectedSectors = sectorMatches.map((m) => {
+    const secNum = m[1].toLowerCase();
+    const pos = m.index;
+    const afterText = queryLower.slice(pos, pos + 40);
+    const isGurgaonAffinity = afterText.includes("gurgaon") || afterText.includes("gurugram");
+    const isNoidaAffinity = afterText.includes("noida");
+    const isDelhiAffinity = afterText.includes("delhi") || afterText.includes("rohini");
+    return { secNum, pos, isGurgaonAffinity, isNoidaAffinity, isDelhiAffinity };
+  });
+
+  // Sort sectors so the sector closest to the target city / rightmost comes first
+  detectedSectors.sort((a, b) => {
+    if (defaultTargetCity === "Delhi") {
+      if (a.isDelhiAffinity && !b.isDelhiAffinity) return -1;
+      if (b.isDelhiAffinity && !a.isDelhiAffinity) return 1;
+    } else if (defaultTargetCity === "Noida") {
+      if (a.isNoidaAffinity && !b.isNoidaAffinity) return -1;
+      if (b.isNoidaAffinity && !a.isNoidaAffinity) return 1;
+    } else {
+      if (a.isGurgaonAffinity && !b.isGurgaonAffinity) return -1;
+      if (b.isGurgaonAffinity && !a.isGurgaonAffinity) return 1;
+    }
+    return b.pos - a.pos;
+  });
+
+  for (const item of detectedSectors) {
+    const targetCity = item.isDelhiAffinity
+      ? "Delhi"
+      : item.isNoidaAffinity
+      ? "Noida"
+      : item.isGurgaonAffinity
+      ? "Gurugram"
+      : defaultTargetCity;
+    const secTitle = `Sector ${item.secNum.toUpperCase()}`;
+    if (!results.some((r) => r.title.toLowerCase() === secTitle.toLowerCase())) {
+      results.push({
+        title: secTitle,
+        subtitle: `${secTitle}, ${targetCity}`,
+        city: targetCity,
+        postcode: "",
+      });
+    }
+  }
+
+  // 2. Bidirectional local list match: handles short queries ("sec 39") AND long pasted paragraphs
   const matchedLocal = POPULAR_NCR_LOCALITIES.filter((item) => {
-    const nameMatch = item.name.toLowerCase().includes(queryLower);
+    const itemNameLower = item.name.toLowerCase();
+    const nameMatch = itemNameLower.includes(queryLower);
     const cityMatch = item.city.toLowerCase().includes(queryLower);
-    return nameMatch || cityMatch;
+    const containsMatch = queryLower.length >= 5 && queryLower.includes(itemNameLower);
+    return nameMatch || cityMatch || containsMatch;
   });
 
   // Sort matches: if requestedCity is provided, put that city's items first
@@ -156,30 +240,50 @@ export async function GET(req: NextRequest) {
     });
   }
 
-  for (const item of matchedLocal.slice(0, 5)) {
-    results.push({
-      title: item.name,
-      subtitle: `${item.name}, ${item.city}${item.postcode ? ` — ${item.postcode}` : ""}`,
-      city: item.city,
-      postcode: item.postcode,
-    });
+  for (const item of matchedLocal) {
+    if (!results.some((r) => r.title.toLowerCase() === item.name.toLowerCase())) {
+      results.push({
+        title: item.name,
+        subtitle: `${item.name}, ${item.city}${item.postcode ? ` — ${item.postcode}` : ""}`,
+        city: item.city,
+        postcode: item.postcode,
+      });
+    }
+    if (results.length >= 6) break;
   }
 
-  // 2. Query Nominatim for live OpenStreetMap suggestions with viewbox around bakery and NCR
+  // 3. Query Nominatim for live OpenStreetMap suggestions
   try {
-    const isNoidaTarget =
-      requestedCity.toLowerCase() === "noida" || queryLower.includes("noida");
-
-    const viewboxParam = isNoidaTarget
-      ? "&viewbox=77.20,28.75,77.65,28.25&bounded=0"
-      : "&viewbox=76.60,28.95,77.65,28.00&bounded=0";
+    let viewboxParam = "&viewbox=76.60,28.95,77.65,28.00&bounded=0";
+    if (defaultTargetCity === "Delhi") {
+      viewboxParam = "&viewbox=76.80,28.90,77.40,28.40&bounded=0";
+    } else if (defaultTargetCity === "Noida") {
+      viewboxParam = "&viewbox=77.20,28.75,77.65,28.25&bounded=0";
+    } else if (defaultTargetCity === "Faridabad") {
+      viewboxParam = "&viewbox=77.20,28.50,77.40,28.25&bounded=0";
+    }
 
     const cleanQ = q.replace(/[\/\\|&#\-]/g, " ").replace(/\s+/g, " ").trim();
+    
+    // For long inputs (pasted full address), extract core road/sector/landmark rather than raw 100-char string
     let nominatimQuery = cleanQ;
-    if (isNoidaTarget && !cleanQ.toLowerCase().includes("noida")) {
-      nominatimQuery = `${cleanQ}, Noida, Uttar Pradesh, India`;
-    } else if (!cleanQ.toLowerCase().includes("india")) {
-      nominatimQuery = `${cleanQ}, India`;
+    if (cleanQ.length > 25) {
+      const roadMatch = cleanQ.match(/([A-Za-z0-9\s]{3,30}\s+(?:road|marg|path|lane|drive|way))/i);
+      const aptMatch = cleanQ.match(/([A-Za-z0-9\s]{3,35}\s+(?:apartments?|society|residency|heights|court|villas?|enclave|greens|towers?|plaza|homes))/i);
+
+      if (roadMatch) {
+        nominatimQuery = `${roadMatch[1].trim()}, ${requestedCity || defaultTargetCity}, India`;
+      } else if (aptMatch) {
+        nominatimQuery = `${aptMatch[1].trim()}, ${requestedCity || defaultTargetCity}, India`;
+      } else if (detectedSectors.length > 0) {
+        nominatimQuery = `Sector ${detectedSectors[0].secNum}, ${requestedCity || defaultTargetCity}, India`;
+      }
+    } else {
+      if (defaultTargetCity !== "Gurugram" && !cleanQ.toLowerCase().includes(defaultTargetCity.toLowerCase())) {
+        nominatimQuery = `${cleanQ}, ${defaultTargetCity}, India`;
+      } else if (!cleanQ.toLowerCase().includes("india")) {
+        nominatimQuery = `${cleanQ}, India`;
+      }
     }
 
     const nominatimUrl = `https://nominatim.openstreetmap.org/search?q=${encodeURIComponent(
