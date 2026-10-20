@@ -15,6 +15,7 @@ import {
   ChevronRight,
   LayoutGrid,
   X,
+  Search,
 } from "lucide-react";
 import { useCart } from "@/lib/store/CartContext";
 import type { Product, Category } from "@/types/database";
@@ -182,6 +183,7 @@ interface MenuSectionProps {
   initialRestaurantId?: string;
   initialCategories?: Category[];
   initialProducts?: Product[];
+  initialSearchQuery?: string;
 }
 
 export function MenuSection({
@@ -190,6 +192,7 @@ export function MenuSection({
   initialRestaurantId,
   initialCategories,
   initialProducts,
+  initialSearchQuery = "",
 }: MenuSectionProps) {
   // If initial props provided from server and cache empty, seed cache immediately
   if (
@@ -214,6 +217,7 @@ export function MenuSection({
   const [favorites, setFavorites] = useState<Record<string, boolean>>({});
   const [addedItem, setAddedItem] = useState<string | null>(null);
   const [isCategoryDrawerOpen, setIsCategoryDrawerOpen] = useState(false);
+  const [searchQuery, setSearchQuery] = useState(initialSearchQuery || "");
   const scrollContainerRef = useRef<HTMLDivElement>(null);
   const tabsContainerRef = useRef<HTMLDivElement>(null);
   const tabRefs = useRef<Record<string, HTMLButtonElement | null>>({});
@@ -221,6 +225,21 @@ export function MenuSection({
   const manualScrollTimeout = useRef<NodeJS.Timeout | null>(null);
   // Ensures the initial hash/query scroll happens only once per page load
   const hasScrolledToInitialTarget = useRef(false);
+
+  // Sync searchQuery with URL query parameter (?search=... or ?q=...)
+  useEffect(() => {
+    const readUrlQuery = () => {
+      if (typeof window !== "undefined") {
+        const params = new URLSearchParams(window.location.search);
+        const q = params.get("search") || params.get("q") || "";
+        setSearchQuery((prev) => (prev !== q ? q : prev));
+      }
+    };
+
+    readUrlQuery();
+    window.addEventListener("popstate", readUrlQuery);
+    return () => window.removeEventListener("popstate", readUrlQuery);
+  }, []);
 
   // ── LIVE DATA FROM SUPABASE (persisted in global cache) ──
   const [liveCategories, setLiveCategories] = useState<CategoryCard[]>(() => {
@@ -485,11 +504,20 @@ export function MenuSection({
   };
 
   const filteredItems = (() => {
+    const cleanQuery = searchQuery.trim().toLowerCase();
+    const tokens = cleanQuery ? cleanQuery.split(/\s+/).filter(Boolean) : [];
+
+    const matchesSearch = (item: MenuItem) => {
+      if (!cleanQuery) return true;
+      const combined = `${item.name} ${item.description || ""} ${item.category || ""} ${(item.tags || []).join(" ")} ${item.doodleText || ""}`.toLowerCase();
+      return tokens.every((token) => combined.includes(token));
+    };
+
     if (activeCategory === "all") {
-      return activeMenuItems;
+      return activeMenuItems.filter(matchesSearch);
     }
     if (activeCategory === "popular") {
-      const popularItems = activeMenuItems.filter((item) => item.isPopular);
+      const popularItems = activeMenuItems.filter((item) => item.isPopular && matchesSearch(item));
       if (dbLoaded && liveDbProducts.length > 0) {
         // Sort by popular_rank from the live DB product
         return [...popularItems].sort((a, b) => {
@@ -500,7 +528,7 @@ export function MenuSection({
       }
       return popularItems;
     }
-    return activeMenuItems.filter((item) => item.category === activeCategory);
+    return activeMenuItems.filter((item) => item.category === activeCategory && matchesSearch(item));
   })();
 
   const displayItems =
@@ -735,6 +763,15 @@ export function MenuSection({
   const categorySections = useMemo(() => {
     if (!isFullMenu) return [];
 
+    const cleanQuery = searchQuery.trim().toLowerCase();
+    const tokens = cleanQuery ? cleanQuery.split(/\s+/).filter(Boolean) : [];
+
+    const matchesSearch = (item: MenuItem) => {
+      if (!cleanQuery) return true;
+      const combined = `${item.name} ${item.description || ""} ${item.category || ""} ${(item.tags || []).join(" ")} ${item.doodleText || ""}`.toLowerCase();
+      return tokens.every((token) => combined.includes(token));
+    };
+
     const sections: Array<{
       id: string;
       name: string;
@@ -742,7 +779,7 @@ export function MenuSection({
     }> = [];
 
     // 1. Bestseller first
-    const popularItems = getCategoryItems("popular");
+    const popularItems = getCategoryItems("popular").filter(matchesSearch);
     if (popularItems.length > 0) {
       sections.push({
         id: "popular",
@@ -754,7 +791,7 @@ export function MenuSection({
     // 2. Next: other categories in order
     for (const cat of activeCategoryCards) {
       if (cat.id === "popular" || cat.id === "all") continue;
-      const items = getCategoryItems(cat.id);
+      const items = getCategoryItems(cat.id).filter(matchesSearch);
       if (items.length > 0) {
         sections.push({
           id: cat.id,
@@ -765,7 +802,7 @@ export function MenuSection({
     }
 
     return sections;
-  }, [isFullMenu, activeCategoryCards, getCategoryItems]);
+  }, [isFullMenu, activeCategoryCards, getCategoryItems, searchQuery]);
 
   // Scroll tabs container horizontally to center the active tab — WITHOUT touching page scroll
   const scrollTabIntoView = (id: string) => {
@@ -901,16 +938,92 @@ export function MenuSection({
       {/* Vintage subtle ambient background gradient */}
       <div className="pointer-events-none absolute inset-0 bg-[radial-gradient(ellipse_at_top,#FFF9F0_0%,rgba(244,233,220,0.4)_60%,rgba(217,188,158,0.25)_100%)]" />
 
-
-
       <div className="relative mx-auto max-w-7xl px-3.5 sm:px-6 lg:px-8">
-        {/* ── HEADING: ONLY 'Made with love, Made to indulge' ── */}
-        <div className="mb-6 sm:mb-8">
-          <h2 className="font-serif text-3xl sm:text-4xl lg:text-5xl font-bold text-[#29251F] leading-[1.15] tracking-tight">
-            Made with love, <br />
-            <span>Made to indulge</span>
-          </h2>
+        {/* ── HEADING & MENU SEARCH BAR ── */}
+        <div className="mb-6 sm:mb-8 flex flex-col md:flex-row md:items-end justify-between gap-4">
+          <div>
+            <h2 className="font-serif text-3xl sm:text-4xl lg:text-5xl font-bold text-[#29251F] leading-[1.15] tracking-tight">
+              Made with love, <br />
+              <span>Made to indulge</span>
+            </h2>
+          </div>
+
+          {/* Integrated Menu Search Bar */}
+          <div className="w-full md:w-80 lg:w-96">
+            <div className="relative flex items-center bg-[#FAF5ED] border border-[#D8CABE] focus-within:border-[#7A774D] focus-within:ring-2 focus-within:ring-[#7A774D]/20 rounded-full px-4 py-2.5 shadow-xs transition-all">
+              <Search className="w-4 h-4 text-[#7A774D] shrink-0 mr-2.5" />
+              <input
+                type="search"
+                value={searchQuery}
+                onChange={(e) => {
+                  const val = e.target.value;
+                  setSearchQuery(val);
+                  if (typeof window !== "undefined") {
+                    const url = new URL(window.location.href);
+                    if (val.trim()) {
+                      url.searchParams.set("search", val.trim());
+                    } else {
+                      url.searchParams.delete("search");
+                      url.searchParams.delete("q");
+                    }
+                    history.replaceState(null, "", url.toString());
+                  }
+                }}
+                placeholder="Search cakes, sourdough, cookies..."
+                className="w-full bg-transparent text-xs sm:text-sm text-[#29251F] placeholder:text-[#8C8273] font-serif focus:outline-hidden"
+              />
+              {searchQuery && (
+                <button
+                  type="button"
+                  onClick={() => {
+                    setSearchQuery("");
+                    if (typeof window !== "undefined") {
+                      const url = new URL(window.location.href);
+                      url.searchParams.delete("search");
+                      url.searchParams.delete("q");
+                      history.replaceState(null, "", url.toString());
+                    }
+                  }}
+                  className="p-1 text-[#8C8273] hover:text-[#29251F] rounded-full transition-colors cursor-pointer"
+                  title="Clear search"
+                  aria-label="Clear search"
+                >
+                  <X className="w-3.5 h-3.5" />
+                </button>
+              )}
+            </div>
+          </div>
         </div>
+
+        {/* Search Results Notice Bar */}
+        {searchQuery.trim() && (
+          <div className="mb-4 sm:mb-6 p-3 sm:p-3.5 bg-[#FAF5ED] border border-[#E0D3C1] rounded-2xl flex items-center justify-between gap-3 text-xs shadow-2xs">
+            <div className="flex items-center gap-2">
+              <Search className="w-4 h-4 text-[#7A774D]" />
+              <span className="text-[#29251F] font-serif font-semibold">
+                Showing results for &ldquo;{searchQuery}&rdquo;
+              </span>
+              <span className="text-[#8C8273]">
+                ({isFullMenu ? categorySections.reduce((sum, s) => sum + s.items.length, 0) : filteredItems.length} items found)
+              </span>
+            </div>
+            <button
+              type="button"
+              onClick={() => {
+                setSearchQuery("");
+                if (typeof window !== "undefined") {
+                  const url = new URL(window.location.href);
+                  url.searchParams.delete("search");
+                  url.searchParams.delete("q");
+                  history.replaceState(null, "", url.toString());
+                }
+              }}
+              className="text-xs text-[#A34B3D] hover:underline font-semibold cursor-pointer"
+            >
+              Clear search (show all)
+            </button>
+          </div>
+        )}
 
         {/* ══════════════════════════════════════════════════════ */}
         {/* ── CATEGORY NAV: FULL MENU = STICKY PILLS / HOME = SLIDER */}
@@ -1040,7 +1153,8 @@ export function MenuSection({
         {/* ── FULL MENU: STACKED CATEGORY SECTIONS WITH HEADINGS ─────────── */}
         {/* ══════════════════════════════════════════════════════════════════ */}
         {isFullMenu ? (
-          <div className="mt-6 space-y-12 sm:space-y-16">
+          categorySections.length > 0 ? (
+            <div className="mt-6 space-y-12 sm:space-y-16">
             {categorySections.map((sec, secIdx) => (
               <section
                 key={sec.id}
@@ -1135,7 +1249,7 @@ export function MenuSection({
                               </Link>
                               <VegSymbol className="w-3.5 h-3.5 mt-0.5" />
                             </div>
-                            <p className="mt-1 text-[11px] text-[#706657] leading-snug line-clamp-2">{item.description}</p>
+                            <p className="mt-1 text-[11px] text-[#706657] leading-snug line-clamp-2 whitespace-pre-line">{item.description}</p>
                             <div className="mt-2 flex flex-wrap gap-1">
                               {item.tags.map((tag) => (<span key={tag} className="px-1.5 py-0.5 rounded-[4px] bg-[#EFE8DC] text-[#695F52] text-[9px] font-medium leading-none">{tag}</span>))}
                             </div>
@@ -1271,7 +1385,7 @@ export function MenuSection({
                               <VegSymbol className="w-4 h-4" />
                             </div>
                           </div>
-                          <p className="mt-1.5 text-xs sm:text-sm text-[#706657] leading-relaxed line-clamp-2">{item.description}</p>
+                          <p className="mt-1.5 text-xs sm:text-sm text-[#706657] leading-relaxed line-clamp-2 whitespace-pre-line">{item.description}</p>
                           <div className="mt-3 flex flex-wrap gap-1.5">
                             {item.tags.map((tag) => (<span key={tag} className="px-2.5 py-0.5 rounded-md bg-[#EFE8DC] text-[#695F52] text-[10px] sm:text-[11px] font-medium">{tag}</span>))}
                           </div>
@@ -1328,6 +1442,34 @@ export function MenuSection({
             ))}
           </div>
         ) : (
+          <div className="py-16 text-center space-y-3 bg-[#FAF5ED]/80 border border-[#E7DCCE] rounded-3xl p-8 my-6">
+            <div className="w-12 h-12 rounded-full bg-[#EAE0D1] mx-auto flex items-center justify-center text-xl">
+              🧁
+            </div>
+            <h3 className="font-serif font-bold text-lg text-[#29251F]">
+              No bakery treats found for &ldquo;{searchQuery}&rdquo;
+            </h3>
+            <p className="text-xs text-[#7A6E5D] max-w-sm mx-auto">
+              We couldn&apos;t find anything matching your search. Try checking your spelling or search for popular treats like cakes, cookies, or sourdough.
+            </p>
+            <button
+              type="button"
+              onClick={() => {
+                setSearchQuery("");
+                if (typeof window !== "undefined") {
+                  const url = new URL(window.location.href);
+                  url.searchParams.delete("search");
+                  url.searchParams.delete("q");
+                  history.replaceState(null, "", url.toString());
+                }
+              }}
+              className="mt-2 inline-flex items-center gap-1.5 px-5 py-2.5 rounded-full bg-[#7A774D] hover:bg-[#68653F] text-white text-xs font-serif font-semibold shadow-xs transition-colors cursor-pointer"
+            >
+              Clear search & view all treats
+            </button>
+          </div>
+        )
+      ) : (
           <>
         {/* ══════════════════════════════════════════════════════ */}
         {/* ── MOBILE VIEW: HORIZONTAL CARD SPLIT (md:hidden) ── */}
@@ -1433,7 +1575,7 @@ export function MenuSection({
                     </div>
 
                     {/* Description */}
-                    <p className="mt-1 text-[11px] text-[#706657] leading-snug line-clamp-2">
+                    <p className="mt-1 text-[11px] text-[#706657] leading-snug line-clamp-2 whitespace-pre-line">
                       {item.description}
                     </p>
 
@@ -1664,7 +1806,7 @@ export function MenuSection({
                   </div>
 
                   {/* Description */}
-                  <p className="mt-1.5 text-xs sm:text-sm text-[#706657] leading-relaxed line-clamp-2">
+                  <p className="mt-1.5 text-xs sm:text-sm text-[#706657] leading-relaxed whitespace-pre-line">
                     {item.description}
                   </p>
 

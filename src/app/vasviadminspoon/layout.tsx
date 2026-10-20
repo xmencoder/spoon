@@ -19,6 +19,7 @@ import {
   Loader2,
   CalendarClock,
   Gift,
+  Tag,
   UserPlus,
   Mail,
   Lock,
@@ -197,6 +198,7 @@ function AdminLayoutInner({ children }: { children: React.ReactNode }) {
     { label: "Categories", href: "/vasviadminspoon/categories", icon: FolderTree },
     { label: "Delivery Slots", href: "/vasviadminspoon/delivery", icon: CalendarClock },
     { label: "Orders", href: "/vasviadminspoon/orders", icon: ShoppingBag },
+    { label: "Coupons", href: "/vasviadminspoon/coupons", icon: Tag },
     { label: "Bulk Enquiries", href: "/vasviadminspoon/bulk-orders", icon: Gift },
     { label: "Settings", href: "/vasviadminspoon/settings", icon: Settings },
   ];

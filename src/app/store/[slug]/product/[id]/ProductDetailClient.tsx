@@ -621,7 +621,7 @@ export default function ProductDetailClient({
                 <h1 className="font-serif text-3xl sm:text-4xl lg:text-[2.6rem] font-bold text-[#29251F] leading-[1.12] tracking-tight">
                   {detail.name}
                 </h1>
-                <p className="mt-2 text-sm sm:text-base text-[#695F50] leading-relaxed">
+                <p className="mt-2 text-sm sm:text-base text-[#695F50] leading-relaxed whitespace-pre-line">
                   {detail.subtitle}
                 </p>
               </div>

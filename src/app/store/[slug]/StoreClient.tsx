@@ -521,7 +521,7 @@ function ProductCard({
             </h3>
           </Link>
           {product.description && (
-            <p className="text-[11px] text-[#696053] line-clamp-2 mt-0.5 leading-relaxed">
+            <p className="text-[11px] text-[#696053] line-clamp-2 mt-0.5 leading-relaxed whitespace-pre-line">
               {product.description}
             </p>
           )}

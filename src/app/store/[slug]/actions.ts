@@ -5,6 +5,7 @@ import { createAdminClient } from "@/lib/supabase/admin";
 import type { OrderType } from "@/types/database";
 import { calculateRoadDistanceAndCharge } from "@/lib/delivery-config";
 import { getProductOrderLimit } from "@/lib/order-limit";
+import { validateCoupon } from "@/lib/coupons";
 
 export interface CartItemPayload {
   productId: string;
@@ -36,6 +37,8 @@ export interface CheckoutFormData {
   deliveryTimeSlot?: string;
   deliveryStartTime?: string;
   deliveryEndTime?: string;
+  couponCode?: string;
+  discountAmount?: number;
 }
 
 export interface CreateOrderResult {
@@ -306,10 +309,23 @@ export async function createOrder(
       calculatedDistanceKm = null;
     }
 
+    // 2.5 Coupon discount validation
+    let validatedDiscount = 0;
+    let appliedCouponCode: string | null = null;
+    if (data.couponCode?.trim()) {
+      const couponCheck = validateCoupon(data.couponCode.trim(), itemsSubtotal);
+      if (couponCheck.valid) {
+        validatedDiscount = couponCheck.discountAmount;
+        appliedCouponCode = couponCheck.coupon.code;
+      }
+    }
+
     const packagingCharge = data.packagingCharge || Math.round(itemsSubtotal * 0.04);
     const giftNoteCharge = data.hasGiftNote ? 40 : 0;
-    const total =
-      itemsSubtotal + calculatedDeliveryCharge + packagingCharge + giftNoteCharge;
+    const total = Math.max(
+      0,
+      itemsSubtotal + calculatedDeliveryCharge + packagingCharge + giftNoteCharge - validatedDiscount
+    );
 
     // Generate readable order number and secure tracking token
     const randomSuffix = Math.floor(1000 + Math.random() * 9000);
@@ -415,7 +431,9 @@ export async function createOrder(
       order_id: order.id,
       status: "payment_verification_pending",
       changed_by: "customer",
-      notes: "Order created, waiting for UPI payment submission",
+      notes: appliedCouponCode
+        ? `Order created with coupon ${appliedCouponCode} (-₹${validatedDiscount}). Waiting for UPI payment submission.`
+        : "Order created, waiting for UPI payment submission",
     });
 
     // 5. Build WhatsApp Ping URL
@@ -475,6 +493,9 @@ export async function createOrder(
     }
 
     msg += `\n💰 *Total Paid:* ₹${total} (Paid Online)\n`;
+    if (appliedCouponCode && validatedDiscount > 0) {
+      msg += `🎟️ *Coupon Applied:* ${appliedCouponCode} (-₹${validatedDiscount})\n`;
+    }
     if (data.hasGiftNote && data.giftNote) {
       msg += `💌 *Gift Note:* "${data.giftNote.trim()}"\n`;
     }

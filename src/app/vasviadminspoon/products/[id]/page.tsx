@@ -23,6 +23,7 @@ import type {
 import { getBadgeColorClass } from "@/lib/badges";
 import { Button } from "@/components/ui/button";
 import { Input } from "@/components/ui/input";
+import { Textarea } from "@/components/ui/textarea";
 import {
   ArrowLeft,
   ImagePlus,
@@ -1188,14 +1189,20 @@ export default function AdminEditProductPage() {
           </div>
 
           <div>
-            <label className="block text-xs font-bold uppercase tracking-wider text-spoon-dark mb-1.5">
-              Short Description / Subtitle
-            </label>
-            <Input
+            <div className="flex items-center justify-between mb-1.5">
+              <label className="block text-xs font-bold uppercase tracking-wider text-spoon-dark">
+                Short Description / Subtitle
+              </label>
+              <span className="text-[11px] font-medium text-spoon-muted">
+                Press Enter for new line
+              </span>
+            </div>
+            <Textarea
               value={description}
               onChange={(e) => setDescription(e.target.value)}
-              placeholder="Soft, buttery & loaded with choco chips."
-              className="text-xs"
+              placeholder={"Soft, buttery & loaded with choco chips.\nPress Enter to write on a new line."}
+              rows={4}
+              className="text-xs font-sans min-h-[96px] bg-spoon-cream/60 focus:bg-white resize-y leading-relaxed"
             />
           </div>
         </div>

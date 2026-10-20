@@ -28,9 +28,17 @@ export const metadata = {
   },
 };
 
-export default async function FullMenuPage() {
+export default async function FullMenuPage({
+  searchParams,
+}: {
+  searchParams?: Promise<{ [key: string]: string | string[] | undefined }>;
+}) {
   const slug =
     process.env.NEXT_PUBLIC_DEFAULT_RESTAURANT_SLUG || "the-indulgent-spoon";
+
+  const resolvedParams = searchParams ? await searchParams : {};
+  const rawSearch = resolvedParams?.search || resolvedParams?.q;
+  const initialSearchQuery = typeof rawSearch === "string" ? rawSearch.trim() : "";
 
   const restaurant = await getDefaultRestaurant();
   const categories = restaurant ? await getCategories(restaurant.id) : [];
@@ -48,6 +56,7 @@ export default async function FullMenuPage() {
           initialRestaurantId={restaurant?.id}
           initialCategories={categories}
           initialProducts={products}
+          initialSearchQuery={initialSearchQuery}
         />
       </main>
 

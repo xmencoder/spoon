@@ -36,7 +36,10 @@ import {
   Gift,
   Search,
   Check,
+  CheckCircle2,
   Sparkles,
+  Tag,
+  Percent,
   X,
 } from "lucide-react";
 import { createClient } from "@/lib/supabase/client";
@@ -125,10 +128,20 @@ export default function CheckoutPageClient() {
   const [loadingSlots, setLoadingSlots] = useState(false);
   const [showSlotDropdown, setShowSlotDropdown] = useState(false);
 
-  // Coupon code toggle
+  // Coupon code state
   const [showCouponInput, setShowCouponInput] = useState(false);
   const [couponCode, setCouponCode] = useState("");
-  const [couponMessage, setCouponMessage] = useState<string | null>(null);
+  const [appliedCoupon, setAppliedCoupon] = useState<{
+    code: string;
+    discountPercent: number;
+    minOrderAmount: number;
+  } | null>(null);
+  const [discountAmount, setDiscountAmount] = useState(0);
+  const [validatingCoupon, setValidatingCoupon] = useState(false);
+  const [couponMessage, setCouponMessage] = useState<{
+    type: "success" | "error" | "info";
+    text: string;
+  } | null>(null);
 
   const [cartBakingInfo, setCartBakingInfo] = useState<{
     maxHours: number;
@@ -501,7 +514,34 @@ export default function CheckoutPageClient() {
       : 0;
 
   const currentGiftFee = hasGiftNote ? giftNoteFee : 0;
-  const total = subtotal + effectiveDeliveryCharge + packagingFee + currentGiftFee;
+  const total = Math.max(
+    0,
+    subtotal + effectiveDeliveryCharge + packagingFee + currentGiftFee - discountAmount
+  );
+
+  // Dynamically re-evaluate applied coupon if cart subtotal changes
+  useEffect(() => {
+    if (!appliedCoupon) return;
+
+    if (appliedCoupon.minOrderAmount > 0 && subtotal < appliedCoupon.minOrderAmount) {
+      const shortage = appliedCoupon.minOrderAmount - subtotal;
+      setDiscountAmount(0);
+      setCouponMessage({
+        type: "error",
+        text: `Add ₹${shortage} more to avail coupon "${appliedCoupon.code}" (Min order ₹${appliedCoupon.minOrderAmount})`,
+      });
+    } else {
+      const newDiscount = Math.max(
+        0,
+        Math.round((subtotal * appliedCoupon.discountPercent) / 100)
+      );
+      setDiscountAmount(newDiscount);
+      setCouponMessage({
+        type: "success",
+        text: `Coupon "${appliedCoupon.code}" applied! You saved ₹${newDiscount} (${appliedCoupon.discountPercent}% off)`,
+      });
+    }
+  }, [subtotal, appliedCoupon]);
   const handlePhoneChange = (val: string) => {
     let digits = val.replace(/\D/g, "");
     if (digits.startsWith("91") && digits.length > 10) {
@@ -563,10 +603,62 @@ export default function CheckoutPageClient() {
     isAddressValid &&
     isSlotValid;
 
-  const handleApplyCoupon = (e: React.FormEvent) => {
+  const handleApplyCoupon = async (e: React.FormEvent) => {
     e.preventDefault();
-    if (!couponCode.trim()) return;
-    setCouponMessage("Coupon code is not valid or expired.");
+    const cleanCode = couponCode.trim().toUpperCase();
+    if (!cleanCode) {
+      setCouponMessage({
+        type: "error",
+        text: "Please enter a coupon code.",
+      });
+      return;
+    }
+
+    setValidatingCoupon(true);
+    setCouponMessage(null);
+
+    try {
+      const res = await fetch("/api/coupons/validate", {
+        method: "POST",
+        headers: { "Content-Type": "application/json" },
+        body: JSON.stringify({ code: cleanCode, subtotal }),
+      });
+      const data = await res.json();
+
+      if (!res.ok || !data.valid) {
+        setAppliedCoupon(null);
+        setDiscountAmount(0);
+        setCouponMessage({
+          type: "error",
+          text: data?.error || "Invalid or expired coupon code.",
+        });
+      } else {
+        setAppliedCoupon({
+          code: data.coupon.code,
+          discountPercent: data.coupon.discountPercent,
+          minOrderAmount: data.coupon.minOrderAmount,
+        });
+        setDiscountAmount(data.discountAmount);
+        setCouponMessage({
+          type: "success",
+          text: data.message,
+        });
+      }
+    } catch {
+      setCouponMessage({
+        type: "error",
+        text: "Failed to validate coupon. Please check connection and try again.",
+      });
+    } finally {
+      setValidatingCoupon(false);
+    }
+  };
+
+  const handleRemoveCoupon = () => {
+    setAppliedCoupon(null);
+    setDiscountAmount(0);
+    setCouponCode("");
+    setCouponMessage(null);
   };
 
   // Launch Razorpay
@@ -728,6 +820,8 @@ export default function CheckoutPageClient() {
         packagingCharge: packagingFee,
         hasGiftNote,
         giftNote,
+        couponCode: appliedCoupon ? appliedCoupon.code : undefined,
+        discountAmount,
       });
 
       if (!result.success || !result.orderId) {
@@ -765,6 +859,8 @@ export default function CheckoutPageClient() {
         hasGiftNote,
         giftNote,
         giftNoteFee: hasGiftNote ? giftNoteFee : 0,
+        couponCode: appliedCoupon ? appliedCoupon.code : null,
+        discountAmount,
         total,
         whatsappUrl: result.whatsappUrl,
         restaurantName: restaurant.name || "The Indulgent Spoon",
@@ -1543,14 +1639,14 @@ export default function CheckoutPageClient() {
                 </div>
                 <div>
                   <p className="font-bold text-xs text-[#29251F] leading-tight">
-                    Freshly baked to order
+                    Freshly made to order
                   </p>
                   <p className="text-[11px] text-[#7A6E5D] mt-0.5 leading-relaxed">
                     {cartBakingInfo && cartBakingInfo.maxHours > 0
-                      ? `We start preparing your order after ${formatBakingPeriod(
+                      ? `${items.length > 1 ? "These items are" : "This item is"} freshly made to order and will be ready for dispatch within ${formatBakingPeriod(
                           cartBakingInfo.maxHours
-                        )} to ensure peak freshness.`
-                      : "We start preparing your order shortly before delivery to ensure peak freshness."}
+                        )}.`
+                      : `${items.length > 1 ? "These items are" : "This item is"} freshly made to order and will be ready for dispatch shortly before delivery.`}
                   </p>
                 </div>
               </div>
@@ -1736,11 +1832,50 @@ export default function CheckoutPageClient() {
                     <span>+{formatPrice(giftNoteFee)}</span>
                   </div>
                 )}
+
+                {/* Coupon Discount Row */}
+                {appliedCoupon && discountAmount > 0 && (
+                  <div className="flex justify-between items-center text-xs font-bold text-emerald-800 bg-emerald-50/80 px-2.5 py-1.5 rounded-xl border border-emerald-200">
+                    <span className="flex items-center gap-1.5">
+                      <Tag className="w-3.5 h-3.5 text-emerald-600" />
+                      Coupon ({appliedCoupon.code} • {appliedCoupon.discountPercent}% OFF)
+                    </span>
+                    <span>-{formatPrice(discountAmount)}</span>
+                  </div>
+                )}
               </div>
 
               {/* Coupon Code Banner */}
               <div className="border-t border-[#EBE4D8] pt-3">
-                {!showCouponInput ? (
+                {appliedCoupon && discountAmount > 0 ? (
+                  <div className="p-3 rounded-2xl bg-emerald-50/90 border border-emerald-200 flex items-center justify-between shadow-2xs">
+                    <div className="flex items-center gap-2.5">
+                      <div className="w-8 h-8 rounded-xl bg-emerald-600 text-white flex items-center justify-center font-bold text-xs shadow-xs">
+                        <Tag className="w-4 h-4" />
+                      </div>
+                      <div>
+                        <div className="flex items-center gap-1.5">
+                          <span className="font-mono font-extrabold text-xs text-emerald-950 uppercase tracking-wider">
+                            {appliedCoupon.code}
+                          </span>
+                          <span className="text-[10px] font-bold text-emerald-800 bg-emerald-100/90 border border-emerald-200 px-1.5 py-0.2 rounded-md">
+                            {appliedCoupon.discountPercent}% OFF
+                          </span>
+                        </div>
+                        <p className="text-[11px] text-emerald-800 mt-0.5 font-medium">
+                          You saved {formatPrice(discountAmount)} on this order!
+                        </p>
+                      </div>
+                    </div>
+                    <button
+                      type="button"
+                      onClick={handleRemoveCoupon}
+                      className="text-xs font-bold text-rose-700 hover:text-rose-900 px-2.5 py-1 rounded-lg hover:bg-rose-50 transition cursor-pointer"
+                    >
+                      Remove
+                    </button>
+                  </div>
+                ) : !showCouponInput ? (
                   <button
                     type="button"
                     onClick={() => setShowCouponInput(true)}
@@ -1755,26 +1890,67 @@ export default function CheckoutPageClient() {
                     <ChevronRight className="h-4 w-4 text-[#A03B2A]" />
                   </button>
                 ) : (
-                  <form onSubmit={handleApplyCoupon} className="space-y-1.5">
-                    <div className="flex gap-2">
-                      <input
-                        type="text"
-                        value={couponCode}
-                        onChange={(e) => setCouponCode(e.target.value.toUpperCase())}
-                        placeholder="ENTER COUPON"
-                        className="flex-1 h-10 rounded-xl border border-[#EBE4D8] bg-white px-3 text-xs uppercase font-bold text-[#29251F] focus:outline-none focus:ring-1 focus:ring-[#A03B2A]"
-                      />
+                  <div className="rounded-2xl border border-[#EBE4D8] bg-white p-3 space-y-2 shadow-2xs">
+                    <div className="flex items-center justify-between mb-1">
+                      <div className="flex items-center gap-1.5 text-xs font-bold text-[#29251F]">
+                        <Tag className="w-3.5 h-3.5 text-[#A03B2A]" />
+                        <span>Enter Coupon Code</span>
+                      </div>
                       <button
-                        type="submit"
-                        className="px-4 h-10 rounded-xl bg-[#394231] text-white text-xs font-bold hover:bg-[#2C3426] transition cursor-pointer"
+                        type="button"
+                        onClick={() => {
+                          setShowCouponInput(false);
+                          setCouponMessage(null);
+                        }}
+                        className="text-[#7A6E5D] hover:text-[#29251F] p-0.5 rounded cursor-pointer"
                       >
-                        Apply
+                        <X className="w-4 h-4" />
                       </button>
                     </div>
-                    {couponMessage && (
-                      <p className="text-[10px] text-rose-700 font-semibold">{couponMessage}</p>
-                    )}
-                  </form>
+
+                    <form onSubmit={handleApplyCoupon} className="space-y-2">
+                      <div className="flex gap-2">
+                        <input
+                          type="text"
+                          value={couponCode}
+                          onChange={(e) => setCouponCode(e.target.value.toUpperCase().replace(/\s/g, ""))}
+                          placeholder="e.g. WELCOME10"
+                          className="flex-1 h-10 rounded-xl border border-[#EBE4D8] bg-[#FAF7F2] px-3 font-mono text-xs uppercase font-bold text-[#29251F] focus:outline-none focus:ring-2 focus:ring-[#A03B2A]/30 focus:border-[#A03B2A]"
+                        />
+                        <button
+                          type="submit"
+                          disabled={validatingCoupon || !couponCode.trim()}
+                          className="px-4 h-10 rounded-xl bg-[#394231] text-white text-xs font-bold hover:bg-[#2C3426] transition cursor-pointer disabled:opacity-50 flex items-center gap-1.5 shrink-0"
+                        >
+                          {validatingCoupon ? (
+                            <>
+                              <Loader2 className="w-3.5 h-3.5 animate-spin" />
+                              <span>Applying...</span>
+                            </>
+                          ) : (
+                            <span>Apply</span>
+                          )}
+                        </button>
+                      </div>
+
+                      {couponMessage && (
+                        <div
+                          className={`flex items-start gap-2 p-2.5 rounded-xl text-[11px] leading-relaxed font-semibold ${
+                            couponMessage.type === "success"
+                              ? "bg-emerald-50 text-emerald-900 border border-emerald-200"
+                              : "bg-rose-50 text-rose-900 border border-rose-200"
+                          }`}
+                        >
+                          {couponMessage.type === "success" ? (
+                            <CheckCircle2 className="w-3.5 h-3.5 text-emerald-600 shrink-0 mt-0.5" />
+                          ) : (
+                            <AlertCircle className="w-3.5 h-3.5 text-rose-600 shrink-0 mt-0.5" />
+                          )}
+                          <span>{couponMessage.text}</span>
+                        </div>
+                      )}
+                    </form>
+                  </div>
                 )}
               </div>
 
@@ -1862,49 +2038,54 @@ export default function CheckoutPageClient() {
         </aside>
       )}
 
-      {/* ── FIXED BOTTOM CHECKOUT BAR (Exact Match to Uploaded Photo) ── */}
-      <aside aria-label="Order Checkout Bar" className="fixed bottom-3 sm:bottom-4 left-3 sm:left-4 right-3 sm:right-4 max-w-4xl mx-auto z-40">
-        <div className="bg-[#1C2C20] text-white rounded-2xl sm:rounded-full px-4 sm:px-6 py-3 shadow-2xl flex items-center justify-between gap-3 border border-emerald-950/40 backdrop-blur-md">
+      {/* ── FIXED BOTTOM CHECKOUT BAR (Mobile Optimized & Sleek) ── */}
+      <aside aria-label="Order Checkout Bar" className="fixed bottom-2.5 sm:bottom-4 left-2.5 sm:left-4 right-2.5 sm:right-4 max-w-4xl mx-auto z-40">
+        <div className="bg-[#1C2C20]/95 sm:bg-[#1C2C20] text-white rounded-2xl sm:rounded-full px-3.5 sm:px-6 py-2 sm:py-3 shadow-xl sm:shadow-2xl flex items-center justify-between gap-2.5 sm:gap-4 border border-white/10 sm:border-emerald-950/40 backdrop-blur-md">
           {/* Left: Total Amount */}
-          <div className="min-w-0">
-            <span className="text-[10px] uppercase font-bold text-white/70 block leading-tight">
-              Total
-            </span>
-            <span className="font-serif text-xl sm:text-2xl font-black text-white leading-tight block">
-              {formatPrice(total)}
-            </span>
-            <span className="text-[9.5px] text-white/60 block leading-none">
-              Inclusive of all taxes
+          <div className="min-w-0 shrink-0">
+            <div className="flex items-baseline gap-1.5">
+              <span className="text-[9px] uppercase font-bold text-white/70 tracking-wider">
+                Total
+              </span>
+              <span className="font-serif text-lg sm:text-2xl font-black text-white leading-tight">
+                {formatPrice(total)}
+              </span>
+            </div>
+            <span className="text-[9px] text-white/60 block leading-none truncate">
+              Incl. all taxes
             </span>
           </div>
 
           {/* Vertical Separator */}
-          <div className="h-8 w-px bg-white/20 hidden sm:block shrink-0" />
+          <div className="h-7 w-px bg-white/20 hidden sm:block shrink-0" />
 
           {/* Right: Pay Now Button with Lock & Circular Arrow */}
           <button
             type="button"
             onClick={() => handleSubmit()}
             disabled={submitting}
-            className="flex-1 sm:flex-initial flex items-center justify-between sm:justify-start gap-3 rounded-full bg-[#293B2D] hover:bg-[#344D3A] active:bg-[#1E2D21] border border-white/10 px-4 sm:px-6 py-2.5 transition-all disabled:opacity-60 disabled:cursor-not-allowed cursor-pointer group shadow-inner"
+            className="flex-1 sm:flex-initial flex items-center justify-between sm:justify-start gap-2 sm:gap-3 rounded-full bg-[#293B2D] hover:bg-[#344D3A] active:bg-[#1E2D21] active:scale-[0.98] border border-white/10 px-3 sm:px-5 py-1.5 sm:py-2.5 transition-all disabled:opacity-60 disabled:cursor-not-allowed cursor-pointer group shadow-inner min-h-[42px] sm:min-h-0"
           >
-            <div className="flex items-center gap-2.5">
-              <Lock className="h-4 w-4 text-white shrink-0" />
+            <div className="flex items-center gap-2">
+              <Lock className="h-3.5 w-3.5 text-white/90 shrink-0" />
               <div className="text-left">
-                <p className="text-xs sm:text-sm font-bold text-white leading-tight">
-                  {submitting ? "Opening Payment Gateway..." : "Pay Now (Razorpay)"}
+                <p className="text-xs sm:text-sm font-bold text-white leading-tight flex items-center gap-1.5">
+                  <span>{submitting ? "Opening Gateway..." : "Pay Now"}</span>
+                  <span className="hidden sm:inline text-[11px] text-white/80 font-normal">
+                    (Razorpay)
+                  </span>
                 </p>
-                <p className="text-[9.5px] text-white/70 leading-none">
-                  UPI, Cards, Net Banking &amp; more
+                <p className="text-[9px] text-white/70 leading-none hidden min-[360px]:block">
+                  UPI, Cards &amp; more
                 </p>
               </div>
             </div>
 
-            <div className="w-8 h-8 rounded-full bg-white text-[#1C2C20] flex items-center justify-center shrink-0 group-hover:translate-x-0.5 transition-transform shadow-sm">
+            <div className="w-7 h-7 sm:w-8 sm:h-8 rounded-full bg-white text-[#1C2C20] flex items-center justify-center shrink-0 group-hover:translate-x-0.5 transition-transform shadow-sm">
               {submitting ? (
-                <Loader2 className="h-4 w-4 animate-spin text-[#1C2C20]" />
+                <Loader2 className="h-3.5 w-3.5 sm:h-4 sm:w-4 animate-spin text-[#1C2C20]" />
               ) : (
-                <ArrowRight className="h-4 w-4 text-[#1C2C20]" />
+                <ArrowRight className="h-3.5 w-3.5 sm:h-4 sm:w-4 text-[#1C2C20]" />
               )}
             </div>
           </button>

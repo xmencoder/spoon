@@ -23,6 +23,7 @@ import {
   Clock,
   Sparkles,
   Gift,
+  Tag,
   ShieldCheck,
   Calendar,
   Download,
@@ -63,6 +64,8 @@ interface ReceiptData {
   hasGiftNote?: boolean;
   giftNote?: string;
   giftNoteFee?: number;
+  couponCode?: string | null;
+  discountAmount?: number;
   total: number;
   whatsappUrl?: string;
   restaurantName?: string;
@@ -608,6 +611,16 @@ export default function OrderSuccessReceiptPage() {
                   <span className="font-bold">
                     +{formatPrice(receipt.giftNoteFee || 40)}
                   </span>
+                </div>
+              )}
+
+              {receipt.discountAmount != null && receipt.discountAmount > 0 && (
+                <div className="flex justify-between text-emerald-800 font-bold bg-emerald-50/60 p-2 rounded-xl border border-emerald-200">
+                  <span className="flex items-center gap-1.5">
+                    <Tag className="w-3.5 h-3.5 text-emerald-600" />
+                    <span>Coupon Discount {receipt.couponCode ? `(${receipt.couponCode})` : ""}</span>
+                  </span>
+                  <span>-{formatPrice(receipt.discountAmount)}</span>
                 </div>
               )}
 

@@ -4,9 +4,10 @@ import React, { useState, useEffect } from "react";
 import Link from "next/link";
 import Image from "next/image";
 import { usePathname } from "next/navigation";
-import { ShoppingCart } from "lucide-react";
+import { ShoppingCart, Search } from "lucide-react";
 
 import { useCart, DEFAULT_RESTAURANT_SLUG } from "@/lib/store/CartContext";
+import { GlobalSearchModal } from "@/components/search/GlobalSearchModal";
 
 interface HeaderProps {
   cartCount?: number;
@@ -15,7 +16,21 @@ interface HeaderProps {
 export function Header({ cartCount: initialCartCount }: HeaderProps) {
   const { totalItems, openCartDrawer, restaurantSlug } = useCart();
   const [isBouncing, setIsBouncing] = useState(false);
+  const [isSearchOpen, setIsSearchOpen] = useState(false);
   const pathname = usePathname();
+
+  // Keyboard shortcut listener (Cmd+K or Ctrl+K) to open search
+  useEffect(() => {
+    const handleKeyDown = (e: KeyboardEvent) => {
+      if ((e.metaKey || e.ctrlKey) && e.key === "k") {
+        e.preventDefault();
+        setIsSearchOpen((prev) => !prev);
+      }
+    };
+
+    window.addEventListener("keydown", handleKeyDown);
+    return () => window.removeEventListener("keydown", handleKeyDown);
+  }, []);
 
   useEffect(() => {
     const handleFlyCompleted = () => {
@@ -91,14 +106,6 @@ export function Header({ cartCount: initialCartCount }: HeaderProps) {
                 }`}
               />
             </Link>
-
-
-            <Link
-              href="/#founders-note"
-              className="text-[#F0E7D8] hover:text-white transition-colors duration-200 hidden sm:inline"
-            >
-              Our Story
-            </Link>
           </nav>
 
           {/* ── CENTER LOGO (mostly inside navbar, just a tiny bit peeking out) ── */}
@@ -116,8 +123,21 @@ export function Header({ cartCount: initialCartCount }: HeaderProps) {
             </Link>
           </div>
 
-          {/* ── RIGHT ACTIONS: CART ── */}
-          <div className="flex items-center gap-3.5 sm:gap-6 text-xs sm:text-sm font-serif">
+          {/* ── RIGHT ACTIONS: SEARCH & CART ── */}
+          <div className="flex items-center gap-2 sm:gap-4 text-xs sm:text-sm font-serif">
+            {/* Search Icon (Always accessible on all screen sizes) */}
+            <button
+              type="button"
+              onClick={() => setIsSearchOpen(true)}
+              className="p-1.5 text-[#E6DBC9] hover:text-white hover:bg-white/10 transition-all duration-200 flex items-center justify-center cursor-pointer group rounded-full"
+              aria-label="Search bakery items"
+              title="Search treats (Cmd+K)"
+            >
+              <Search
+                className="w-5 h-5 text-[#EAE0D1] group-hover:text-white transition-colors"
+                strokeWidth={1.75}
+              />
+            </button>
 
             <Link
               id="navbar-cart-icon"
@@ -187,6 +207,12 @@ export function Header({ cartCount: initialCartCount }: HeaderProps) {
           </div>
         </div>
       </a>
+
+      {/* Global Live Search Modal */}
+      <GlobalSearchModal
+        isOpen={isSearchOpen}
+        onClose={() => setIsSearchOpen(false)}
+      />
     </header>
   );
 }
