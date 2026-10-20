@@ -1,12 +1,1 @@
-[
-  {
-    "id": "coupon-welcome10",
-    "code": "WELCOME10",
-    "discountPercent": 10,
-    "minOrderAmount": 499,
-    "isActive": true,
-    "description": "Get 10% off on your order above ₹499",
-    "createdAt": "2026-10-20T00:00:00.000Z",
-    "updatedAt": "2026-10-20T00:00:00.000Z"
-  }
-]
+[]

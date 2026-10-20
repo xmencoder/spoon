@@ -77,6 +77,11 @@ export function Footer() {
                   <span>Bulk Orders & Gifting</span>
                 </Link>
               </li>
+              <li>
+                <Link href="/return-policy" className="hover:text-[#C26B59] transition-colors">
+                  Return &amp; Exchange Policy
+                </Link>
+              </li>
             </ul>
           </div>
 
@@ -156,9 +161,16 @@ export function Footer() {
           <div className="h-[1px] flex-1 bg-gradient-to-l from-transparent via-[#91885D]/40 to-[#91885D]/40" />
         </div>
 
-        {/* Copyright */}
-        <div className="mt-6 text-center text-xs text-[#4D4537]">
-          &copy; 2025 The Indulgent Spoon. All rights reserved.
+        {/* Copyright & Legal Links */}
+        <div className="mt-6 flex flex-col sm:flex-row items-center justify-center gap-2 sm:gap-4 text-xs text-[#4D4537]">
+          <span>&copy; {new Date().getFullYear()} The Indulgent Spoon. All rights reserved.</span>
+          <span className="hidden sm:inline opacity-40">•</span>
+          <Link
+            href="/return-policy"
+            className="hover:text-[#C26B59] transition-colors underline-offset-4 hover:underline font-medium"
+          >
+            Return &amp; Exchange Policy
+          </Link>
         </div>
       </div>
     </footer>
